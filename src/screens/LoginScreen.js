@@ -13,7 +13,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../services/api';
 
-export default function LoginScreen({ navigation }) {
+export default function LoginScreen({ navigation, onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,17 +30,20 @@ export default function LoginScreen({ navigation }) {
 
       if (data.user.role !== 'technician') {
         Alert.alert('Access Denied', 'This app is only for technicians');
+        setLoading(false);
         return;
       }
 
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
 
-      // Reset navigation to Home
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
+      // Notify App.js that login was successful
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
+
+      // Navigate to Home
+      navigation.navigate('Home');
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert(

@@ -49,41 +49,37 @@ export default function App() {
           },
         }}
       >
-        {!isAuthenticated ? (
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{ headerShown: false }}
-          />
-        ) : (
-          <>
-            <Stack.Screen
-              name="Home"
-              component={HomeScreen}
-              options={{ title: 'SEMIX Technician' }}
-            />
-            <Stack.Screen
-              name="Estimates"
-              component={EstimatesScreen}
-              options={{ title: 'My Estimates' }}
-            />
-            <Stack.Screen
-              name="EstimateDetail"
-              component={EstimateDetailScreen}
-              options={{ title: 'Estimate Details' }}
-            />
-            <Stack.Screen
-              name="Salary"
-              component={SalaryScreen}
-              options={{ title: 'Salary Portal' }}
-            />
-            <Stack.Screen
-              name="Receipts"
-              component={ReceiptsScreen}
-              options={{ title: 'Submit Receipt' }}
-            />
-          </>
-        )}
+        <Stack.Screen
+          name="Login"
+          options={{ headerShown: false }}
+        >
+          {(props) => <LoginScreen {...props} onLoginSuccess={() => setIsAuthenticated(true)} />}
+        </Stack.Screen>
+        <Stack.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{ title: 'SEMIX Technician' }}
+        />
+        <Stack.Screen
+          name="Estimates"
+          component={EstimatesScreen}
+          options={{ title: 'My Estimates' }}
+        />
+        <Stack.Screen
+          name="EstimateDetail"
+          component={EstimateDetailScreen}
+          options={{ title: 'Estimate Details' }}
+        />
+        <Stack.Screen
+          name="Salary"
+          component={SalaryScreen}
+          options={{ title: 'Salary Portal' }}
+        />
+        <Stack.Screen
+          name="Receipts"
+          component={ReceiptsScreen}
+          options={{ title: 'Submit Receipt' }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
