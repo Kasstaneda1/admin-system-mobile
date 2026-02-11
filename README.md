@@ -2,7 +2,7 @@
 
 React Native mobile application for SEMIX CORP technicians built with Expo.
 
-## 📱 Development Status: **PHASE 1 - BASIC SETUP COMPLETE**
+## 📱 Development Status: **PHASE 2 - PARTS FEATURE COMPLETE**
 
 ### ✅ Completed (Feb 10, 2026)
 
@@ -14,39 +14,70 @@ React Native mobile application for SEMIX CORP technicians built with Expo.
 
 - **Authentication**
   - ✅ Login screen with SEMIX branding
-  - ✅ JWT token management
+  - ✅ JWT token management with `fullName` field
   - ✅ AsyncStorage integration
   - ✅ Auto-login on app restart
   - ✅ Fixed API endpoint (`/api/login`)
 
-- **UI Screens Created**
-  - ✅ LoginScreen - functional
-  - ✅ HomeScreen - functional
-  - ✅ EstimatesScreen - UI ready
-  - ✅ EstimateDetailScreen - UI ready
-  - ✅ SalaryScreen - UI ready
-  - ✅ ReceiptsScreen - UI ready
+- **Parts Feature (COMPLETE)** 🎉
+  - ✅ PartsScreen with three status tabs:
+    - 🚚 In Transit
+    - 📍 Arrived
+    - 📋 On Board
+  - ✅ Display CLIENT and NAME PARTS for each estimate
+  - ✅ Part number and date display
+  - ✅ Comments modal on part tap
+  - ✅ Pull-to-refresh functionality
+  - ✅ Filter by current technician only
+  - ✅ Backend endpoint: `GET /api/my-parts?status=X`
+  - ✅ Comments endpoint: `GET /api/estimates/:id/comments`
+
+- **UI Screens**
+  - ✅ LoginScreen - fully functional
+  - ✅ HomeScreen - fully functional with 6 menu sections
+  - ✅ PartsScreen - **fully functional** ⭐
+  - ✅ SalaryScreen - UI ready (backend pending)
+  - ✅ CommunicationScreen - placeholder
+  - ✅ PaymentsScreen - placeholder
+  - ✅ ReceiptsScreen - placeholder
+  - ✅ UnpaidScreen - placeholder
+
+### 🔧 Technical Fixes Applied
+
+1. **Status Format**: Fixed status values from "In Transit" to `in_transit` (database format)
+2. **Technician Matching**: Added support for matching by `technician_id`, `technician2_id`, or `fullName`
+3. **JWT Token**: Added `fullName` field to JWT payload for proper technician identification
+4. **Comment Fields**: Fixed comment display to use correct database fields (`user_name`, `comment_text`)
 
 ### ⚠️ Known Issues
 
 1. **API Endpoints Not Ready**
-   - Estimates: Using `/api/estimates` (returns ALL estimates, not filtered by technician)
    - Salary: Returns mock data (backend endpoint doesn't exist)
    - Payments: Returns empty array (backend endpoint doesn't exist)
    - Receipts: Mock success response (backend endpoint doesn't exist)
+   - Communication: No backend implementation yet
+   - Unpaid: No backend implementation yet
 
 2. **Navigation Warning** (Development only, won't affect production)
    - Console shows RESET action warning
    - Does not impact functionality
 
-### 🚧 Next Phase: Backend API Implementation
+### 🚧 Next Phase: Salary & Payments Implementation
 
 **Required Backend Endpoints:**
 ```
-GET  /api/my-estimates             - Get current technician's estimates only
-GET  /api/my-salary                - Calculate salary (params: start_date, end_date)
-GET  /api/my-payments              - Get payment history
-POST /api/my-receipt               - Upload receipt (multipart/form-data)
+GET  /api/my-salary                - Calculate salary for current technician
+                                     Params: start_date, end_date
+                                     Returns: salary calculations by work status
+
+GET  /api/my-payments              - Get payment history for current technician
+                                     Returns: list of payments with dates and amounts
+
+POST /api/my-receipts              - Upload receipt with photo
+                                     Body: multipart/form-data with image file
+
+GET  /api/my-unpaid                - Get unpaid records for current technician
+                                     Returns: list of unpaid primary_data records
 ```
 
 ## Features (Planned)
@@ -106,21 +137,23 @@ Make sure you have Android Studio installed and an emulator running.
 
 ```
 admin-system-mobile/
-├── App.js                 # Main app entry with navigation
-├── app.json               # Expo configuration
-├── package.json           # Dependencies
+├── App.js                       # Main app entry with navigation
+├── app.json                     # Expo configuration
+├── package.json                 # Dependencies
 ├── src/
-│   ├── screens/           # All screen components
-│   │   ├── LoginScreen.js
-│   │   ├── HomeScreen.js
-│   │   ├── EstimatesScreen.js
-│   │   ├── EstimateDetailScreen.js
-│   │   ├── SalaryScreen.js
-│   │   └── ReceiptsScreen.js
+│   ├── screens/                 # All screen components
+│   │   ├── LoginScreen.js       # Authentication
+│   │   ├── HomeScreen.js        # Main menu (6 sections)
+│   │   ├── PartsScreen.js       # ⭐ Parts tracking with tabs & comments
+│   │   ├── SalaryScreen.js      # Salary calculations (UI ready)
+│   │   ├── CommunicationScreen.js  # Messages (placeholder)
+│   │   ├── PaymentsScreen.js    # Payment history (placeholder)
+│   │   ├── ReceiptsScreen.js    # Receipt upload (placeholder)
+│   │   └── UnpaidScreen.js      # Unpaid records (placeholder)
 │   ├── services/
-│   │   └── api.js         # API service with Railway backend
-│   └── components/        # Reusable components (future)
-└── assets/                # App icons and splash screens
+│   │   └── api.js               # API service with Railway backend
+│   └── components/              # Reusable components (future)
+└── assets/                      # App icons and splash screens
 ```
 
 ## API Configuration
