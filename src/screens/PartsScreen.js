@@ -27,15 +27,8 @@ export default function PartsScreen() {
   const loadParts = async () => {
     try {
       setLoading(true);
-      // Convert tab name to status name for API
-      const statusMap = {
-        'in_transit': 'In Transit',
-        'arrived': 'Arrived',
-        'on_board': 'On Board',
-      };
-      const status = statusMap[activeTab];
-
-      const data = await estimatesAPI.getPartsByStatus(status);
+      // Use the tab name directly as it matches database format (in_transit, arrived, on_board)
+      const data = await estimatesAPI.getPartsByStatus(activeTab);
       setParts(data);
     } catch (error) {
       console.error('Failed to load parts:', error);
