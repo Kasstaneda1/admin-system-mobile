@@ -6,10 +6,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
-import EstimatesScreen from './src/screens/EstimatesScreen';
-import EstimateDetailScreen from './src/screens/EstimateDetailScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
+import PartsScreen from './src/screens/PartsScreen';
+import CommunicationScreen from './src/screens/CommunicationScreen';
+import PaymentsScreen from './src/screens/PaymentsScreen';
 import ReceiptsScreen from './src/screens/ReceiptsScreen';
+import UnpaidScreen from './src/screens/UnpaidScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -61,24 +63,34 @@ export default function App() {
           options={{ title: 'SEMIX Technician' }}
         />
         <Stack.Screen
-          name="Estimates"
-          component={EstimatesScreen}
-          options={{ title: 'My Estimates' }}
-        />
-        <Stack.Screen
-          name="EstimateDetail"
-          component={EstimateDetailScreen}
-          options={{ title: 'Estimate Details' }}
-        />
-        <Stack.Screen
           name="Salary"
           component={SalaryScreen}
-          options={{ title: 'Salary Portal' }}
+          options={{ title: 'Salary' }}
+        />
+        <Stack.Screen
+          name="Parts"
+          component={PartsScreen}
+          options={{ title: 'Parts' }}
+        />
+        <Stack.Screen
+          name="Communication"
+          component={CommunicationScreen}
+          options={{ title: 'Communication' }}
+        />
+        <Stack.Screen
+          name="Payments"
+          component={PaymentsScreen}
+          options={{ title: 'Payments' }}
         />
         <Stack.Screen
           name="Receipts"
           component={ReceiptsScreen}
-          options={{ title: 'Submit Receipt' }}
+          options={{ title: 'Receipts' }}
+        />
+        <Stack.Screen
+          name="Unpaid"
+          component={UnpaidScreen}
+          options={{ title: 'Unpaid Records' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

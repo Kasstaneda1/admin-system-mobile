@@ -72,6 +72,20 @@ export const estimatesAPI = {
     const response = await api.put(`/api/estimates/${id}`, data);
     return response.data;
   },
+
+  // Parts - get estimates by status for current technician
+  getPartsByStatus: async (status) => {
+    const response = await api.get('/api/my-parts', {
+      params: { status }
+    });
+    return response.data;
+  },
+
+  // Get comments for an estimate
+  getEstimateComments: async (estimateId) => {
+    const response = await api.get(`/api/estimates/${estimateId}/comments`);
+    return response.data;
+  },
 };
 
 // Salary API
