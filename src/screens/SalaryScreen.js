@@ -129,7 +129,7 @@ export default function SalaryScreen() {
                 <View style={styles.toPayCard}>
                   <Text style={styles.toPayLabel}>To Pay</Text>
                   <Text style={styles.toPayAmount}>
-                    ${parseFloat(monthData.totalSalary || 0).toFixed(2)}
+                    ${parseFloat(monthData.toPayTotal || 0).toFixed(2)}
                   </Text>
                 </View>
 
@@ -137,22 +137,22 @@ export default function SalaryScreen() {
                 <View style={styles.statsGrid}>
                   <StatCard
                     label="Total Earned"
-                    value={`$${parseFloat(monthData.totalEarned || 0).toFixed(2)}`}
+                    value={`$${parseFloat(monthData.monthSummary?.earned || 0).toFixed(2)}`}
                     color="#10b981"
                   />
                   <StatCard
                     label="Cash"
-                    value={`$${parseFloat(monthData.cash || 0).toFixed(2)}`}
+                    value={`$${parseFloat(monthData.monthSummary?.cash || 0).toFixed(2)}`}
                     color="#14B8A6"
                   />
                   <StatCard
                     label="Checks"
-                    value={`$${parseFloat(monthData.checks || 0).toFixed(2)}`}
+                    value={`$${parseFloat(monthData.monthSummary?.checks || 0).toFixed(2)}`}
                     color="#f59e0b"
                   />
                   <StatCard
-                    label="Debt"
-                    value={`$${parseFloat(monthData.totalDebt || 0).toFixed(2)}`}
+                    label="Unpaid"
+                    value={`$${parseFloat(monthData.unpaid || 0).toFixed(2)}`}
                     color="#ef4444"
                   />
                 </View>
@@ -160,10 +160,6 @@ export default function SalaryScreen() {
                 {/* Additional Info */}
                 <View style={styles.infoCard}>
                   <InfoRow label="Records" value={monthData.recordsCount || 0} />
-                  <InfoRow
-                    label="Already Paid"
-                    value={`$${parseFloat(monthData.totalPaid || 0).toFixed(2)}`}
-                  />
                 </View>
               </ScrollView>
             ) : (
