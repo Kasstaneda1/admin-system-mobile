@@ -89,23 +89,17 @@ export const estimatesAPI = {
 };
 
 // Salary API
-// TODO: Backend needs new endpoints for mobile app:
-// - GET /api/my-salary?start_date=X&end_date=Y (returns current user's salary)
-// - GET /api/my-payments (returns current user's payments)
 export const salaryAPI = {
   getSalaryData: async (startDate, endDate) => {
-    // Temporary: return mock data until backend endpoints are created
-    return {
-      totalSalary: 0,
-      totalEarned: 0,
-      totalDebt: 0,
-      totalPaid: 0,
-    };
+    const response = await api.get('/api/technicians/salary', {
+      params: { start_date: startDate, end_date: endDate },
+    });
+    return response.data;
   },
 
   getPayments: async () => {
-    // Temporary: return empty array until backend endpoints are created
-    return [];
+    const response = await api.get('/api/technicians/payments');
+    return response.data;
   },
 };
 
