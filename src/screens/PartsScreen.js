@@ -102,12 +102,12 @@ export default function PartsScreen() {
               selectedPart.comments.map((comment, index) => (
                 <View key={index} style={styles.commentCard}>
                   <View style={styles.commentHeader}>
-                    <Text style={styles.commentAuthor}>{comment.author || 'Unknown'}</Text>
+                    <Text style={styles.commentAuthor}>{comment.user_name || 'Unknown'}</Text>
                     <Text style={styles.commentDate}>
                       {comment.created_at ? new Date(comment.created_at).toLocaleString() : ''}
                     </Text>
                   </View>
-                  <Text style={styles.commentText}>{comment.text || comment.comment}</Text>
+                  <Text style={styles.commentText}>{comment.comment_text || 'No comment text'}</Text>
                 </View>
               ))
             ) : (
