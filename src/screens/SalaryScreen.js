@@ -393,6 +393,42 @@ export default function SalaryScreen() {
                     <Text style={styles.detailLabel}>Payment Status:</Text>
                     <Text style={styles.detailValue}>{selectedRecord.payment_status || 'N/A'}</Text>
                   </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Amount:</Text>
+                    <Text style={styles.detailValue}>
+                      ${parseFloat(selectedRecord.amount || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Tax:</Text>
+                    <Text style={styles.detailValue}>
+                      ${parseFloat(selectedRecord.tax || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Installation:</Text>
+                    <Text style={styles.detailValue}>
+                      ${parseFloat(selectedRecord.installation || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Parts:</Text>
+                    <Text style={styles.detailValue}>
+                      ${parseFloat(selectedRecord.parts || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>2nd Tech:</Text>
+                    <Text style={styles.detailValue}>
+                      ${parseFloat(selectedRecord.second_tech || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Tips:</Text>
+                    <Text style={styles.detailValue}>
+                      ${parseFloat(selectedRecord.tips || 0).toFixed(2)}
+                    </Text>
+                  </View>
                 </View>
 
                 {/* Your Earnings Section */}
@@ -412,20 +448,6 @@ export default function SalaryScreen() {
                       ${parseFloat(selectedRecord.cash_received || 0).toFixed(2)}
                     </Text>
                   </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Check Amount:</Text>
-                    <Text style={styles.detailValue}>
-                      ${parseFloat(selectedRecord.check_amount || 0).toFixed(2)}
-                    </Text>
-                  </View>
-                  {selectedRecord.amount > 0 && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Total Amount:</Text>
-                      <Text style={styles.detailValue}>
-                        ${parseFloat(selectedRecord.amount || 0).toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
                 </View>
               </ScrollView>
             )}
