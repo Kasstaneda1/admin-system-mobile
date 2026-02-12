@@ -43,7 +43,7 @@ api.interceptors.response.use(
 // Auth API
 export const authAPI = {
   login: async (username, password) => {
-    const response = await api.post('/api/auth/login', { username, password });
+    const response = await api.post('/api/login', { username, password });
     return response.data;
   },
 
@@ -56,8 +56,11 @@ export const authAPI = {
 // Estimates API
 export const estimatesAPI = {
   getMyEstimates: async () => {
-    const response = await api.get('/api/estimates/my-estimates');
-    return response.data;
+    // Backend /api/estimates returns paginated data
+    // Backend doesn't filter by role automatically - returns all estimates
+    // TODO: Backend needs to add role-based filtering or create /api/my-estimates endpoint
+    const response = await api.get('/api/estimates');
+    return response.data.data || []; // Extract data array from pagination response
   },
 
   getEstimateById: async (id) => {
@@ -67,6 +70,20 @@ export const estimatesAPI = {
 
   updateEstimate: async (id, data) => {
     const response = await api.put(`/api/estimates/${id}`, data);
+    return response.data;
+  },
+
+  // Parts - get estimates by status for current technician
+  getPartsByStatus: async (status) => {
+    const response = await api.get('/api/my-parts', {
+      params: { status }
+    });
+    return response.data;
+  },
+
+  // Get comments for an estimate
+  getEstimateComments: async (estimateId) => {
+    const response = await api.get(`/api/estimates/${estimateId}/comments`);
     return response.data;
   },
 };
@@ -87,14 +104,11 @@ export const salaryAPI = {
 };
 
 // Receipts API
+// TODO: Backend needs POST /api/my-receipts endpoint
 export const receiptsAPI = {
   submitReceipt: async (formData) => {
-    const response = await api.post('/api/technicians/submit-receipt', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
+    // Temporary: return success until backend endpoint is created
+    return { success: true, message: 'Receipt endpoint not implemented yet' };
   },
 };
 

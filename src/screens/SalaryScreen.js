@@ -6,169 +6,190 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  RefreshControl,
+  Modal,
 } from 'react-native';
 import { salaryAPI } from '../services/api';
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const MONTH_SHORTS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
 export default function SalaryScreen() {
-  const [salaryData, setSalaryData] = useState(null);
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState('current_month');
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [monthData, setMonthData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, [selectedPeriod]);
+  // Generate array of years (current year ± 2 years)
+  const years = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
 
-  const loadData = async () => {
+  const handleMonthPress = async (monthIndex) => {
+    setSelectedMonth(monthIndex);
+    setLoading(true);
+    setShowModal(true);
+
     try {
-      const { startDate, endDate } = getDateRange(selectedPeriod);
+      // Calculate date range for selected month
+      const startDate = new Date(selectedYear, monthIndex, 1);
+      const endDate = new Date(selectedYear, monthIndex + 1, 0);
 
-      const [salaryResponse, paymentsResponse] = await Promise.all([
-        salaryAPI.getSalaryData(startDate, endDate),
-        salaryAPI.getPayments(),
-      ]);
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
 
-      setSalaryData(salaryResponse);
-      setPayments(paymentsResponse);
+      const data = await salaryAPI.getSalaryData(startDateStr, endDateStr);
+      setMonthData(data);
     } catch (error) {
-      console.error('Failed to load salary data:', error);
+      console.error('Failed to load month data:', error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  const getDateRange = (period) => {
-    const now = new Date();
-    let startDate, endDate;
-
-    switch (period) {
-      case 'current_month':
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        break;
-      case 'last_month':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-        break;
-      case 'current_year':
-        startDate = new Date(now.getFullYear(), 0, 1);
-        endDate = new Date(now.getFullYear(), 11, 31);
-        break;
-      default:
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    }
-
-    return {
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-    };
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedMonth(null);
+    setMonthData(null);
   };
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadData();
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#14B8A6" />
-      </View>
-    );
-  }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={['#14B8A6']}
-        />
-      }
-    >
-      {/* Period Selector */}
-      <View style={styles.periodSelector}>
-        <TouchableOpacity
-          style={[styles.periodButton, selectedPeriod === 'current_month' && styles.periodButtonActive]}
-          onPress={() => setSelectedPeriod('current_month')}
-        >
-          <Text style={[styles.periodText, selectedPeriod === 'current_month' && styles.periodTextActive]}>
-            This Month
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.periodButton, selectedPeriod === 'last_month' && styles.periodButtonActive]}
-          onPress={() => setSelectedPeriod('last_month')}
-        >
-          <Text style={[styles.periodText, selectedPeriod === 'last_month' && styles.periodTextActive]}>
-            Last Month
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.periodButton, selectedPeriod === 'current_year' && styles.periodButtonActive]}
-          onPress={() => setSelectedPeriod('current_year')}
-        >
-          <Text style={[styles.periodText, selectedPeriod === 'current_year' && styles.periodTextActive]}>
-            This Year
-          </Text>
-        </TouchableOpacity>
+    <View style={styles.container}>
+      {/* Year Selector */}
+      <View style={styles.yearSelector}>
+        {years.map((year) => (
+          <TouchableOpacity
+            key={year}
+            style={[
+              styles.yearButton,
+              selectedYear === year && styles.yearButtonActive,
+            ]}
+            onPress={() => setSelectedYear(year)}
+          >
+            <Text
+              style={[
+                styles.yearText,
+                selectedYear === year && styles.yearTextActive,
+              ]}
+            >
+              {year}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Salary Summary */}
-      {salaryData && (
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Total Salary</Text>
-          <Text style={styles.summaryAmount}>
-            ${parseFloat(salaryData.totalSalary || 0).toFixed(2)}
-          </Text>
-
-          <View style={styles.summaryDetails}>
-            <DetailRow label="Earned" value={`$${parseFloat(salaryData.totalEarned || 0).toFixed(2)}`} />
-            <DetailRow label="Debt" value={`$${parseFloat(salaryData.totalDebt || 0).toFixed(2)}`} color="#ef4444" />
-            <DetailRow label="Paid" value={`$${parseFloat(salaryData.totalPaid || 0).toFixed(2)}`} color="#10b981" />
-          </View>
-        </View>
-      )}
-
-      {/* Recent Payments */}
-      {payments.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Payments</Text>
-          {payments.slice(0, 10).map((payment) => (
-            <View key={payment.id} style={styles.paymentCard}>
-              <View style={styles.paymentHeader}>
-                <Text style={styles.paymentAmount}>
-                  ${parseFloat(payment.amount).toFixed(2)}
-                </Text>
-                <Text style={styles.paymentDate}>
-                  {new Date(payment.payment_date).toLocaleDateString()}
-                </Text>
-              </View>
-              {payment.payment_method && (
-                <Text style={styles.paymentMethod}>{payment.payment_method}</Text>
-              )}
-              {payment.notes && (
-                <Text style={styles.paymentNotes}>{payment.notes}</Text>
-              )}
-            </View>
+      {/* Month Calendar Grid */}
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.calendarGrid}>
+          {MONTHS.map((month, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.monthCard}
+              onPress={() => handleMonthPress(index)}
+            >
+              <Text style={styles.monthName}>{MONTH_SHORTS[index]}</Text>
+              <Text style={styles.monthFullName}>{month}</Text>
+            </TouchableOpacity>
           ))}
         </View>
-      )}
-    </ScrollView>
+      </ScrollView>
+
+      {/* Month Details Modal */}
+      <Modal
+        visible={showModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {selectedMonth !== null ? MONTHS[selectedMonth] : ''} {selectedYear}
+              </Text>
+              <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#14B8A6" />
+              </View>
+            ) : monthData ? (
+              <ScrollView style={styles.modalBody}>
+                {/* To Pay - Main highlight */}
+                <View style={styles.toPayCard}>
+                  <Text style={styles.toPayLabel}>To Pay</Text>
+                  <Text style={styles.toPayAmount}>
+                    ${parseFloat(monthData.toPayTotal || 0).toFixed(2)}
+                  </Text>
+                </View>
+
+                {/* Statistics Grid */}
+                <View style={styles.statsGrid}>
+                  <StatCard
+                    label="Total Earned"
+                    value={`$${parseFloat(monthData.monthSummary?.earned || 0).toFixed(2)}`}
+                    color="#10b981"
+                  />
+                  <StatCard
+                    label="Cash"
+                    value={`$${parseFloat(monthData.monthSummary?.cash || 0).toFixed(2)}`}
+                    color="#14B8A6"
+                  />
+                  <StatCard
+                    label="Checks"
+                    value={`$${parseFloat(monthData.monthSummary?.checks || 0).toFixed(2)}`}
+                    color="#f59e0b"
+                  />
+                  <StatCard
+                    label="Unpaid"
+                    value={`$${parseFloat(monthData.unpaid || 0).toFixed(2)}`}
+                    color="#ef4444"
+                  />
+                </View>
+
+                {/* Additional Info */}
+                <View style={styles.infoCard}>
+                  <InfoRow label="Records" value={monthData.recordsCount || 0} />
+                </View>
+              </ScrollView>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No data available</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
-function DetailRow({ label, value, color = '#333' }) {
+// Stat Card Component
+function StatCard({ label, value, color }) {
   return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailLabel}>{label}:</Text>
-      <Text style={[styles.detailValue, { color }]}>{value}</Text>
+    <View style={styles.statCard}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
+// Info Row Component
+function InfoRow({ label, value }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}:</Text>
+      <Text style={styles.infoValue}>{value}</Text>
     </View>
   );
 }
@@ -178,116 +199,180 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  periodSelector: {
+  yearSelector: {
     flexDirection: 'row',
     padding: 15,
     gap: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5e5',
   },
-  periodButton: {
+  yearButton: {
     flex: 1,
     padding: 12,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
     borderRadius: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
   },
-  periodButtonActive: {
+  yearButtonActive: {
     backgroundColor: '#14B8A6',
-    borderColor: '#14B8A6',
   },
-  periodText: {
-    fontSize: 14,
+  yearText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#666',
-    fontWeight: '500',
   },
-  periodTextActive: {
+  yearTextActive: {
     color: '#fff',
   },
-  summaryCard: {
+  scrollView: {
+    flex: 1,
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 10,
+  },
+  monthCard: {
+    width: '31%',
+    margin: '1%',
     backgroundColor: '#fff',
-    margin: 15,
-    marginTop: 0,
-    padding: 20,
     borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  summaryTitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 8,
-  },
-  summaryAmount: {
-    fontSize: 36,
+  monthName: {
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#14B8A6',
-    marginBottom: 20,
+    marginBottom: 5,
   },
-  summaryDetails: {
-    borderTopWidth: 1,
-    borderTopColor: '#e5e5e5',
-    paddingTop: 15,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  detailLabel: {
-    fontSize: 14,
+  monthFullName: {
+    fontSize: 12,
     color: '#666',
   },
-  detailValue: {
-    fontSize: 14,
-    fontWeight: '600',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-  section: {
-    padding: 15,
-    paddingTop: 0,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 15,
-  },
-  paymentCard: {
+  modalContent: {
     backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    minHeight: '50%',
   },
-  paymentHeader: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5e5',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: '#666',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  modalBody: {
+    padding: 20,
+  },
+  toPayCard: {
+    backgroundColor: '#14B8A6',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  toPayLabel: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
     marginBottom: 8,
   },
-  paymentAmount: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#10b981',
+  toPayAmount: {
+    fontSize: 42,
+    fontWeight: 'bold',
+    color: '#fff',
   },
-  paymentDate: {
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 20,
+    gap: 10,
+  },
+  statCard: {
+    width: '48%',
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  statLabel: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  infoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  infoLabel: {
     fontSize: 14,
     color: '#666',
   },
-  paymentMethod: {
+  infoValue: {
     fontSize: 14,
-    color: '#14B8A6',
-    marginBottom: 4,
+    fontWeight: '600',
+    color: '#333',
   },
-  paymentNotes: {
-    fontSize: 12,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
     color: '#999',
   },
 });

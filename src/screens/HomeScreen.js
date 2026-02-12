@@ -51,22 +51,40 @@ export default function HomeScreen({ navigation }) {
 
   const menuItems = [
     {
-      title: 'My Estimates',
-      description: 'View and manage your estimates',
-      icon: '📋',
-      screen: 'Estimates',
-    },
-    {
-      title: 'Salary Portal',
-      description: 'Check your salary and payments',
+      title: 'Salary',
+      description: 'View your salary calculations',
       icon: '💰',
       screen: 'Salary',
     },
     {
-      title: 'Submit Receipt',
-      description: 'Upload receipt for check payments',
+      title: 'Parts',
+      description: 'Parts and inventory',
+      icon: '🔧',
+      screen: 'Parts',
+    },
+    {
+      title: 'Communication',
+      description: 'Messages and notifications',
+      icon: '💬',
+      screen: 'Communication',
+    },
+    {
+      title: 'Payments',
+      description: 'Payment history',
+      icon: '💵',
+      screen: 'Payments',
+    },
+    {
+      title: 'Receipts',
+      description: 'Upload and manage receipts',
       icon: '🧾',
       screen: 'Receipts',
+    },
+    {
+      title: 'Unpaid',
+      description: 'Unpaid records and debts',
+      icon: '📊',
+      screen: 'Unpaid',
     },
   ];
 
