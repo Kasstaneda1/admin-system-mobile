@@ -405,15 +405,16 @@ export default function WarehouseScreen() {
                     </Text>
                   </View>
 
-                  {partDetail.description && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Description</Text>
-                      <Text style={styles.detailValue}>
-                        {partDetail.description}
-                      </Text>
-                    </View>
-                  )}
                 </View>
+
+                {partDetail.description && (
+                  <View style={styles.descriptionBlock}>
+                    <Text style={styles.descriptionIcon}>📝</Text>
+                    <Text style={styles.descriptionText}>
+                      {partDetail.description}
+                    </Text>
+                  </View>
+                )}
 
                 {/* Brands */}
                 {partDetail.brands?.length > 0 && (
@@ -803,6 +804,29 @@ const styles = StyleSheet.create({
     flex: 1.5,
     textAlign: 'right',
   },
+  // Description block
+  descriptionBlock: {
+    marginTop: 16,
+    backgroundColor: '#f0fdfa',
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderLeftWidth: 3,
+    borderLeftColor: '#14B8A6',
+  },
+  descriptionIcon: {
+    fontSize: 16,
+    marginRight: 10,
+    marginTop: 1,
+  },
+  descriptionText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 21,
+  },
+
   // Tags (brands)
   tagsRow: {
     flexDirection: 'row',
