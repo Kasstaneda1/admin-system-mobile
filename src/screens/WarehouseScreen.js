@@ -250,11 +250,6 @@ export default function WarehouseScreen() {
                   {stockLabel}
                 </Text>
               </View>
-              {item.price > 0 && (
-                <Text style={styles.partPrice}>
-                  ${parseFloat(item.price).toFixed(2)}
-                </Text>
-              )}
             </View>
           </View>
 
@@ -410,15 +405,6 @@ export default function WarehouseScreen() {
                     </Text>
                   </View>
 
-                  {partDetail.price > 0 && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Price</Text>
-                      <Text style={[styles.detailValue, styles.detailPrice]}>
-                        ${parseFloat(partDetail.price).toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
-
                   {partDetail.description && (
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Description</Text>
@@ -450,25 +436,6 @@ export default function WarehouseScreen() {
                     {partDetail.part_numbers.map((pn) => (
                       <View key={pn.id} style={styles.partNumberRow}>
                         <Text style={styles.partNumberText}>{pn.number}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Suppliers */}
-                {partDetail.suppliers?.length > 0 && (
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Suppliers</Text>
-                    {partDetail.suppliers.map((s) => (
-                      <View key={s.id} style={styles.supplierRow}>
-                        <Text style={styles.supplierName}>
-                          {s.supplier_name}
-                        </Text>
-                        {s.supplier_url && (
-                          <Text style={styles.supplierUrl} numberOfLines={1}>
-                            {s.supplier_url}
-                          </Text>
-                        )}
                       </View>
                     ))}
                   </View>
@@ -710,11 +677,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  partPrice: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
-  },
   quantityBadge: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -841,12 +803,6 @@ const styles = StyleSheet.create({
     flex: 1.5,
     textAlign: 'right',
   },
-  detailPrice: {
-    color: '#14B8A6',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-
   // Tags (brands)
   tagsRow: {
     flexDirection: 'row',
@@ -878,24 +834,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'monospace',
     color: '#333',
-  },
-
-  // Suppliers
-  supplierRow: {
-    backgroundColor: '#f9fafb',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 6,
-  },
-  supplierName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  supplierUrl: {
-    fontSize: 12,
-    color: '#14B8A6',
-    marginTop: 4,
   },
 
   // Inventory
