@@ -1,196 +1,120 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  Image,
-  ScrollView,
-  ActivityIndicator,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { receiptsAPI } from '../services/api';
 
 export default function ReceiptsScreen() {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [receipts, setReceipts] = useState([]);
+  const [error, setError] = useState(null);
 
-  const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  useEffect(() => {
+    loadReceipts();
+  }, []);
 
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission Required', 'Permission to access camera roll is required!');
-      return;
-    }
+  const loadReceipts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
+      console.log('📋 Loading unsubmitted checks...');
 
-    if (!result.canceled) {
-      setSelectedFile({
-        uri: result.assets[0].uri,
-        type: 'image',
-        name: `receipt_${Date.now()}.jpg`,
+      // Fetch unsubmitted checks
+      const data = await receiptsAPI.getMyReceipts();
+
+      console.log('📋 Unsubmitted checks loaded:', {
+        count: data?.length || 0
       });
+
+      setReceipts(data || []);
+    } catch (err) {
+      console.error('Error loading receipts:', err);
+      setError('Failed to load receipts');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const takePhoto = async () => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+  const renderReceipt = (receipt) => {
+    const date = new Date(receipt.date).toLocaleDateString();
+    const amount = parseFloat(receipt.check_amount || 0).toFixed(2);
 
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission Required', 'Permission to access camera is required!');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setSelectedFile({
-        uri: result.assets[0].uri,
-        type: 'image',
-        name: `receipt_${Date.now()}.jpg`,
-      });
-    }
-  };
-
-  const pickDocument = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ['application/pdf', 'image/*'],
-    });
-
-    if (!result.canceled) {
-      setSelectedFile({
-        uri: result.assets[0].uri,
-        type: result.assets[0].mimeType.startsWith('image') ? 'image' : 'document',
-        name: result.assets[0].name,
-      });
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!selectedFile) {
-      Alert.alert('Error', 'Please select a receipt to upload');
-      return;
-    }
-
-    Alert.alert(
-      'Submit Receipt',
-      'Are you sure you want to submit this receipt?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Submit',
-          onPress: async () => {
-            setUploading(true);
-            try {
-              const formData = new FormData();
-              formData.append('receipt', {
-                uri: selectedFile.uri,
-                type: selectedFile.type === 'image' ? 'image/jpeg' : 'application/pdf',
-                name: selectedFile.name,
-              });
-
-              await receiptsAPI.submitReceipt(formData);
-
-              Alert.alert('Success', 'Receipt submitted successfully');
-              setSelectedFile(null);
-            } catch (error) {
-              console.error('Upload error:', error);
-              Alert.alert(
-                'Upload Failed',
-                error.response?.data?.error || 'Failed to upload receipt'
-              );
-            } finally {
-              setUploading(false);
-            }
-          },
-        },
-      ]
+    return (
+      <View
+        key={receipt.id}
+        style={styles.receiptCard}
+      >
+        <View style={styles.receiptMainRow}>
+          <Text style={styles.receiptDate}>{date}</Text>
+          <Text style={styles.receiptAmount}>${amount}</Text>
+        </View>
+        <Text style={styles.receiptClient}>{receipt.client_name}</Text>
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>Status:</Text>
+          <Text style={styles.statusValue}>{receipt.work_status}</Text>
+        </View>
+      </View>
     );
   };
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#14B8A6" />
+        <Text style={styles.loadingText}>Loading receipts...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
+
+  const totalAmount = receipts.reduce((sum, r) => sum + parseFloat(r.check_amount || 0), 0);
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Upload Receipt for Check Payment</Text>
-        <Text style={styles.description}>
-          Submit a photo or PDF of your receipt to process check payments
-        </Text>
-
-        <View style={styles.buttonGroup}>
-          <TouchableOpacity style={styles.button} onPress={takePhoto}>
-            <Text style={styles.buttonIcon}>📷</Text>
-            <Text style={styles.buttonText}>Take Photo</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.button} onPress={pickImage}>
-            <Text style={styles.buttonIcon}>🖼️</Text>
-            <Text style={styles.buttonText}>Choose from Gallery</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.button} onPress={pickDocument}>
-            <Text style={styles.buttonIcon}>📄</Text>
-            <Text style={styles.buttonText}>Choose Document</Text>
-          </TouchableOpacity>
+        {/* Info Card */}
+        <View style={styles.infoCard}>
+          <Text style={styles.infoIcon}>📋</Text>
+          <Text style={styles.infoTitle}>Unsubmitted Checks</Text>
+          <Text style={styles.infoText}>
+            These are checks that have not been submitted yet. Please submit physical receipts to process payments.
+          </Text>
         </View>
 
-        {selectedFile && (
-          <View style={styles.previewSection}>
-            <Text style={styles.previewTitle}>Selected File:</Text>
-
-            {selectedFile.type === 'image' ? (
-              <Image
-                source={{ uri: selectedFile.uri }}
-                style={styles.previewImage}
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.documentPreview}>
-                <Text style={styles.documentIcon}>📄</Text>
-                <Text style={styles.documentName}>{selectedFile.name}</Text>
-              </View>
-            )}
-
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => setSelectedFile(null)}
-              >
-                <Text style={styles.removeButtonText}>Remove</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.submitButton, uploading && styles.submitButtonDisabled]}
-                onPress={handleSubmit}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Submit Receipt</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+        {/* Summary */}
+        {receipts.length > 0 && (
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>Total Outstanding</Text>
+            <Text style={styles.summaryAmount}>${totalAmount.toFixed(2)}</Text>
+            <Text style={styles.summaryCount}>
+              {receipts.length} {receipts.length === 1 ? 'check' : 'checks'}
+            </Text>
           </View>
         )}
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>ℹ️ Important Information</Text>
-          <Text style={styles.infoText}>
-            • Receipts are required for check payments{'\n'}
-            • Make sure the receipt is clear and readable{'\n'}
-            • Supported formats: JPG, PNG, PDF{'\n'}
-            • Maximum file size: 10MB
-          </Text>
+        {/* Receipts List */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionIcon}>🧾</Text>
+            <Text style={styles.sectionTitle}>Pending Checks</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{receipts.length}</Text>
+            </View>
+          </View>
+
+          {receipts.length > 0 ? (
+            receipts.map(receipt => renderReceipt(receipt))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No unsubmitted checks</Text>
+            </View>
+          )}
         </View>
       </View>
     </ScrollView>
@@ -203,127 +127,178 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   content: {
-    padding: 15,
+    padding: 16,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-  },
-  buttonGroup: {
-    gap: 10,
-  },
-  button: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 12,
-    flexDirection: 'row',
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    padding: 20,
+  },
+
+  // Info card
+  infoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
-  buttonIcon: {
-    fontSize: 24,
-    marginRight: 15,
-  },
-  buttonText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
-  },
-  previewSection: {
-    marginTop: 20,
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 12,
-  },
-  previewTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 10,
-  },
-  previewImage: {
-    width: '100%',
-    height: 300,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
-  },
-  documentPreview: {
-    padding: 40,
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-  },
-  documentIcon: {
-    fontSize: 48,
-    marginBottom: 10,
-  },
-  documentName: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 15,
-  },
-  removeButton: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ef4444',
-  },
-  removeButtonText: {
-    color: '#ef4444',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  submitButton: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#14B8A6',
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  infoBox: {
-    marginTop: 20,
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#14B8A6',
+  infoIcon: {
+    fontSize: 32,
+    marginBottom: 8,
   },
   infoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#333',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
     color: '#666',
-    lineHeight: 22,
+    lineHeight: 20,
+  },
+
+  // Summary card
+  summaryCard: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  summaryAmount: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  summaryCount: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+
+  // Section styles
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginRight: 8,
+    flex: 1,
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#f59e0b',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Receipt card styles
+  receiptCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  receiptMainRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  receiptDate: {
+    fontSize: 14,
+    color: '#666',
+  },
+  receiptAmount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#f59e0b',
+  },
+  receiptClient: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginRight: 6,
+  },
+  statusValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#14B8A6',
+  },
+
+  // Empty state
+  emptyState: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
   },
 });

@@ -1,16 +1,168 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { salaryAPI } from '../services/api';
 
 export default function PaymentsScreen() {
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Payments</Text>
-        <Text style={styles.description}>
-          Payment history will be displayed here.
-        </Text>
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [loading, setLoading] = useState(true);
+  const [allPayments, setAllPayments] = useState([]);
+  const [yearPayments, setYearPayments] = useState([]);
+  const [yearTotal, setYearTotal] = useState(0);
+  const [error, setError] = useState(null);
+
+  // Generate array of years (current year ± 2 years)
+  const years = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
+
+  useEffect(() => {
+    loadPayments();
+  }, []);
+
+  useEffect(() => {
+    // Filter payments by selected year
+    if (allPayments.length > 0) {
+      const filtered = allPayments.filter(payment => {
+        const paymentYear = new Date(payment.payment_date).getFullYear();
+        return paymentYear === selectedYear;
+      });
+      setYearPayments(filtered);
+
+      // Calculate total for selected year
+      const total = filtered.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+      setYearTotal(total);
+    } else {
+      setYearPayments([]);
+      setYearTotal(0);
+    }
+  }, [selectedYear, allPayments]);
+
+  const loadPayments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get technician name from stored user data
+      const userJson = await AsyncStorage.getItem('user');
+      const user = JSON.parse(userJson);
+      const technicianName = user?.fullName;
+
+      if (!technicianName) {
+        setError('Unable to load technician name');
+        setLoading(false);
+        return;
+      }
+
+      console.log('💰 Loading payments for:', technicianName);
+
+      // Fetch all payments
+      const data = await salaryAPI.getPayments(technicianName);
+
+      console.log('💰 Payments loaded:', {
+        count: data.payments?.length || 0,
+        total: data.total || 0
+      });
+
+      setAllPayments(data.payments || []);
+    } catch (err) {
+      console.error('Error loading payments:', err);
+      setError('Failed to load payments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderPayment = (payment) => {
+    const date = new Date(payment.payment_date).toLocaleDateString();
+    const amount = parseFloat(payment.amount || 0).toFixed(2);
+
+    return (
+      <View
+        key={payment.id}
+        style={styles.paymentCard}
+      >
+        <View style={styles.paymentMainRow}>
+          <Text style={styles.paymentDate}>{date}</Text>
+          <Text style={styles.paymentAmount}>${amount}</Text>
+        </View>
       </View>
-    </ScrollView>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#14B8A6" />
+        <Text style={styles.loadingText}>Loading payments...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Year Selector */}
+      <View style={styles.yearSelector}>
+        {years.map((year) => (
+          <TouchableOpacity
+            key={year}
+            style={[
+              styles.yearButton,
+              selectedYear === year && styles.yearButtonActive,
+            ]}
+            onPress={() => setSelectedYear(year)}
+          >
+            <Text
+              style={[
+                styles.yearText,
+                selectedYear === year && styles.yearTextActive,
+              ]}
+            >
+              {year}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.content}>
+          {/* Summary Card */}
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>Total Payments {selectedYear}</Text>
+            <Text style={styles.summaryAmount}>${yearTotal.toFixed(2)}</Text>
+            <Text style={styles.summaryCount}>
+              {yearPayments.length} {yearPayments.length === 1 ? 'payment' : 'payments'}
+            </Text>
+          </View>
+
+          {/* Payments List */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionIcon}>💰</Text>
+              <Text style={styles.sectionTitle}>Payment History</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{yearPayments.length}</Text>
+              </View>
+            </View>
+
+            {yearPayments.length > 0 ? (
+              yearPayments.map(payment => renderPayment(payment))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No payments for {selectedYear}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -19,18 +171,157 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  yearSelector: {
+    flexDirection: 'row',
+    padding: 15,
+    gap: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5e5',
+  },
+  yearButton: {
+    flex: 1,
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  yearButtonActive: {
+    backgroundColor: '#14B8A6',
+  },
+  yearText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  yearTextActive: {
+    color: '#fff',
+  },
+  scrollView: {
+    flex: 1,
+  },
   content: {
-    padding: 20,
+    padding: 16,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
-  description: {
+  loadingText: {
+    marginTop: 12,
     fontSize: 16,
     color: '#666',
-    lineHeight: 24,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    padding: 20,
+  },
+
+  // Summary card
+  summaryCard: {
+    backgroundColor: '#14B8A6',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  summaryAmount: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  summaryCount: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+
+  // Section styles
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginRight: 8,
+    flex: 1,
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#14B8A6',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Payment card styles
+  paymentCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#10b981',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  paymentMainRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  paymentDate: {
+    fontSize: 14,
+    color: '#666',
+  },
+  paymentAmount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+
+  // Empty state
+  emptyState: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
   },
 });
