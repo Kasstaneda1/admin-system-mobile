@@ -84,9 +84,13 @@ export default function SalaryScreen() {
       const endDateStr = endDate.toISOString().split('T')[0];
 
       const data = await salaryAPI.getSalaryData(startDateStr, endDateStr);
+      console.log('📦 API Response:', JSON.stringify(data, null, 2));
+      console.log('📊 Records count:', data?.recordsCount);
+      console.log('📋 Records array:', data?.records?.length);
       setMonthData(data);
     } catch (error) {
       console.error('Failed to load month data:', error);
+      console.error('Error details:', error.response?.data || error.message);
     } finally {
       setLoading(false);
     }
