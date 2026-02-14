@@ -92,17 +92,17 @@ export default function WarehouseScreen() {
 
   const loadParts = async (warehouseId) => {
     try {
-      const [partsData, statsData] = await Promise.all([
-        warehouseAPI.getParts(warehouseId),
-        warehouseAPI.getStats(warehouseId),
-      ]);
-
+      const partsData = await warehouseAPI.getParts(warehouseId);
       setParts(partsData);
 
-      // Build category counts
-      if (statsData?.categories) {
-        setCategoryCounts(statsData.categories);
-      }
+      // Build category counts from actual parts data
+      const counts = {};
+      partsData.forEach((part) => {
+        if (part.category) {
+          counts[part.category] = (counts[part.category] || 0) + 1;
+        }
+      });
+      setCategoryCounts(counts);
     } catch (error) {
       console.error('Failed to load parts:', error);
     }
@@ -176,7 +176,6 @@ export default function WarehouseScreen() {
   };
 
   const totalParts = parts.length;
-  const totalQuantity = parts.reduce((sum, p) => sum + (p.quantity || 0), 0);
 
   // Loading state
   if (loading) {
@@ -270,30 +269,6 @@ export default function WarehouseScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Stats Header */}
-      <View style={styles.statsHeader}>
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{totalParts}</Text>
-            <Text style={styles.statLabel}>Parts</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{totalQuantity}</Text>
-            <Text style={styles.statLabel}>Total Qty</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>
-              {warehouse?.stats?.total_value
-                ? `$${parseFloat(warehouse.stats.total_value).toFixed(0)}`
-                : '$0'}
-            </Text>
-            <Text style={styles.statLabel}>Value</Text>
-          </View>
-        </View>
-      </View>
-
       {/* Search */}
       <View style={styles.searchContainer}>
         <Text style={styles.searchIcon}>🔍</Text>
@@ -568,39 +543,6 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 22,
-  },
-
-  // Stats Header
-  statsHeader: {
-    backgroundColor: '#fff',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#14B8A6',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#e5e7eb',
   },
 
   // Search
