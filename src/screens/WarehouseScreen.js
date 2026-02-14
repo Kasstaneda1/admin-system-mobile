@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  SectionList,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -177,6 +178,30 @@ export default function WarehouseScreen() {
 
   const totalParts = parts.length;
 
+  // Build sections grouped by category for "All" view
+  const sections = React.useMemo(() => {
+    if (activeCategory !== 'all') return [];
+    const grouped = {};
+    filteredParts.forEach((part) => {
+      const cat = part.category || 'other';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(part);
+    });
+    // Sort by CATEGORIES order
+    const order = CATEGORIES.map((c) => c.key).filter((k) => k !== 'all');
+    return order
+      .filter((key) => grouped[key]?.length > 0)
+      .map((key) => {
+        const catDef = CATEGORIES.find((c) => c.key === key);
+        return {
+          title: catDef?.label || key,
+          icon: CATEGORY_ICONS[key] || '🔧',
+          count: grouped[key].length,
+          data: grouped[key],
+        };
+      });
+  }, [filteredParts, activeCategory]);
+
   // Loading state
   if (loading) {
     return (
@@ -330,29 +355,63 @@ export default function WarehouseScreen() {
       </ScrollView>
 
       {/* Parts List */}
-      <FlatList
-        data={filteredParts}
-        renderItem={renderPartCard}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#14B8A6"
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyList}>
-            <Text style={styles.emptyListIcon}>📦</Text>
-            <Text style={styles.emptyListText}>
-              {searchQuery || activeCategory !== 'all'
-                ? 'No parts match your filters'
-                : 'No parts in your warehouse'}
-            </Text>
-          </View>
-        }
-      />
+      {activeCategory === 'all' ? (
+        <SectionList
+          sections={sections}
+          renderItem={renderPartCard}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Text style={styles.sectionIcon}>{section.icon}</Text>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+              </View>
+              <View style={styles.sectionBadge}>
+                <Text style={styles.sectionBadgeText}>{section.count}</Text>
+              </View>
+            </View>
+          )}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#14B8A6"
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyList}>
+              <Text style={styles.emptyListIcon}>📦</Text>
+              <Text style={styles.emptyListText}>
+                {searchQuery
+                  ? 'No parts match your filters'
+                  : 'No parts in your warehouse'}
+              </Text>
+            </View>
+          }
+          stickySectionHeadersEnabled={false}
+        />
+      ) : (
+        <FlatList
+          data={filteredParts}
+          renderItem={renderPartCard}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#14B8A6"
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyList}>
+              <Text style={styles.emptyListIcon}>📦</Text>
+              <Text style={styles.emptyListText}>No parts match your filters</Text>
+            </View>
+          }
+        />
+      )}
 
       {/* Part Detail Modal */}
       <Modal
@@ -591,6 +650,47 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   categoryCountTextActive: {
+    color: '#fff',
+  },
+
+  // Section Headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    marginTop: 8,
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sectionBadge: {
+    backgroundColor: '#14B8A6',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  sectionBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
     color: '#fff',
   },
 
