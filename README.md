@@ -2,7 +2,48 @@
 
 React Native mobile application for SEMIX CORP technicians built with Expo.
 
-## 📱 Development Status: **PHASE 3 - SALARY RECORDS FEATURE COMPLETE**
+## 📱 Development Status: **PHASE 4 - WAREHOUSE & SCREENS IMPLEMENTATION**
+
+### ✅ Completed (Feb 12, 2026)
+
+- **Warehouse Screen (COMPLETE)** 🎉
+  - ✅ Replaced placeholder Communication screen with full Warehouse
+  - ✅ Auto-detects technician's van warehouse (`type='tech_van'`, `technician_id`)
+  - ✅ Search bar with multi-term AND filtering (name, SKU, brand, description)
+  - ✅ Horizontal category filter chips with real-time counts
+  - ✅ Category section dividers in "All" view (SectionList with icons + badges)
+  - ✅ Part cards: photo/placeholder, name, SKU, brand, stock status, quantity badge
+  - ✅ Stock indicators: In Stock (green), Low Stock (amber), Out of Stock (red)
+  - ✅ Part detail modal: category, description block, brands, part numbers, inventory locations
+  - ✅ Price and suppliers hidden from technician view (admin-only info)
+  - ✅ Styled description block with teal accent border and icon
+  - ✅ Pull-to-refresh via RefreshControl
+  - ✅ Empty states: "No Van Assigned" / "No parts match"
+
+- **Part Deduction Feature (COMPLETE)** 🎉
+  - ✅ "Use Part" button in part detail modal
+  - ✅ Quantity selector with +/- buttons and manual input
+  - ✅ Confirmation dialog before deducting
+  - ✅ Backend endpoint: `POST /api/warehouse/parts/:id/deduct`
+  - ✅ Validates warehouse ownership (technician can only deduct from own van)
+  - ✅ Validates available stock (cannot deduct more than available)
+  - ✅ Auto-refreshes parts list after successful deduction
+  - ✅ Disabled "Out of Stock" state for parts with 0 quantity
+
+- **Payments Screen (COMPLETE)** 🎉
+  - ✅ Year filter with horizontal scroll
+  - ✅ Payment cards with date, amount, payment method
+  - ✅ Year total calculation
+  - ✅ Backend endpoint: `GET /api/technicians/payments/:technicianName`
+
+- **Unpaid Screen (COMPLETE)** 🎉
+  - ✅ Pending and Declined sections
+  - ✅ Record cards with date, amount, status details
+  - ✅ Backend endpoint: `GET /api/technician-unpaid/unpaid/:technicianName`
+
+- **Receipts Screen (COMPLETE)** 🎉
+  - ✅ Full implementation with receipt cards
+  - ✅ Backend endpoint: `GET /api/my-receipts`
 
 ### ✅ Completed (Feb 11, 2026)
 
@@ -11,12 +52,8 @@ React Native mobile application for SEMIX CORP technicians built with Expo.
   - ✅ Records List Modal showing all work records for selected month
   - ✅ Work Details Modal with comprehensive job information
   - ✅ Two-level modal navigation with Back buttons (Records List ↔ Work Details)
-  - ✅ Fixed modal stacking and visibility issues
-  - ✅ Work Details displays 10 fields matching admin panel:
-    - Date, Status, Payment Method, Payment Status
-    - Amount, Tax, Installation, Parts, 2nd Tech, Tips
+  - ✅ Work Details displays 10 fields matching admin panel
   - ✅ Your Earnings section: Salary + Cash Received
-  - ✅ Backend endpoint: `GET /api/technicians/salary` with `records` array
   - ✅ Color-coded payment status (Green: Paid, Red: Not Paid)
 
 ### ✅ Completed (Feb 10, 2026)
@@ -25,134 +62,26 @@ React Native mobile application for SEMIX CORP technicians built with Expo.
   - ✅ Expo SDK 54 configuration
   - ✅ React Native 0.81.5
   - ✅ React Navigation 7 setup
-  - ✅ Project structure created
 
 - **Authentication**
   - ✅ Login screen with SEMIX branding
   - ✅ JWT token management with `fullName` field
   - ✅ AsyncStorage integration
   - ✅ Auto-login on app restart
-  - ✅ Fixed API endpoint (`/api/login`)
 
 - **Parts Feature (COMPLETE)** 🎉
-  - ✅ PartsScreen with three status tabs:
-    - 🚚 In Transit
-    - 📍 Arrived
-    - 📋 On Board
-  - ✅ Display CLIENT and NAME PARTS for each estimate
-  - ✅ Part number and date display
+  - ✅ PartsScreen with three status tabs (In Transit, Arrived, On Board)
   - ✅ Comments modal on part tap
-  - ✅ Pull-to-refresh functionality
-  - ✅ Filter by current technician only
-  - ✅ Backend endpoint: `GET /api/my-parts?status=X`
-  - ✅ Comments endpoint: `GET /api/estimates/:id/comments`
+  - ✅ Pull-to-refresh, technician filtering
 
-- **UI Screens**
-  - ✅ LoginScreen - fully functional
-  - ✅ HomeScreen - fully functional with 6 menu sections
-  - ✅ PartsScreen - **fully functional** ⭐
-  - ✅ SalaryScreen - **fully functional with Records feature** ⭐
-  - ✅ CommunicationScreen - placeholder
-  - ✅ PaymentsScreen - placeholder
-  - ✅ ReceiptsScreen - placeholder
-  - ✅ UnpaidScreen - placeholder
+## 🔧 Technical Fixes Applied
 
-### 🔧 Technical Fixes Applied
-
-1. **Status Format**: Fixed status values from "In Transit" to `in_transit` (database format)
-2. **Technician Matching**: Added support for matching by `technician_id`, `technician2_id`, or `fullName`
-3. **JWT Token**: Added `fullName` field to JWT payload for proper technician identification
-4. **Comment Fields**: Fixed comment display to use correct database fields (`user_name`, `comment_text`)
-5. **Modal Navigation**: Fixed modal stacking issues - implemented proper show/hide logic for layered modals
-6. **Work Details Fields**: Aligned mobile app fields with admin panel Technician Salary table structure
-
-### ⚠️ Known Issues
-
-1. **API Endpoints Not Ready**
-   - Payments: Returns empty array (backend endpoint doesn't exist)
-   - Receipts: Mock success response (backend endpoint doesn't exist)
-   - Communication: No backend implementation yet
-   - Unpaid: No backend implementation yet
-
-2. **Navigation Warning** (Development only, won't affect production)
-   - Console shows RESET action warning
-   - Does not impact functionality
-
-### 🚧 Next Phase: Payments & Additional Features
-
-**Required Backend Endpoints:**
-```
-GET  /api/technicians/payments     - Get payment history for current technician
-                                     Returns: list of payments with dates and amounts
-
-POST /api/technicians/receipts     - Upload receipt with photo
-                                     Body: multipart/form-data with image file
-
-GET  /api/technicians/unpaid       - Get unpaid records for current technician
-                                     Returns: list of unpaid primary_data records
-
-(Communication feature TBD)
-```
-
-**Completed Endpoints:**
-```
-✅ GET  /api/technicians/salary    - Salary calculation with records array
-✅ GET  /api/my-parts               - Parts tracking with status filtering
-✅ GET  /api/estimates/:id/comments - Comments for estimates
-```
-
-## Features (Planned)
-
-## Prerequisites
-
-- Node.js (v16 or higher)
-- npm or yarn
-- Expo CLI
-- iOS Simulator (Mac only) or Android Studio for testing
-
-## Installation
-
-### 1. Install Node.js dependencies
-
-```bash
-npm install
-```
-
-### 2. Install Expo CLI globally (if not already installed)
-
-```bash
-npm install -g expo-cli
-```
-
-### 3. Start the development server
-
-```bash
-npm start
-```
-
-This will open the Expo Developer Tools in your browser.
-
-## Running the App
-
-### On Physical Device
-
-1. Install **Expo Go** app from App Store (iOS) or Google Play (Android)
-2. Scan the QR code from the terminal or Expo Developer Tools
-3. The app will load on your device
-
-### On iOS Simulator (Mac only)
-
-```bash
-npm run ios
-```
-
-### On Android Emulator
-
-```bash
-npm run android
-```
-
-Make sure you have Android Studio installed and an emulator running.
+1. **Backend Warehouse Access**: Removed `requireAdmin` from warehouse routes - technicians can now access their van inventory
+2. **Category Counts**: Fixed to compute from actual warehouse parts data instead of catalog-wide stats API
+3. **Status Format**: Fixed status values from "In Transit" to `in_transit` (database format)
+4. **Technician Matching**: Support for `technician_id`, `technician2_id`, or `fullName`
+5. **JWT Token**: Added `fullName` field to JWT payload
+6. **Modal Navigation**: Fixed modal stacking issues with proper show/hide logic
 
 ## Project Structure
 
@@ -162,24 +91,38 @@ admin-system-mobile/
 ├── app.json                     # Expo configuration
 ├── package.json                 # Dependencies
 ├── src/
-│   ├── screens/                 # All screen components
+│   ├── screens/
 │   │   ├── LoginScreen.js       # Authentication
 │   │   ├── HomeScreen.js        # Main menu (6 sections)
+│   │   ├── SalaryScreen.js      # ⭐ Salary calculations + records
 │   │   ├── PartsScreen.js       # ⭐ Parts tracking with tabs & comments
-│   │   ├── SalaryScreen.js      # Salary calculations (UI ready)
-│   │   ├── CommunicationScreen.js  # Messages (placeholder)
-│   │   ├── PaymentsScreen.js    # Payment history (placeholder)
-│   │   ├── ReceiptsScreen.js    # Receipt upload (placeholder)
-│   │   └── UnpaidScreen.js      # Unpaid records (placeholder)
+│   │   ├── WarehouseScreen.js   # ⭐ Van inventory + part deduction
+│   │   ├── PaymentsScreen.js    # ⭐ Payment history by year
+│   │   ├── ReceiptsScreen.js    # ⭐ Receipt management
+│   │   └── UnpaidScreen.js      # ⭐ Unpaid records (pending/declined)
 │   ├── services/
 │   │   └── api.js               # API service with Railway backend
 │   └── components/              # Reusable components (future)
 └── assets/                      # App icons and splash screens
 ```
 
-## API Configuration
+## API Endpoints Used
 
-The app connects to the Railway backend:
+```
+✅ POST /api/login                              - Authentication
+✅ GET  /api/technicians/salary                  - Salary calculation with records
+✅ GET  /api/technicians/payments/:name          - Payment history
+✅ GET  /api/technician-unpaid/unpaid/:name      - Unpaid records
+✅ GET  /api/my-parts?status=X                   - Parts tracking
+✅ GET  /api/estimates/:id/comments              - Estimate comments
+✅ GET  /api/my-receipts                         - Receipts
+✅ GET  /api/warehouse/warehouses?with_stats=true - Warehouse list
+✅ GET  /api/warehouse/parts?warehouse_id=X      - Parts in warehouse
+✅ GET  /api/warehouse/parts/:id                 - Part details
+✅ POST /api/warehouse/parts/:id/deduct          - Deduct part from van
+```
+
+## API Configuration
 
 ```javascript
 const API_URL = 'https://admin-system-backend-production.up.railway.app';
@@ -187,83 +130,44 @@ const API_URL = 'https://admin-system-backend-production.up.railway.app';
 
 To change the API URL, edit `src/services/api.js`.
 
-## Authentication
+## Prerequisites
 
-- Technicians log in with their existing credentials
-- JWT tokens are stored in AsyncStorage
-- Automatic token refresh on API requests
-- Only users with `role: 'technician'` can access the app
+- Node.js (v16 or higher)
+- npm or yarn
+- Expo CLI
 
-## Building for Production
-
-### iOS
-
-1. Configure app.json with your bundle identifier
-2. Build the app:
+## Installation & Running
 
 ```bash
-expo build:ios
-```
-
-### Android
-
-1. Configure app.json with your package name
-2. Build the APK:
-
-```bash
-expo build:android
-```
-
-For detailed build instructions, see [Expo Build Documentation](https://docs.expo.dev/build/introduction/).
-
-## Environment
-
-- **Development**: Uses Expo Go
-- **Production**: Standalone app builds for App Store / Google Play
-
-## Troubleshooting
-
-### Cannot connect to backend
-
-- Check internet connection
-- Verify API_URL in `src/services/api.js`
-- Ensure Railway backend is running
-
-### Camera/Gallery permissions
-
-- The app requests permissions at runtime
-- Grant permissions in device settings if denied
-
-### Build fails
-
-```bash
-# Clear cache and reinstall
-rm -rf node_modules
 npm install
-expo start -c
+npm start
+```
+
+### On Physical Device
+1. Install **Expo Go** from App Store / Google Play
+2. Scan the QR code from terminal
+
+### On Simulator
+```bash
+npm run ios      # Mac only
+npm run android  # Requires Android Studio
 ```
 
 ## Tech Stack
 
-- **Framework**: React Native + Expo
+- **Framework**: React Native + Expo SDK 54
 - **Navigation**: React Navigation 7
 - **State Management**: React Hooks + AsyncStorage
 - **API Client**: Axios
-- **Image Handling**: Expo Image Picker
-- **Document Handling**: Expo Document Picker
+- **Backend**: Node.js/Express on Railway
+- **Database**: PostgreSQL on Railway
 
 ## Future Enhancements
 
 - [ ] Push notifications for new estimates
 - [ ] Offline mode with local caching
 - [ ] Photo attachment for estimates
-- [ ] Signature capture
 - [ ] Dark mode support
-- [ ] Multi-language support (English/Spanish)
-
-## Support
-
-For issues or questions, contact the admin team or create an issue in the repository.
 
 ## License
 
