@@ -12,6 +12,7 @@ import {
   ScrollView,
   Modal,
   Image,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { warehouseAPI } from '../services/api';
@@ -50,6 +51,9 @@ export default function WarehouseScreen() {
   const [selectedPart, setSelectedPart] = useState(null);
   const [partDetail, setPartDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [deductMode, setDeductMode] = useState(false);
+  const [deductQty, setDeductQty] = useState('1');
+  const [deducting, setDeducting] = useState(false);
 
   useEffect(() => {
     loadWarehouse();
@@ -162,6 +166,47 @@ export default function WarehouseScreen() {
   const closePartDetail = () => {
     setSelectedPart(null);
     setPartDetail(null);
+    setDeductMode(false);
+    setDeductQty('1');
+  };
+
+  const handleDeduct = async () => {
+    const qty = parseInt(deductQty);
+    if (!qty || qty <= 0) {
+      Alert.alert('Error', 'Enter a valid quantity');
+      return;
+    }
+
+    const partQty = selectedPart?.quantity || 0;
+    if (qty > partQty) {
+      Alert.alert('Error', `Cannot deduct ${qty}. Only ${partQty} available`);
+      return;
+    }
+
+    Alert.alert(
+      'Confirm',
+      `Deduct ${qty} × ${selectedPart.name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Deduct',
+          style: 'destructive',
+          onPress: async () => {
+            setDeducting(true);
+            try {
+              await warehouseAPI.deductPart(selectedPart.id, warehouse.id, qty);
+              closePartDetail();
+              await loadParts(warehouse.id);
+            } catch (error) {
+              const msg = error.response?.data?.error || 'Failed to deduct part';
+              Alert.alert('Error', msg);
+            } finally {
+              setDeducting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getStockColor = (quantity, minStock) => {
@@ -519,6 +564,77 @@ export default function WarehouseScreen() {
                     ))}
                   </View>
                 )}
+
+                {/* Deduct Section */}
+                <View style={styles.deductSection}>
+                  {!deductMode ? (
+                    <TouchableOpacity
+                      style={styles.usePartButton}
+                      onPress={() => setDeductMode(true)}
+                      disabled={selectedPart?.quantity === 0}
+                    >
+                      <Text style={styles.usePartButtonText}>
+                        {selectedPart?.quantity === 0 ? 'Out of Stock' : 'Use Part'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.deductControls}>
+                      <Text style={styles.deductLabel}>
+                        Quantity to deduct (available: {selectedPart?.quantity || 0})
+                      </Text>
+                      <View style={styles.deductRow}>
+                        <TouchableOpacity
+                          style={styles.deductBtn}
+                          onPress={() => {
+                            const v = Math.max(1, parseInt(deductQty) - 1 || 0);
+                            setDeductQty(String(v));
+                          }}
+                        >
+                          <Text style={styles.deductBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <TextInput
+                          style={styles.deductInput}
+                          value={deductQty}
+                          onChangeText={setDeductQty}
+                          keyboardType="number-pad"
+                          textAlign="center"
+                        />
+                        <TouchableOpacity
+                          style={styles.deductBtn}
+                          onPress={() => {
+                            const max = selectedPart?.quantity || 1;
+                            const v = Math.min(max, (parseInt(deductQty) || 0) + 1);
+                            setDeductQty(String(v));
+                          }}
+                        >
+                          <Text style={styles.deductBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.deductActions}>
+                        <TouchableOpacity
+                          style={styles.deductCancel}
+                          onPress={() => {
+                            setDeductMode(false);
+                            setDeductQty('1');
+                          }}
+                        >
+                          <Text style={styles.deductCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.deductConfirm, deducting && { opacity: 0.6 }]}
+                          onPress={handleDeduct}
+                          disabled={deducting}
+                        >
+                          {deducting ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={styles.deductConfirmText}>Confirm</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </View>
 
                 <View style={{ height: 30 }} />
               </ScrollView>
@@ -979,5 +1095,93 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#14B8A6',
+  },
+
+  // Deduct
+  deductSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  usePartButton: {
+    backgroundColor: '#14B8A6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  usePartButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  deductControls: {},
+  deductLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  deductRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  deductBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  deductBtnText: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  deductInput: {
+    width: 64,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    backgroundColor: '#fff',
+  },
+  deductActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  deductCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+  },
+  deductCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  deductConfirm: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+  },
+  deductConfirmText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

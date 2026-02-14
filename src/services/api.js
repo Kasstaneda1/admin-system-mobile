@@ -144,6 +144,14 @@ export const warehouseAPI = {
     const response = await api.get(`/api/warehouse/parts/${id}`);
     return response.data;
   },
+
+  deductPart: async (partId, warehouseId, quantity) => {
+    const response = await api.post(`/api/warehouse/parts/${partId}/deduct`, {
+      warehouse_id: warehouseId,
+      quantity,
+    });
+    return response.data;
+  },
 };
 
 export default api;
