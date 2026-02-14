@@ -97,18 +97,60 @@ export const salaryAPI = {
     return response.data;
   },
 
-  getPayments: async () => {
-    const response = await api.get('/api/technicians/payments');
+  getPayments: async (technicianName) => {
+    const response = await api.get(`/api/technicians/payments/${technicianName}`);
+    return response.data;
+  },
+};
+
+// Unpaid Records API
+export const unpaidAPI = {
+  getUnpaidRecords: async (technicianName) => {
+    const response = await api.get(`/api/technician-unpaid/unpaid/${technicianName}`);
     return response.data;
   },
 };
 
 // Receipts API
-// TODO: Backend needs POST /api/my-receipts endpoint
 export const receiptsAPI = {
-  submitReceipt: async (formData) => {
-    // Temporary: return success until backend endpoint is created
-    return { success: true, message: 'Receipt endpoint not implemented yet' };
+  getMyReceipts: async () => {
+    const response = await api.get('/api/my-receipts');
+    return response.data;
+  },
+};
+
+// Warehouse API
+export const warehouseAPI = {
+  getWarehouses: async () => {
+    const response = await api.get('/api/warehouse/warehouses?with_stats=true');
+    return response.data;
+  },
+
+  getParts: async (warehouseId, params = {}) => {
+    const response = await api.get('/api/warehouse/parts', {
+      params: { warehouse_id: warehouseId, ...params },
+    });
+    return response.data;
+  },
+
+  getStats: async (warehouseId) => {
+    const response = await api.get('/api/warehouse/parts/stats', {
+      params: { warehouse_id: warehouseId },
+    });
+    return response.data;
+  },
+
+  getPartById: async (id) => {
+    const response = await api.get(`/api/warehouse/parts/${id}`);
+    return response.data;
+  },
+
+  deductPart: async (partId, warehouseId, quantity) => {
+    const response = await api.post(`/api/warehouse/parts/${partId}/deduct`, {
+      warehouse_id: warehouseId,
+      quantity,
+    });
+    return response.data;
   },
 };
 

@@ -8,7 +8,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
 import PartsScreen from './src/screens/PartsScreen';
-import CommunicationScreen from './src/screens/CommunicationScreen';
+import WarehouseScreen from './src/screens/WarehouseScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
 import ReceiptsScreen from './src/screens/ReceiptsScreen';
 import UnpaidScreen from './src/screens/UnpaidScreen';
@@ -73,9 +73,9 @@ export default function App() {
           options={{ title: 'Parts' }}
         />
         <Stack.Screen
-          name="Communication"
-          component={CommunicationScreen}
-          options={{ title: 'Communication' }}
+          name="Warehouse"
+          component={WarehouseScreen}
+          options={{ title: 'Warehouse' }}
         />
         <Stack.Screen
           name="Payments"

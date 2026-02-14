@@ -63,10 +63,10 @@ export default function HomeScreen({ navigation }) {
       screen: 'Parts',
     },
     {
-      title: 'Communication',
-      description: 'Messages and notifications',
-      icon: '💬',
-      screen: 'Communication',
+      title: 'Warehouse',
+      description: 'Parts in your van',
+      icon: '🏗️',
+      screen: 'Warehouse',
     },
     {
       title: 'Payments',
