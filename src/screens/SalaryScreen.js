@@ -7,8 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
+  Alert,
 } from 'react-native';
 import { salaryAPI } from '../services/api';
+import { colors } from '../constants/colors';
+import YearSelector from '../components/YearSelector';
+import StatusBadge from '../components/StatusBadge';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -27,16 +31,14 @@ export default function SalaryScreen() {
   const [monthData, setMonthData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [yearData, setYearData] = useState([]); // Array of 12 months with earned amounts
+  const [yearData, setYearData] = useState([]);
   const [loadingYear, setLoadingYear] = useState(false);
   const [showRecordsModal, setShowRecordsModal] = useState(false);
   const [showWorkDetailsModal, setShowWorkDetailsModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // Generate array of years (current year ± 2 years)
   const years = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
 
-  // Load all months data when year changes
   useEffect(() => {
     loadYearData();
   }, [selectedYear]);
@@ -46,7 +48,6 @@ export default function SalaryScreen() {
     const monthsData = [];
 
     try {
-      // Load data for all 12 months
       for (let month = 0; month < 12; month++) {
         const startDate = new Date(selectedYear, month, 1);
         const endDate = new Date(selectedYear, month + 1, 0);
@@ -65,6 +66,7 @@ export default function SalaryScreen() {
       setYearData(monthsData);
     } catch (error) {
       console.error('Failed to load year data:', error);
+      Alert.alert('Error', 'Failed to load salary data. Please try again.');
     } finally {
       setLoadingYear(false);
     }
@@ -76,7 +78,6 @@ export default function SalaryScreen() {
     setShowModal(true);
 
     try {
-      // Calculate date range for selected month
       const startDate = new Date(selectedYear, monthIndex, 1);
       const endDate = new Date(selectedYear, monthIndex + 1, 0);
 
@@ -84,13 +85,10 @@ export default function SalaryScreen() {
       const endDateStr = endDate.toISOString().split('T')[0];
 
       const data = await salaryAPI.getSalaryData(startDateStr, endDateStr);
-      console.log('📦 API Response:', JSON.stringify(data, null, 2));
-      console.log('📊 Records count:', data?.recordsCount);
-      console.log('📋 Records array:', data?.records?.length);
       setMonthData(data);
     } catch (error) {
       console.error('Failed to load month data:', error);
-      console.error('Error details:', error.response?.data || error.message);
+      Alert.alert('Error', 'Failed to load month details. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -105,27 +103,11 @@ export default function SalaryScreen() {
   return (
     <View style={styles.container}>
       {/* Year Selector */}
-      <View style={styles.yearSelector}>
-        {years.map((year) => (
-          <TouchableOpacity
-            key={year}
-            style={[
-              styles.yearButton,
-              selectedYear === year && styles.yearButtonActive,
-            ]}
-            onPress={() => setSelectedYear(year)}
-          >
-            <Text
-              style={[
-                styles.yearText,
-                selectedYear === year && styles.yearTextActive,
-              ]}
-            >
-              {year}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <YearSelector
+        years={years}
+        selectedYear={selectedYear}
+        onYearChange={setSelectedYear}
+      />
 
       {/* Month Calendar Grid */}
       <ScrollView style={styles.scrollView}>
@@ -153,7 +135,7 @@ export default function SalaryScreen() {
         </View>
         {loadingYear && (
           <View style={styles.yearLoadingOverlay}>
-            <ActivityIndicator size="large" color="#14B8A6" />
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         )}
       </ScrollView>
@@ -167,7 +149,6 @@ export default function SalaryScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {selectedMonth !== null ? MONTHS[selectedMonth] : ''} {selectedYear}
@@ -179,11 +160,10 @@ export default function SalaryScreen() {
 
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#14B8A6" />
+                <ActivityIndicator size="large" color={colors.primary} />
               </View>
             ) : monthData ? (
               <ScrollView style={styles.modalBody}>
-                {/* To Pay - Main highlight */}
                 <View style={styles.toPayCard}>
                   <Text style={styles.toPayLabel}>To Pay</Text>
                   <Text style={styles.toPayAmount}>
@@ -191,36 +171,34 @@ export default function SalaryScreen() {
                   </Text>
                 </View>
 
-                {/* Statistics Grid */}
                 <View style={styles.statsGrid}>
                   <StatCard
                     label="Total Earned"
                     value={`$${parseFloat(monthData.monthSummary?.earned || 0).toFixed(2)}`}
-                    color="#10b981"
+                    color={colors.success}
                   />
                   <StatCard
                     label="Cash"
                     value={`$${parseFloat(monthData.monthSummary?.cash || 0).toFixed(2)}`}
-                    color="#14B8A6"
+                    color={colors.primary}
                   />
                   <StatCard
                     label="Checks"
                     value={`$${parseFloat(monthData.monthSummary?.checks || 0).toFixed(2)}`}
-                    color="#f59e0b"
+                    color={colors.warning}
                   />
                   <StatCard
                     label="Unpaid"
                     value={`$${parseFloat(monthData.unpaid || 0).toFixed(2)}`}
-                    color="#ef4444"
+                    color={colors.danger}
                   />
                 </View>
 
-                {/* Additional Info */}
                 <TouchableOpacity
                   style={styles.infoCard}
                   onPress={() => {
-                    setShowModal(false); // Hide month modal
-                    setShowRecordsModal(true); // Show records modal
+                    setShowModal(false);
+                    setShowRecordsModal(true);
                   }}
                 >
                   <View style={styles.infoRowClickable}>
@@ -257,7 +235,7 @@ export default function SalaryScreen() {
               <TouchableOpacity
                 onPress={() => {
                   setShowRecordsModal(false);
-                  setShowModal(true); // Return to month details
+                  setShowModal(true);
                 }}
                 style={styles.backButton}
               >
@@ -284,28 +262,22 @@ export default function SalaryScreen() {
                       key={record.id || index}
                       style={[
                         styles.recordCard,
-                        { borderLeftColor: isPaid ? '#10b981' : '#ef4444' }
+                        { borderLeftColor: isPaid ? colors.success : colors.danger }
                       ]}
                       onPress={() => {
                         setSelectedRecord(record);
-                        setShowRecordsModal(false); // Hide records modal
-                        setShowWorkDetailsModal(true); // Show work details
+                        setShowRecordsModal(false);
+                        setShowWorkDetailsModal(true);
                       }}
                     >
                       <View style={styles.recordHeader}>
                         <Text style={styles.recordDate}>
                           {new Date(record.date).toLocaleDateString()}
                         </Text>
-                        <View
-                          style={[
-                            styles.statusBadge,
-                            { backgroundColor: isPaid ? '#10b981' : '#ef4444' }
-                          ]}
-                        >
-                          <Text style={styles.statusText}>
-                            {isPaid ? 'Paid' : 'Not Paid'}
-                          </Text>
-                        </View>
+                        <StatusBadge
+                          label={isPaid ? 'Paid' : 'Not Paid'}
+                          variant={isPaid ? 'success' : 'danger'}
+                        />
                       </View>
                       <Text style={styles.recordClient}>{record.client_name}</Text>
                       <Text style={styles.recordSalary}>
@@ -340,7 +312,7 @@ export default function SalaryScreen() {
               <TouchableOpacity
                 onPress={() => {
                   setShowWorkDetailsModal(false);
-                  setShowRecordsModal(true); // Return to records list
+                  setShowRecordsModal(true);
                 }}
                 style={styles.backButton}
               >
@@ -361,7 +333,6 @@ export default function SalaryScreen() {
             </View>
             {selectedRecord && (
               <ScrollView style={styles.modalBody}>
-                {/* Customer Section */}
                 <View style={styles.detailSection}>
                   <Text style={styles.detailSectionTitle}>Customer</Text>
                   <View style={styles.detailRow}>
@@ -376,7 +347,6 @@ export default function SalaryScreen() {
                   )}
                 </View>
 
-                {/* Work Details Section */}
                 <View style={styles.detailSection}>
                   <Text style={styles.detailSectionTitle}>Work Details</Text>
                   <View style={styles.detailRow}>
@@ -435,10 +405,9 @@ export default function SalaryScreen() {
                   </View>
                 </View>
 
-                {/* Your Earnings Section */}
                 <View style={[styles.detailSection, styles.earningsSection]}>
-                  <Text style={[styles.detailSectionTitle, { color: '#2E7D32' }]}>
-                    💰 Your Earnings
+                  <Text style={[styles.detailSectionTitle, { color: colors.earningsDark }]}>
+                    Your Earnings
                   </Text>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Salary:</Text>
@@ -462,7 +431,6 @@ export default function SalaryScreen() {
   );
 }
 
-// Stat Card Component
 function StatCard({ label, value, color }) {
   return (
     <View style={styles.statCard}>
@@ -472,46 +440,10 @@ function StatCard({ label, value, color }) {
   );
 }
 
-// Info Row Component
-function InfoRow({ label, value }) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}:</Text>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  yearSelector: {
-    flexDirection: 'row',
-    padding: 15,
-    gap: 10,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
-  },
-  yearButton: {
-    flex: 1,
-    padding: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  yearButtonActive: {
-    backgroundColor: '#14B8A6',
-  },
-  yearText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  yearTextActive: {
-    color: '#fff',
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -524,7 +456,7 @@ const styles = StyleSheet.create({
   monthCard: {
     width: '31%',
     margin: '1%',
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
@@ -537,17 +469,17 @@ const styles = StyleSheet.create({
   monthName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#14B8A6',
+    color: colors.primary,
     marginBottom: 5,
   },
   monthFullName: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textMedium,
   },
   monthEarned: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#f59e0b',
+    color: colors.warning,
     marginTop: 8,
   },
   yearLoadingOverlay: {
@@ -556,17 +488,17 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: colors.overlayLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
@@ -578,12 +510,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
+    borderBottomColor: colors.border,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textDark,
     flex: 1,
     textAlign: 'center',
   },
@@ -591,21 +523,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
     position: 'absolute',
     left: 20,
     zIndex: 10,
   },
   backButtonText: {
     fontSize: 16,
-    color: '#14B8A6',
+    color: colors.primary,
     fontWeight: '600',
   },
   closeButton: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
@@ -614,7 +546,7 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 18,
-    color: '#666',
+    color: colors.textMedium,
   },
   loadingContainer: {
     flex: 1,
@@ -626,7 +558,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   toPayCard: {
-    backgroundColor: '#14B8A6',
+    backgroundColor: colors.primary,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
@@ -634,13 +566,13 @@ const styles = StyleSheet.create({
   },
   toPayLabel: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: colors.whiteTransparent90,
     marginBottom: 8,
   },
   toPayAmount: {
     fontSize: 42,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.white,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -650,15 +582,15 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: '48%',
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.cardBg,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.borderMedium,
   },
   statLabel: {
     fontSize: 13,
-    color: '#666',
+    color: colors.textMedium,
     marginBottom: 8,
   },
   statValue: {
@@ -666,27 +598,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   infoCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderColor: colors.borderMedium,
   },
   infoLabel: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMedium,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textDark,
   },
   infoRowClickable: {
     flexDirection: 'row',
@@ -695,7 +620,7 @@ const styles = StyleSheet.create({
   },
   chevron: {
     fontSize: 32,
-    color: '#14B8A6',
+    color: colors.primary,
     fontWeight: 'bold',
   },
   emptyContainer: {
@@ -706,10 +631,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    color: colors.textLight,
   },
   recordCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -728,46 +653,36 @@ const styles = StyleSheet.create({
   },
   recordDate: {
     fontSize: 14,
-    color: '#666',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    color: colors.textMedium,
   },
   recordClient: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textDark,
     marginBottom: 4,
   },
   recordSalary: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#14B8A6',
+    color: colors.primary,
   },
   detailSection: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.borderMedium,
   },
   earningsSection: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#81C784',
+    backgroundColor: colors.earningsBg,
+    borderColor: colors.earningsBorder,
     borderWidth: 2,
   },
   detailSectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#333',
+    color: colors.textDark,
     marginBottom: 12,
   },
   detailRow: {
@@ -775,20 +690,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: colors.chipBg,
   },
   detailLabel: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMedium,
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textDark,
   },
   salaryHighlight: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2E7D32',
+    color: colors.earningsDark,
   },
 });

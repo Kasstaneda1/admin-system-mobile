@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { salaryAPI } from '../services/api';
+import { colors } from '../constants/colors';
+import LoadingScreen from '../components/LoadingScreen';
+import ErrorMessage from '../components/ErrorMessage';
+import YearSelector from '../components/YearSelector';
+import StatusBadge from '../components/StatusBadge';
+import EmptyState from '../components/EmptyState';
 
 export default function PaymentsScreen() {
   const currentYear = new Date().getFullYear();
@@ -12,7 +18,6 @@ export default function PaymentsScreen() {
   const [yearTotal, setYearTotal] = useState(0);
   const [error, setError] = useState(null);
 
-  // Generate array of years (current year ± 2 years)
   const years = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
 
   useEffect(() => {
@@ -20,15 +25,12 @@ export default function PaymentsScreen() {
   }, []);
 
   useEffect(() => {
-    // Filter payments by selected year
     if (allPayments.length > 0) {
       const filtered = allPayments.filter(payment => {
         const paymentYear = new Date(payment.payment_date).getFullYear();
         return paymentYear === selectedYear;
       });
       setYearPayments(filtered);
-
-      // Calculate total for selected year
       const total = filtered.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
       setYearTotal(total);
     } else {
@@ -42,7 +44,6 @@ export default function PaymentsScreen() {
       setLoading(true);
       setError(null);
 
-      // Get technician name from stored user data
       const userJson = await AsyncStorage.getItem('user');
       const user = JSON.parse(userJson);
       const technicianName = user?.fullName;
@@ -53,20 +54,13 @@ export default function PaymentsScreen() {
         return;
       }
 
-      console.log('💰 Loading payments for:', technicianName);
-
-      // Fetch all payments
       const data = await salaryAPI.getPayments(technicianName);
-
-      console.log('💰 Payments loaded:', {
-        count: data.payments?.length || 0,
-        total: data.total || 0
-      });
-
       setAllPayments(data.payments || []);
     } catch (err) {
       console.error('Error loading payments:', err);
-      setError('Failed to load payments');
+      const message = err.response?.data?.error || 'Failed to load payments. Please check your connection.';
+      setError(message);
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
@@ -77,10 +71,7 @@ export default function PaymentsScreen() {
     const amount = parseFloat(payment.amount || 0).toFixed(2);
 
     return (
-      <View
-        key={payment.id}
-        style={styles.paymentCard}
-      >
+      <View key={payment.id} style={styles.paymentCard}>
         <View style={styles.paymentMainRow}>
           <Text style={styles.paymentDate}>{date}</Text>
           <Text style={styles.paymentAmount}>${amount}</Text>
@@ -90,50 +81,23 @@ export default function PaymentsScreen() {
   };
 
   if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#14B8A6" />
-        <Text style={styles.loadingText}>Loading payments...</Text>
-      </View>
-    );
+    return <LoadingScreen message="Loading payments..." />;
   }
 
   if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
+    return <ErrorMessage message={error} onRetry={loadPayments} />;
   }
 
   return (
     <View style={styles.container}>
-      {/* Year Selector */}
-      <View style={styles.yearSelector}>
-        {years.map((year) => (
-          <TouchableOpacity
-            key={year}
-            style={[
-              styles.yearButton,
-              selectedYear === year && styles.yearButtonActive,
-            ]}
-            onPress={() => setSelectedYear(year)}
-          >
-            <Text
-              style={[
-                styles.yearText,
-                selectedYear === year && styles.yearTextActive,
-              ]}
-            >
-              {year}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <YearSelector
+        years={years}
+        selectedYear={selectedYear}
+        onYearChange={setSelectedYear}
+      />
 
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
-          {/* Summary Card */}
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Total Payments {selectedYear}</Text>
             <Text style={styles.summaryAmount}>${yearTotal.toFixed(2)}</Text>
@@ -142,22 +106,17 @@ export default function PaymentsScreen() {
             </Text>
           </View>
 
-          {/* Payments List */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionIcon}>💰</Text>
               <Text style={styles.sectionTitle}>Payment History</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{yearPayments.length}</Text>
-              </View>
+              <StatusBadge count={yearPayments.length} variant="primary" />
             </View>
 
             {yearPayments.length > 0 ? (
               yearPayments.map(payment => renderPayment(payment))
             ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No payments for {selectedYear}</Text>
-              </View>
+              <EmptyState message={`No payments for ${selectedYear}`} />
             )}
           </View>
         </View>
@@ -169,33 +128,7 @@ export default function PaymentsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  yearSelector: {
-    flexDirection: 'row',
-    padding: 15,
-    gap: 10,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
-  },
-  yearButton: {
-    flex: 1,
-    padding: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  yearButtonActive: {
-    backgroundColor: '#14B8A6',
-  },
-  yearText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  yearTextActive: {
-    color: '#fff',
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -203,27 +136,8 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ef4444',
-    textAlign: 'center',
-    padding: 20,
-  },
-
-  // Summary card
   summaryCard: {
-    backgroundColor: '#14B8A6',
+    backgroundColor: colors.primary,
     borderRadius: 16,
     padding: 24,
     marginBottom: 24,
@@ -236,7 +150,7 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: colors.whiteTransparent90,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -244,15 +158,13 @@ const styles = StyleSheet.create({
   summaryAmount: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.white,
     marginBottom: 4,
   },
   summaryCount: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.whiteTransparent80,
   },
-
-  // Section styles
   section: {
     marginBottom: 24,
   },
@@ -268,30 +180,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textDark,
     marginRight: 8,
     flex: 1,
   },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#14B8A6',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  // Payment card styles
   paymentCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#10b981',
+    borderLeftColor: colors.success,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -305,23 +204,11 @@ const styles = StyleSheet.create({
   },
   paymentDate: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMedium,
   },
   paymentAmount: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#10b981',
-  },
-
-  // Empty state
-  emptyState: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
+    color: colors.success,
   },
 });

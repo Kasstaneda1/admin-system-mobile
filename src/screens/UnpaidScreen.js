@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { unpaidAPI } from '../services/api';
+import { colors } from '../constants/colors';
+import LoadingScreen from '../components/LoadingScreen';
+import ErrorMessage from '../components/ErrorMessage';
+import StatusBadge from '../components/StatusBadge';
+import EmptyState from '../components/EmptyState';
 
 export default function UnpaidScreen() {
   const [loading, setLoading] = useState(true);
@@ -18,7 +23,6 @@ export default function UnpaidScreen() {
       setLoading(true);
       setError(null);
 
-      // Get technician name from stored user data
       const userJson = await AsyncStorage.getItem('user');
       const user = JSON.parse(userJson);
       const technicianName = user?.fullName;
@@ -29,21 +33,14 @@ export default function UnpaidScreen() {
         return;
       }
 
-      console.log('📋 Loading unpaid records for:', technicianName);
-
-      // Fetch unpaid records
       const data = await unpaidAPI.getUnpaidRecords(technicianName);
-
-      console.log('📋 Unpaid records loaded:', {
-        pending: data.pending?.length || 0,
-        declined: data.declined?.length || 0
-      });
-
       setPendingRecords(data.pending || []);
       setDeclinedRecords(data.declined || []);
     } catch (err) {
       console.error('Error loading unpaid records:', err);
-      setError('Failed to load unpaid records');
+      const message = err.response?.data?.error || 'Failed to load unpaid records. Please check your connection.';
+      setError(message);
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
@@ -58,7 +55,7 @@ export default function UnpaidScreen() {
         key={record.id}
         style={[
           styles.recordCard,
-          { borderLeftColor: isPending ? '#f59e0b' : '#ef4444' }
+          { borderLeftColor: isPending ? colors.warning : colors.danger }
         ]}
       >
         <View style={styles.recordMainRow}>
@@ -67,10 +64,9 @@ export default function UnpaidScreen() {
         </View>
         <Text style={styles.recordClient}>{record.client_name}</Text>
 
-        {/* Manager notes for declined records */}
         {!isPending && record.manager_notes && (
           <View style={styles.notesContainer}>
-            <Text style={styles.notesLabel}>💬 Manager Note:</Text>
+            <Text style={styles.notesLabel}>Manager Note:</Text>
             <Text style={styles.notesText}>{record.manager_notes}</Text>
           </View>
         )}
@@ -79,20 +75,11 @@ export default function UnpaidScreen() {
   };
 
   if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#14B8A6" />
-        <Text style={styles.loadingText}>Loading unpaid records...</Text>
-      </View>
-    );
+    return <LoadingScreen message="Loading unpaid records..." />;
   }
 
   if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
+    return <ErrorMessage message={error} onRetry={loadUnpaidRecords} />;
   }
 
   const totalPending = pendingRecords.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
@@ -107,9 +94,7 @@ export default function UnpaidScreen() {
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionIcon}>⏳</Text>
               <Text style={styles.sectionTitle}>Pending</Text>
-              <View style={[styles.badge, styles.badgePending]}>
-                <Text style={styles.badgeText}>{pendingRecords.length}</Text>
-              </View>
+              <StatusBadge count={pendingRecords.length} variant="warning" />
             </View>
             {pendingRecords.length > 0 && (
               <Text style={styles.totalAmount}>
@@ -121,9 +106,7 @@ export default function UnpaidScreen() {
           {pendingRecords.length > 0 ? (
             pendingRecords.map(record => renderRecord(record, true))
           ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No pending records</Text>
-            </View>
+            <EmptyState message="No pending records" />
           )}
         </View>
 
@@ -133,9 +116,7 @@ export default function UnpaidScreen() {
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionIcon}>❌</Text>
               <Text style={styles.sectionTitle}>Declined</Text>
-              <View style={[styles.badge, styles.badgeDeclined]}>
-                <Text style={styles.badgeText}>{declinedRecords.length}</Text>
-              </View>
+              <StatusBadge count={declinedRecords.length} variant="danger" />
             </View>
             {declinedRecords.length > 0 && (
               <Text style={styles.totalAmount}>
@@ -147,9 +128,7 @@ export default function UnpaidScreen() {
           {declinedRecords.length > 0 ? (
             declinedRecords.map(record => renderRecord(record, false))
           ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No declined records</Text>
-            </View>
+            <EmptyState message="No declined records" />
           )}
         </View>
       </View>
@@ -160,30 +139,11 @@ export default function UnpaidScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   content: {
     padding: 16,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ef4444',
-    textAlign: 'center',
-    padding: 20,
-  },
-
-  // Section styles
   section: {
     marginBottom: 24,
   },
@@ -202,35 +162,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textDark,
     marginRight: 8,
-  },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  badgePending: {
-    backgroundColor: '#f59e0b',
-  },
-  badgeDeclined: {
-    backgroundColor: '#ef4444',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
   },
   totalAmount: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#14B8A6',
+    color: colors.primary,
     marginLeft: 32,
   },
-
-  // Record card styles
   recordCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -249,45 +191,33 @@ const styles = StyleSheet.create({
   },
   recordDate: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMedium,
   },
   recordAmount: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#14B8A6',
+    color: colors.primary,
   },
   recordClient: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textDark,
     marginBottom: 4,
   },
   notesContainer: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e5e5e5',
+    borderTopColor: colors.border,
   },
   notesLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textMedium,
     marginBottom: 4,
   },
   notesText: {
     fontSize: 14,
-    color: '#333',
+    color: colors.textDark,
     fontStyle: 'italic',
-  },
-
-  // Empty state
-  emptyState: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
   },
 });
