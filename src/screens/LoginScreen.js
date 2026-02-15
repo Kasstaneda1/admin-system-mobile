@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../services/api';
+import { colors } from '../constants/colors';
 
 export default function LoginScreen({ navigation, onLoginSuccess }) {
   const [username, setUsername] = useState('');
@@ -37,12 +38,10 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
 
-      // Notify App.js that login was successful
       if (onLoginSuccess) {
         onLoginSuccess();
       }
 
-      // Navigate to Home
       navigation.navigate('Home');
     } catch (error) {
       console.error('Login error:', error);
@@ -89,7 +88,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.white} />
             ) : (
               <Text style={styles.buttonText}>Login</Text>
             )}
@@ -103,7 +102,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#14B8A6',
+    backgroundColor: colors.primary,
   },
   content: {
     flex: 1,
@@ -114,12 +113,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.white,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 18,
-    color: '#fff',
+    color: colors.white,
     marginBottom: 40,
     opacity: 0.9,
   },
@@ -128,14 +127,14 @@ const styles = StyleSheet.create({
     maxWidth: 400,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 8,
     padding: 15,
     marginBottom: 15,
     fontSize: 16,
   },
   button: {
-    backgroundColor: '#0D9488',
+    backgroundColor: colors.primaryDark,
     borderRadius: 8,
     padding: 15,
     alignItems: 'center',
@@ -145,7 +144,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 16,
     fontWeight: 'bold',
   },

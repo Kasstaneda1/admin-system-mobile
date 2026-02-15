@@ -16,6 +16,9 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { warehouseAPI } from '../services/api';
+import { colors } from '../constants/colors';
+import LoadingScreen from '../components/LoadingScreen';
+import EmptyState from '../components/EmptyState';
 
 const CATEGORIES = [
   { key: 'all', label: 'All' },
@@ -68,13 +71,11 @@ export default function WarehouseScreen() {
       setLoading(true);
       setNoWarehouse(false);
 
-      // Get user ID from AsyncStorage
       const userData = await AsyncStorage.getItem('user');
       if (!userData) return;
       const user = JSON.parse(userData);
       const userId = user.id;
 
-      // Get all warehouses and find technician's van
       const warehouses = await warehouseAPI.getWarehouses();
       const techVan = warehouses.find(
         (w) => w.type === 'tech_van' && w.technician_id === userId
@@ -90,6 +91,8 @@ export default function WarehouseScreen() {
       await loadParts(techVan.id);
     } catch (error) {
       console.error('Failed to load warehouse:', error);
+      const message = error.response?.data?.error || 'Failed to load warehouse. Please check your connection.';
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
@@ -100,7 +103,6 @@ export default function WarehouseScreen() {
       const partsData = await warehouseAPI.getParts(warehouseId);
       setParts(partsData);
 
-      // Build category counts from actual parts data
       const counts = {};
       partsData.forEach((part) => {
         if (part.category) {
@@ -110,18 +112,17 @@ export default function WarehouseScreen() {
       setCategoryCounts(counts);
     } catch (error) {
       console.error('Failed to load parts:', error);
+      Alert.alert('Error', 'Failed to load parts list.');
     }
   };
 
   const filterParts = () => {
     let filtered = [...parts];
 
-    // Filter by category
     if (activeCategory !== 'all') {
       filtered = filtered.filter((p) => p.category === activeCategory);
     }
 
-    // Filter by search
     if (searchQuery.trim()) {
       const terms = searchQuery.toLowerCase().trim().split(/\s+/);
       filtered = filtered.filter((part) => {
@@ -157,6 +158,7 @@ export default function WarehouseScreen() {
       setPartDetail(detail);
     } catch (error) {
       console.error('Failed to load part detail:', error);
+      Alert.alert('Error', 'Failed to load part details.');
       setPartDetail(null);
     } finally {
       setDetailLoading(false);
@@ -210,9 +212,9 @@ export default function WarehouseScreen() {
   };
 
   const getStockColor = (quantity, minStock) => {
-    if (quantity === 0) return '#ef4444';
-    if (quantity <= minStock) return '#f59e0b';
-    return '#10b981';
+    if (quantity === 0) return colors.danger;
+    if (quantity <= minStock) return colors.warning;
+    return colors.success;
   };
 
   const getStockLabel = (quantity, minStock) => {
@@ -223,7 +225,6 @@ export default function WarehouseScreen() {
 
   const totalParts = parts.length;
 
-  // Build sections grouped by category for "All" view
   const sections = React.useMemo(() => {
     if (activeCategory !== 'all') return [];
     const grouped = {};
@@ -232,7 +233,6 @@ export default function WarehouseScreen() {
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(part);
     });
-    // Sort by CATEGORIES order
     const order = CATEGORIES.map((c) => c.key).filter((k) => k !== 'all');
     return order
       .filter((key) => grouped[key]?.length > 0)
@@ -247,27 +247,17 @@ export default function WarehouseScreen() {
       });
   }, [filteredParts, activeCategory]);
 
-  // Loading state
   if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#14B8A6" />
-        <Text style={styles.loadingText}>Loading warehouse...</Text>
-      </View>
-    );
+    return <LoadingScreen message="Loading warehouse..." />;
   }
 
-  // No warehouse assigned
   if (noWarehouse) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyIcon}>🚐</Text>
-        <Text style={styles.emptyTitle}>No Van Assigned</Text>
-        <Text style={styles.emptyDescription}>
-          Your warehouse has not been set up yet.{'\n'}
-          Please contact your administrator.
-        </Text>
-      </View>
+      <EmptyState
+        icon="🚐"
+        title="No Van Assigned"
+        message={'Your warehouse has not been set up yet.\nPlease contact your administrator.'}
+      />
     );
   }
 
@@ -340,7 +330,7 @@ export default function WarehouseScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Search parts..."
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textLight}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -421,18 +411,14 @@ export default function WarehouseScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#14B8A6"
+              tintColor={colors.primary}
             />
           }
           ListEmptyComponent={
-            <View style={styles.emptyList}>
-              <Text style={styles.emptyListIcon}>📦</Text>
-              <Text style={styles.emptyListText}>
-                {searchQuery
-                  ? 'No parts match your filters'
-                  : 'No parts in your warehouse'}
-              </Text>
-            </View>
+            <EmptyState
+              icon="📦"
+              message={searchQuery ? 'No parts match your filters' : 'No parts in your warehouse'}
+            />
           }
           stickySectionHeadersEnabled={false}
         />
@@ -446,14 +432,11 @@ export default function WarehouseScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#14B8A6"
+              tintColor={colors.primary}
             />
           }
           ListEmptyComponent={
-            <View style={styles.emptyList}>
-              <Text style={styles.emptyListIcon}>📦</Text>
-              <Text style={styles.emptyListText}>No parts match your filters</Text>
-            </View>
+            <EmptyState icon="📦" message="No parts match your filters" />
           }
         />
       )}
@@ -467,7 +450,6 @@ export default function WarehouseScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Part Details</Text>
               <TouchableOpacity onPress={closePartDetail}>
@@ -477,11 +459,10 @@ export default function WarehouseScreen() {
 
             {detailLoading ? (
               <View style={styles.modalLoading}>
-                <ActivityIndicator size="large" color="#14B8A6" />
+                <ActivityIndicator size="large" color={colors.primary} />
               </View>
             ) : partDetail ? (
               <ScrollView style={styles.modalBody}>
-                {/* Photo */}
                 {partDetail.photo_url && (
                   <Image
                     source={{ uri: partDetail.photo_url }}
@@ -490,16 +471,13 @@ export default function WarehouseScreen() {
                   />
                 )}
 
-                {/* Name & SKU */}
                 <Text style={styles.detailName}>{partDetail.name}</Text>
                 {partDetail.sku && (
                   <Text style={styles.detailSku}>SKU: {partDetail.sku}</Text>
                 )}
 
-                {/* Info Section */}
                 <View style={styles.detailSection}>
                   <Text style={styles.detailSectionTitle}>Information</Text>
-
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Category</Text>
                     <Text style={styles.detailValue}>
@@ -508,19 +486,16 @@ export default function WarehouseScreen() {
                         partDetail.category?.slice(1)}
                     </Text>
                   </View>
-
                 </View>
 
                 {partDetail.description && (
                   <View style={styles.descriptionBlock}>
-                    <Text style={styles.descriptionIcon}>📝</Text>
                     <Text style={styles.descriptionText}>
                       {partDetail.description}
                     </Text>
                   </View>
                 )}
 
-                {/* Brands */}
                 {partDetail.brands?.length > 0 && (
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Brands</Text>
@@ -534,7 +509,6 @@ export default function WarehouseScreen() {
                   </View>
                 )}
 
-                {/* Part Numbers */}
                 {partDetail.part_numbers?.length > 0 && (
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Part Numbers</Text>
@@ -546,7 +520,6 @@ export default function WarehouseScreen() {
                   </View>
                 )}
 
-                {/* Inventory Across Warehouses */}
                 {partDetail.inventory?.length > 0 && (
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>
@@ -565,7 +538,6 @@ export default function WarehouseScreen() {
                   </View>
                 )}
 
-                {/* Deduct Section */}
                 <View style={styles.deductSection}>
                   {!deductMode ? (
                     <TouchableOpacity
@@ -626,7 +598,7 @@ export default function WarehouseScreen() {
                           disabled={deducting}
                         >
                           {deducting ? (
-                            <ActivityIndicator size="small" color="#fff" />
+                            <ActivityIndicator size="small" color={colors.white} />
                           ) : (
                             <Text style={styles.deductConfirmText}>Confirm</Text>
                           )}
@@ -655,50 +627,20 @@ export default function WarehouseScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
-
-  // Empty state
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  emptyDescription: {
-    fontSize: 15,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 22,
+    backgroundColor: colors.background,
   },
 
   // Search
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     margin: 12,
     marginBottom: 0,
     borderRadius: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.borderMedium,
   },
   searchIcon: {
     fontSize: 16,
@@ -708,11 +650,11 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     fontSize: 15,
-    color: '#333',
+    color: colors.textDark,
   },
   clearSearch: {
     fontSize: 18,
-    color: '#999',
+    color: colors.textLight,
     paddingLeft: 8,
   },
 
@@ -728,28 +670,28 @@ const styles = StyleSheet.create({
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.borderMedium,
     marginRight: 8,
   },
   categoryChipActive: {
-    backgroundColor: '#14B8A6',
-    borderColor: '#14B8A6',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   categoryChipText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#666',
+    color: colors.textMedium,
   },
   categoryChipTextActive: {
-    color: '#fff',
+    color: colors.white,
   },
   categoryCount: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.chipBg,
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 1,
@@ -758,15 +700,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categoryCountActive: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: colors.whiteTransparent25,
   },
   categoryCountText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textMedium,
   },
   categoryCountTextActive: {
-    color: '#fff',
+    color: colors.white,
   },
 
   // Section Headers
@@ -779,7 +721,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.borderMedium,
   },
   sectionHeaderLeft: {
     flexDirection: 'row',
@@ -792,12 +734,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#374151',
+    color: colors.textDarkGray,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   sectionBadge: {
-    backgroundColor: '#14B8A6',
+    backgroundColor: colors.primary,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -807,7 +749,7 @@ const styles = StyleSheet.create({
   sectionBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#fff',
+    color: colors.white,
   },
 
   // Parts List
@@ -816,7 +758,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   partCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     marginBottom: 10,
     shadowColor: '#000',
@@ -834,13 +776,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.chipBg,
   },
   partImagePlaceholder: {
     width: 56,
     height: 56,
     borderRadius: 8,
-    backgroundColor: '#f0fdfa',
+    backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -854,7 +796,7 @@ const styles = StyleSheet.create({
   partName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textDark,
     marginBottom: 4,
   },
   partMeta: {
@@ -865,11 +807,11 @@ const styles = StyleSheet.create({
   },
   partSku: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textLight,
   },
   partBrand: {
     fontSize: 12,
-    color: '#14B8A6',
+    color: colors.primary,
     fontWeight: '500',
   },
   partFooter: {
@@ -897,7 +839,7 @@ const styles = StyleSheet.create({
   quantityBadge: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f0fdfa',
+    backgroundColor: colors.primaryLight,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -906,38 +848,29 @@ const styles = StyleSheet.create({
   quantityNumber: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#14B8A6',
+    color: colors.primary,
   },
   quantityLabel: {
     fontSize: 10,
-    color: '#999',
+    color: colors.textLight,
     marginTop: 1,
   },
 
   // Empty List
-  emptyList: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyListIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
   emptyListText: {
     fontSize: 15,
-    color: '#666',
+    color: colors.textMedium,
     textAlign: 'center',
   },
 
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '85%',
@@ -948,16 +881,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.borderMedium,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textDark,
   },
   modalClose: {
     fontSize: 22,
-    color: '#999',
+    color: colors.textLight,
     padding: 4,
   },
   modalLoading: {
@@ -974,30 +907,30 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     borderRadius: 12,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.chipBg,
     marginBottom: 16,
   },
   detailName: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textDark,
     marginBottom: 4,
   },
   detailSku: {
     fontSize: 14,
-    color: '#999',
+    color: colors.textLight,
     marginBottom: 16,
   },
   detailSection: {
     marginTop: 20,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: colors.chipBg,
   },
   detailSectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#14B8A6',
+    color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -1010,36 +943,28 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMedium,
     flex: 1,
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#333',
+    color: colors.textDark,
     flex: 1.5,
     textAlign: 'right',
   },
-  // Description block
   descriptionBlock: {
     marginTop: 16,
-    backgroundColor: '#f0fdfa',
+    backgroundColor: colors.primaryLight,
     borderRadius: 12,
     padding: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     borderLeftWidth: 3,
-    borderLeftColor: '#14B8A6',
-  },
-  descriptionIcon: {
-    fontSize: 16,
-    marginRight: 10,
-    marginTop: 1,
+    borderLeftColor: colors.primary,
   },
   descriptionText: {
     flex: 1,
     fontSize: 14,
-    color: '#374151',
+    color: colors.textDarkGray,
     lineHeight: 21,
   },
 
@@ -1050,22 +975,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tag: {
-    backgroundColor: '#f0fdfa',
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#99f6e4',
+    borderColor: colors.primaryBorder,
   },
   tagText: {
     fontSize: 13,
-    color: '#0d9488',
+    color: colors.primaryDark,
     fontWeight: '500',
   },
 
   // Part Numbers
   partNumberRow: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.cardBg,
     padding: 10,
     borderRadius: 8,
     marginBottom: 6,
@@ -1073,7 +998,7 @@ const styles = StyleSheet.create({
   partNumberText: {
     fontSize: 14,
     fontFamily: 'monospace',
-    color: '#333',
+    color: colors.textDark,
   },
 
   // Inventory
@@ -1081,20 +1006,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: colors.cardBg,
     padding: 12,
     borderRadius: 8,
     marginBottom: 6,
   },
   inventoryName: {
     fontSize: 14,
-    color: '#333',
+    color: colors.textDark,
     fontWeight: '500',
   },
   inventoryQty: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#14B8A6',
+    color: colors.primary,
   },
 
   // Deduct
@@ -1102,23 +1027,23 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: colors.borderMedium,
   },
   usePartButton: {
-    backgroundColor: '#14B8A6',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
   },
   usePartButtonText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '700',
   },
   deductControls: {},
   deductLabel: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMedium,
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -1133,27 +1058,27 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.chipBg,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.borderMedium,
   },
   deductBtnText: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#374151',
+    color: colors.textDarkGray,
   },
   deductInput: {
     width: 64,
     height: 44,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.borderMedium,
     fontSize: 18,
     fontWeight: '700',
-    color: '#333',
-    backgroundColor: '#fff',
+    color: colors.textDark,
+    backgroundColor: colors.white,
   },
   deductActions: {
     flexDirection: 'row',
@@ -1164,24 +1089,24 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: colors.borderDark,
     alignItems: 'center',
   },
   deductCancelText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textMedium,
   },
   deductConfirm: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 10,
-    backgroundColor: '#ef4444',
+    backgroundColor: colors.danger,
     alignItems: 'center',
   },
   deductConfirmText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#fff',
+    color: colors.white,
   },
 });

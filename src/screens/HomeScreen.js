@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../services/api';
+import { colors } from '../constants/colors';
 
 export default function HomeScreen({ navigation }) {
   const [user, setUser] = useState(null);
@@ -124,33 +125,33 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
   },
   header: {
-    backgroundColor: '#14B8A6',
+    backgroundColor: colors.primary,
     padding: 20,
     paddingTop: 30,
     paddingBottom: 30,
   },
   welcome: {
     fontSize: 16,
-    color: '#fff',
+    color: colors.white,
     opacity: 0.9,
   },
   name: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.white,
     marginTop: 4,
   },
   menu: {
     padding: 15,
   },
   menuItem: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 20,
     marginBottom: 15,
@@ -172,29 +173,29 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textDark,
     marginBottom: 4,
   },
   menuDescription: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMedium,
   },
   menuArrow: {
     fontSize: 30,
-    color: '#14B8A6',
+    color: colors.primary,
     marginLeft: 10,
   },
   logoutButton: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     margin: 15,
     padding: 15,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ef4444',
+    borderColor: colors.danger,
   },
   logoutText: {
-    color: '#ef4444',
+    color: colors.danger,
     fontSize: 16,
     fontWeight: '600',
   },

@@ -9,8 +9,12 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
+  Alert,
 } from 'react-native';
 import { estimatesAPI } from '../services/api';
+import { colors } from '../constants/colors';
+import LoadingScreen from '../components/LoadingScreen';
+import EmptyState from '../components/EmptyState';
 
 export default function PartsScreen() {
   const [activeTab, setActiveTab] = useState('in_transit');
@@ -27,11 +31,12 @@ export default function PartsScreen() {
   const loadParts = async () => {
     try {
       setLoading(true);
-      // Use the tab name directly as it matches database format (in_transit, arrived, on_board)
       const data = await estimatesAPI.getPartsByStatus(activeTab);
       setParts(data);
     } catch (error) {
       console.error('Failed to load parts:', error);
+      const message = error.response?.data?.error || 'Failed to load parts. Please try again.';
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -45,13 +50,13 @@ export default function PartsScreen() {
 
   const handlePartPress = async (part) => {
     setSelectedPart(part);
-    // Load comments if not already loaded
     if (!part.comments) {
       try {
         const comments = await estimatesAPI.getEstimateComments(part.id);
         setSelectedPart({ ...part, comments });
       } catch (error) {
         console.error('Failed to load comments:', error);
+        Alert.alert('Error', 'Failed to load comments.');
         setSelectedPart({ ...part, comments: [] });
       }
     }
@@ -111,7 +116,7 @@ export default function PartsScreen() {
                 </View>
               ))
             ) : (
-              <Text style={styles.noComments}>No comments yet</Text>
+              <EmptyState message="No comments yet" />
             )}
           </ScrollView>
         </View>
@@ -128,7 +133,7 @@ export default function PartsScreen() {
           onPress={() => setActiveTab('in_transit')}
         >
           <Text style={[styles.tabText, activeTab === 'in_transit' && styles.activeTabText]}>
-            🚚 In Transit
+            In Transit
           </Text>
         </TouchableOpacity>
 
@@ -137,7 +142,7 @@ export default function PartsScreen() {
           onPress={() => setActiveTab('arrived')}
         >
           <Text style={[styles.tabText, activeTab === 'arrived' && styles.activeTabText]}>
-            📍 Arrived
+            Arrived
           </Text>
         </TouchableOpacity>
 
@@ -146,7 +151,7 @@ export default function PartsScreen() {
           onPress={() => setActiveTab('on_board')}
         >
           <Text style={[styles.tabText, activeTab === 'on_board' && styles.activeTabText]}>
-            📋 On Board
+            On Board
           </Text>
         </TouchableOpacity>
       </View>
@@ -154,7 +159,7 @@ export default function PartsScreen() {
       {/* Content */}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#14B8A6" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -166,13 +171,11 @@ export default function PartsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={['#14B8A6']}
+              colors={[colors.primary]}
             />
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No parts in this status</Text>
-            </View>
+            <EmptyState message="No parts in this status" />
           }
         />
       )}
@@ -185,13 +188,13 @@ export default function PartsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
+    borderBottomColor: colors.border,
   },
   tab: {
     flex: 1,
@@ -201,15 +204,15 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#14B8A6',
+    borderBottomColor: colors.primary,
   },
   tabText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMedium,
     fontWeight: '500',
   },
   activeTabText: {
-    color: '#14B8A6',
+    color: colors.primary,
     fontWeight: '600',
   },
   loadingContainer: {
@@ -221,7 +224,7 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 12,
     padding: 15,
     marginBottom: 15,
@@ -240,46 +243,38 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textDark,
     flex: 1,
   },
   date: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textMedium,
   },
   partsInfo: {
     marginBottom: 8,
   },
   partsLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textMedium,
     marginBottom: 4,
   },
   partsName: {
     fontSize: 16,
-    color: '#14B8A6',
+    color: colors.primary,
     fontWeight: '500',
   },
   partNumber: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textLight,
     fontStyle: 'italic',
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
@@ -290,28 +285,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
+    borderBottomColor: colors.border,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textDark,
   },
   closeButton: {
     fontSize: 24,
-    color: '#666',
+    color: colors.textMedium,
     paddingHorizontal: 10,
   },
   commentsContainer: {
     padding: 20,
   },
   commentCard: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: colors.cardBg,
     borderRadius: 8,
     padding: 15,
     marginBottom: 15,
     borderLeftWidth: 3,
-    borderLeftColor: '#14B8A6',
+    borderLeftColor: colors.primary,
   },
   commentHeader: {
     flexDirection: 'row',
@@ -321,21 +316,15 @@ const styles = StyleSheet.create({
   commentAuthor: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textDark,
   },
   commentDate: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textLight,
   },
   commentText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textMedium,
     lineHeight: 20,
-  },
-  noComments: {
-    fontSize: 16,
-    color: '#999',
-    textAlign: 'center',
-    padding: 20,
   },
 });

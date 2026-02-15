@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { colors } from './src/constants/colors';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -35,7 +36,7 @@ export default function App() {
   };
 
   if (isLoading) {
-    return null; // TODO: Add loading screen
+    return null;
   }
 
   return (
@@ -43,9 +44,9 @@ export default function App() {
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#14B8A6',
+            backgroundColor: colors.primary,
           },
-          headerTintColor: '#fff',
+          headerTintColor: colors.white,
           headerTitleStyle: {
             fontWeight: 'bold',
           },
