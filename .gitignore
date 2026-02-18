@@ -31,3 +31,5 @@ yarn-error.*
 # Local
 .vscode/
 .idea/
+nul
+README_SESSION.md
