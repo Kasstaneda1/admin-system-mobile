@@ -66,6 +66,33 @@ export default function PaymentsScreen() {
     }
   };
 
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const groupPaymentsByMonth = (payments) => {
+    const groups = {};
+    payments.forEach(payment => {
+      const date = new Date(payment.payment_date);
+      const month = date.getMonth();
+      if (!groups[month]) {
+        groups[month] = [];
+      }
+      groups[month].push(payment);
+    });
+    // Sort months descending (most recent first)
+    return Object.keys(groups)
+      .map(Number)
+      .sort((a, b) => b - a)
+      .map(month => ({
+        month,
+        name: monthNames[month],
+        payments: groups[month],
+        total: groups[month].reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+      }));
+  };
+
   const renderPayment = (payment) => {
     const date = new Date(payment.payment_date).toLocaleDateString();
     const amount = parseFloat(payment.amount || 0).toFixed(2);
@@ -76,6 +103,25 @@ export default function PaymentsScreen() {
           <Text style={styles.paymentDate}>{date}</Text>
           <Text style={styles.paymentAmount}>${amount}</Text>
         </View>
+      </View>
+    );
+  };
+
+  const renderMonthGroup = (group) => {
+    return (
+      <View key={group.month} style={styles.monthGroup}>
+        <View style={styles.monthHeader}>
+          <View style={styles.monthHeaderLine} />
+          <View style={styles.monthHeaderContent}>
+            <Text style={styles.monthName}>{group.name}</Text>
+            <Text style={styles.monthTotal}>${group.total.toFixed(2)}</Text>
+          </View>
+          <View style={styles.monthHeaderLine} />
+        </View>
+        <Text style={styles.monthCount}>
+          {group.payments.length} {group.payments.length === 1 ? 'payment' : 'payments'}
+        </Text>
+        {group.payments.map(payment => renderPayment(payment))}
       </View>
     );
   };
@@ -114,7 +160,7 @@ export default function PaymentsScreen() {
             </View>
 
             {yearPayments.length > 0 ? (
-              yearPayments.map(payment => renderPayment(payment))
+              groupPaymentsByMonth(yearPayments).map(group => renderMonthGroup(group))
             ) : (
               <EmptyState message={`No payments for ${selectedYear}`} />
             )}
@@ -183,6 +229,44 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     marginRight: 8,
     flex: 1,
+  },
+  monthGroup: {
+    marginBottom: 8,
+  },
+  monthHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    marginTop: 4,
+  },
+  monthHeaderLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  monthHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  monthName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  monthTotal: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  monthCount: {
+    fontSize: 12,
+    color: colors.textLight,
+    textAlign: 'center',
+    marginBottom: 10,
   },
   paymentCard: {
     backgroundColor: colors.white,
