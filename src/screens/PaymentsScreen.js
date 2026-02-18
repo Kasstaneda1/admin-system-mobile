@@ -8,6 +8,7 @@ import ErrorMessage from '../components/ErrorMessage';
 import YearSelector from '../components/YearSelector';
 import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
+import { parseLocalDate } from '../utils/dateUtils';
 
 export default function PaymentsScreen() {
   const currentYear = new Date().getFullYear();
@@ -27,7 +28,7 @@ export default function PaymentsScreen() {
   useEffect(() => {
     if (allPayments.length > 0) {
       const filtered = allPayments.filter(payment => {
-        const paymentYear = new Date(payment.payment_date).getFullYear();
+        const paymentYear = parseLocalDate(payment.payment_date).getFullYear();
         return paymentYear === selectedYear;
       });
       setYearPayments(filtered);
@@ -74,7 +75,7 @@ export default function PaymentsScreen() {
   const groupPaymentsByMonth = (payments) => {
     const groups = {};
     payments.forEach(payment => {
-      const date = new Date(payment.payment_date);
+      const date = parseLocalDate(payment.payment_date);
       const month = date.getMonth();
       if (!groups[month]) {
         groups[month] = [];
@@ -94,7 +95,7 @@ export default function PaymentsScreen() {
   };
 
   const renderPayment = (payment) => {
-    const date = new Date(payment.payment_date).toLocaleDateString();
+    const date = parseLocalDate(payment.payment_date).toLocaleDateString();
     const amount = parseFloat(payment.amount || 0).toFixed(2);
 
     return (

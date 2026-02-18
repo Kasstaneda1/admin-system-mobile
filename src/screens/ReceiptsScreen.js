@@ -6,6 +6,7 @@ import LoadingScreen from '../components/LoadingScreen';
 import ErrorMessage from '../components/ErrorMessage';
 import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
+import { parseLocalDate } from '../utils/dateUtils';
 
 export default function ReceiptsScreen() {
   const [loading, setLoading] = useState(true);
@@ -34,7 +35,7 @@ export default function ReceiptsScreen() {
   };
 
   const renderReceipt = (receipt) => {
-    const date = new Date(receipt.date).toLocaleDateString();
+    const date = parseLocalDate(receipt.date).toLocaleDateString();
     const amount = parseFloat(receipt.check_amount || 0).toFixed(2);
 
     return (

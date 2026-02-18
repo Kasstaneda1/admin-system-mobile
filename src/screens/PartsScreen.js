@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { estimatesAPI } from '../services/api';
 import { colors } from '../constants/colors';
+import { parseLocalDate } from '../utils/dateUtils';
 import LoadingScreen from '../components/LoadingScreen';
 import EmptyState from '../components/EmptyState';
 
@@ -71,7 +72,7 @@ export default function PartsScreen() {
       <View style={styles.cardHeader}>
         <Text style={styles.clientName}>{item.client || 'No Client'}</Text>
         <Text style={styles.date}>
-          {item.date ? new Date(item.date).toLocaleDateString() : ''}
+          {item.date ? parseLocalDate(item.date).toLocaleDateString() : ''}
         </Text>
       </View>
 

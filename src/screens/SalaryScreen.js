@@ -13,6 +13,7 @@ import { salaryAPI } from '../services/api';
 import { colors } from '../constants/colors';
 import YearSelector from '../components/YearSelector';
 import StatusBadge from '../components/StatusBadge';
+import { parseLocalDate } from '../utils/dateUtils';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -272,7 +273,7 @@ export default function SalaryScreen() {
                     >
                       <View style={styles.recordHeader}>
                         <Text style={styles.recordDate}>
-                          {new Date(record.date).toLocaleDateString()}
+                          {parseLocalDate(record.date).toLocaleDateString()}
                         </Text>
                         <StatusBadge
                           label={isPaid ? 'Paid' : 'Not Paid'}
@@ -352,7 +353,7 @@ export default function SalaryScreen() {
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Date:</Text>
                     <Text style={styles.detailValue}>
-                      {new Date(selectedRecord.date).toLocaleDateString()}
+                      {parseLocalDate(selectedRecord.date).toLocaleDateString()}
                     </Text>
                   </View>
                   <View style={styles.detailRow}>

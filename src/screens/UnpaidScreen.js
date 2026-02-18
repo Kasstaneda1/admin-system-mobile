@@ -7,6 +7,7 @@ import LoadingScreen from '../components/LoadingScreen';
 import ErrorMessage from '../components/ErrorMessage';
 import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
+import { parseLocalDate } from '../utils/dateUtils';
 
 export default function UnpaidScreen() {
   const [loading, setLoading] = useState(true);
@@ -47,7 +48,7 @@ export default function UnpaidScreen() {
   };
 
   const renderRecord = (record, isPending = true) => {
-    const date = new Date(record.record_date).toLocaleDateString();
+    const date = parseLocalDate(record.record_date).toLocaleDateString();
     const amount = parseFloat(record.amount || 0).toFixed(2);
 
     return (
