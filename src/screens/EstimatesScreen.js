@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { estimatesAPI } from '../services/api';
+import { parseLocalDate } from '../utils/dateUtils';
 
 export default function EstimatesScreen({ navigation }) {
   const [estimates, setEstimates] = useState([]);
@@ -63,7 +64,7 @@ export default function EstimatesScreen({ navigation }) {
       <Text style={styles.address}>{item.address}</Text>
 
       <View style={styles.cardDetails}>
-        <Text style={styles.detailText}>📅 {new Date(item.date).toLocaleDateString()}</Text>
+        <Text style={styles.detailText}>📅 {parseLocalDate(item.date).toLocaleDateString()}</Text>
         {item.amount && (
           <Text style={styles.detailText}>💵 ${parseFloat(item.amount).toFixed(2)}</Text>
         )}

@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { estimatesAPI } from '../services/api';
+import { parseLocalDate } from '../utils/dateUtils';
 
 export default function EstimateDetailScreen({ route, navigation }) {
   const { estimateId } = route.params;
@@ -54,7 +55,7 @@ export default function EstimateDetailScreen({ route, navigation }) {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Estimate Details</Text>
-        <InfoRow label="Date" value={new Date(estimate.date).toLocaleDateString()} />
+        <InfoRow label="Date" value={parseLocalDate(estimate.date).toLocaleDateString()} />
         <InfoRow label="Status" value={estimate.status} />
         <InfoRow label="Appliance Type" value={estimate.appliance_type} />
         {estimate.brand && <InfoRow label="Brand" value={estimate.brand} />}
