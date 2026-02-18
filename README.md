@@ -4,6 +4,20 @@ React Native mobile application for SEMIX CORP technicians built with Expo.
 
 ## 📱 Development Status: **PHASE 3 - SALARY RECORDS FEATURE COMPLETE**
 
+### ✅ Completed (Feb 12, 2026)
+
+- **Payments Screen — Month Separators**
+  - ✅ Payments grouped by month with visual divider headers
+  - ✅ Each month header shows: month name, subtotal, payment count
+  - ✅ Horizontal lines on both sides of month label
+  - ✅ Months sorted descending (most recent first)
+
+- **Timezone Date Fix (all screens)**
+  - ✅ Created shared `parseLocalDate()` utility in `src/utils/dateUtils.js`
+  - ✅ Fixed `new Date("YYYY-MM-DD")` UTC timezone shift causing dates to show 1 day earlier in US timezones
+  - ✅ Applied to all 7 screens: Payments, Salary, EstimateDetail, Estimates, Parts, Receipts, Unpaid
+  - ✅ `comment.created_at` (full timestamp) left unchanged — only date-only fields affected
+
 ### ✅ Completed (Feb 11, 2026)
 
 - **Salary Records Feature (COMPLETE)** 🎉
@@ -65,6 +79,7 @@ React Native mobile application for SEMIX CORP technicians built with Expo.
 4. **Comment Fields**: Fixed comment display to use correct database fields (`user_name`, `comment_text`)
 5. **Modal Navigation**: Fixed modal stacking issues - implemented proper show/hide logic for layered modals
 6. **Work Details Fields**: Aligned mobile app fields with admin panel Technician Salary table structure
+7. **Timezone Date Shift**: `new Date("2025-02-12")` creates UTC midnight → shows Feb 11 in EST/PST. Fixed with `parseLocalDate()` that splits string and creates local Date
 
 ### ⚠️ Known Issues
 
@@ -173,7 +188,9 @@ admin-system-mobile/
 │   │   └── UnpaidScreen.js      # Unpaid records (placeholder)
 │   ├── services/
 │   │   └── api.js               # API service with Railway backend
-│   └── components/              # Reusable components (future)
+│   ├── utils/
+│   │   └── dateUtils.js         # Date parsing utility (timezone-safe)
+│   └── components/              # Reusable UI components
 └── assets/                      # App icons and splash screens
 ```
 
