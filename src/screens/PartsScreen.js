@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { estimatesAPI } from '../services/api';
 import { colors } from '../constants/colors';
-import { parseLocalDate } from '../utils/dateUtils';
+import { parseLocalDate, formatAuthorTime } from '../utils/dateUtils';
 import LoadingScreen from '../components/LoadingScreen';
 import EmptyState from '../components/EmptyState';
 
@@ -110,7 +110,7 @@ export default function PartsScreen() {
                   <View style={styles.commentHeader}>
                     <Text style={styles.commentAuthor}>{comment.user_name || 'Unknown'}</Text>
                     <Text style={styles.commentDate}>
-                      {comment.created_at ? new Date(comment.created_at).toLocaleString() : ''}
+                      {formatAuthorTime(comment.created_at_utc, comment.author_tz, comment.created_at)}
                     </Text>
                   </View>
                   <Text style={styles.commentText}>{comment.comment_text || 'No comment text'}</Text>
