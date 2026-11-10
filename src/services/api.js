@@ -1,7 +1,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = 'https://admin-system-backend-production.up.railway.app';
+// The server comes from the build: EXPO_PUBLIC_API_URL, checked by app.config.js and set per
+// profile in eas.json (a local stand for development, the live server for preview and
+// production). Metro writes the value in when it bundles the app.
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 // Create axios instance
 const api = axios.create({
