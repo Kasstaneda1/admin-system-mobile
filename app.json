@@ -4,6 +4,7 @@
     "slug": "semix-technician",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "resizeMode": "contain",
@@ -18,13 +19,15 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#14B8A6"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       },
       "package": "com.semix.technician"
     },
     "plugins": [
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "./plugins/withIos27Scene"
     ]
   }
 }

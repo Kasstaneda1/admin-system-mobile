@@ -136,9 +136,7 @@ This will open the Expo Developer Tools in your browser.
 
 ### On Physical Device
 
-1. Install **Expo Go** app from App Store (iOS) or Google Play (Android)
-2. Scan the QR code from the terminal or Expo Developer Tools
-3. The app will load on your device
+Expo Go does not open this app any more: install a build of it (see **Builds**).
 
 ### On iOS Simulator (Mac only)
 
@@ -172,20 +170,25 @@ admin-system-mobile/
 │   │   ├── ReceiptsScreen.js    # Receipt upload (placeholder)
 │   │   └── UnpaidScreen.js      # Unpaid records (placeholder)
 │   ├── services/
-│   │   └── api.js               # API service with Railway backend
+│   │   └── api.js               # API service (server from EXPO_PUBLIC_API_URL)
 │   └── components/              # Reusable components (future)
 └── assets/                      # App icons and splash screens
 ```
 
 ## API Configuration
 
-The app connects to the Railway backend:
+The server comes from the build, not from the code: `EXPO_PUBLIC_API_URL`.
+`app.config.js` checks it (without it no Expo command runs; plain `http` only for a local
+stand), Metro writes it into the JS, `src/services/api.js` reads it.
 
-```javascript
-const API_URL = 'https://admin-system-backend-production.up.railway.app';
+```bash
+# a local backend stand on this Mac (the iOS Simulator reaches it as 127.0.0.1)
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8291 npx expo start
 ```
 
-To change the API URL, edit `src/services/api.js`.
+`eas.json` sets it for each build profile: `development` — a local stand,
+`preview` and `production` — the live server.
+The Android emulator reaches this Mac as `10.0.2.2`, not `127.0.0.1`.
 
 ## Authentication
 
@@ -194,40 +197,47 @@ To change the API URL, edit `src/services/api.js`.
 - Automatic token refresh on API requests
 - Only users with `role: 'technician'` can access the app
 
-## Building for Production
+## Builds
 
-### iOS
+Expo Go no longer opens this app (the App Store Expo Go runs only the newest SDK), so the
+app runs as its own build. `ios/` and `android/` are not in git: `npx expo prebuild` makes
+them from `app.json`, `app.config.js` and `plugins/`. Use Node 22 (`eas.json` asks EAS for
+22.14.0 too).
 
-1. Configure app.json with your bundle identifier
-2. Build the app:
+| `eas.json` profile | What | Server |
+|---|---|---|
+| `development` | Debug build, the JS comes from Metro; iOS Simulator `.app`, Android APK | local stand |
+| `preview` | Release build for testers' phones (internal; iOS needs the paid Apple account) | live |
+| `production` | store build, the build number goes up by itself | live |
+
+EAS needs an Expo account and `eas init` (it adds the project id); neither is done yet.
+
+**iOS Simulator on this Mac, without EAS:**
 
 ```bash
-expo build:ios
+export EXPO_PUBLIC_API_URL=http://127.0.0.1:8291
+npx expo prebuild --platform ios       # then: git checkout package.json
+cd ios && pod install
+xcodebuild -workspace SEMIXTechnician.xcworkspace -scheme SEMIXTechnician \
+  -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath <a folder outside the internal disk> build
+xcrun simctl install booted <derivedData>/Build/Products/Debug-iphonesimulator/SEMIXTechnician.app
+npx expo start                          # Metro; the app loads the JS from it
 ```
 
-### Android
-
-1. Configure app.json with your package name
-2. Build the APK:
-
-```bash
-expo build:android
-```
-
-For detailed build instructions, see [Expo Build Documentation](https://docs.expo.dev/build/introduction/).
-
-## Environment
-
-- **Development**: Uses Expo Go
-- **Production**: Standalone app builds for App Store / Google Play
+**iOS 27.** An app built with Xcode 27 stops at launch without the UIScene life cycle;
+Expo SDK 54 does not have it yet. `plugins/withIos27Scene.js` adds it on every prebuild (a `SceneDelegate` in
+`AppDelegate.swift`, the scene manifest in `Info.plist`) and lifts pods to iOS 15.1. Take
+it out with the SDK upgrade that brings scenes. Because of it there is no `expo-dev-client`
+for now: its SDK 54 launcher needs the window before the scene makes it.
 
 ## Troubleshooting
 
 ### Cannot connect to backend
 
 - Check internet connection
-- Verify API_URL in `src/services/api.js`
-- Ensure Railway backend is running
+- Check `EXPO_PUBLIC_API_URL` in the shell that started Metro; after changing it restart Metro with `-c`
+- Make sure that server is running
 
 ### Camera/Gallery permissions
 

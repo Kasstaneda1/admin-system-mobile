@@ -31,3 +31,7 @@ yarn-error.*
 # Local
 .vscode/
 .idea/
+
+# Native folders: made by `npx expo prebuild` from app.json, app.config.js and plugins/
+/ios
+/android
