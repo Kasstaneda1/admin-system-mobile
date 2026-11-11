@@ -46,12 +46,13 @@ export function defaultOutcome(visit) {
   const allowed = allowedOutcomes(visit.finish_outcomes);
   return allowed.length ? allowed[0] : KIND_OUTCOME[visit.visit_kind] || 'done';
 }
-// The words of a refused outcome: 'This visit can be finished as: Repaired, Deposit taken or Diagnostics only.'
+// The words under «The office changed this visit» when an outcome is refused: 'Finish it as:
+// Repaired, Deposit taken or Diagnostics only.' (the server's answer names the outcomes, not the new kind)
 export function outcomesText(list) {
   const titles = allowedOutcomes(list).map((o) => CHOICES[o].title);
-  if (!titles.length) return 'The office changed this visit. Pull down to refresh.';
+  if (!titles.length) return 'Pull down to refresh.';
   const words = titles.length === 1 ? titles[0] : `${titles.slice(0, -1).join(', ')} or ${titles[titles.length - 1]}`;
-  return `This visit can be finished as: ${words}.`;
+  return `Finish it as: ${words}.`;
 }
 // 'Stop 3 · Patel S. · Repair 2/2'
 export function finishSubtitle(visit, n = null) {

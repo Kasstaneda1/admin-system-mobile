@@ -69,14 +69,14 @@ test('Finish refused for its outcome: the app\'s words, the fresh visit, the out
     error: 'A installation visit can be finished only as: installation', code: 'outcome_not_allowed', finish_outcomes: ['installation'], visit: fresh,
   } } };
   assert.deepEqual(actionError(error), {
-    kind: 'outcome', text: 'This visit can be finished as: Installation done.', visit: fresh, outcomes: ['installation'], retry: false,
+    kind: 'outcome', text: 'Finish it as: Installation done.', visit: fresh, outcomes: ['installation'], retry: false,
   });
-  assert.equal(outcomesText(['done', 'deposit', 'diagnostics_only']), 'This visit can be finished as: Repaired, Deposit taken or Diagnostics only.');
-  assert.equal(outcomesText(['recall', 'done']), 'This visit can be finished as: Recall checked or Repaired.');
-  assert.equal(outcomesText(['teleport']), 'The office changed this visit. Pull down to refresh.');
+  assert.equal(outcomesText(['done', 'deposit', 'diagnostics_only']), 'Finish it as: Repaired, Deposit taken or Diagnostics only.');
+  assert.equal(outcomesText(['recall', 'done']), 'Finish it as: Recall checked or Repaired.');
+  assert.equal(outcomesText(['teleport']), 'Pull down to refresh.');
   // without the visit or the list in the answer
   assert.deepEqual(actionError({ response: { status: 400, data: { code: 'outcome_not_allowed' } } }),
-    { kind: 'outcome', text: 'The office changed this visit. Pull down to refresh.', visit: null, outcomes: [], retry: false });
+    { kind: 'outcome', text: 'Pull down to refresh.', visit: null, outcomes: [], retry: false });
   // another 400 stays a refusal in the server's words
   assert.equal(actionError({ response: { status: 400, data: { error: 'outcome is sent only with finish' } } }).kind, 'refused');
 });
