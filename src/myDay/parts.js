@@ -6,6 +6,7 @@ import { PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } fro
 import { colors } from '../constants/colors';
 import Icon from './Icon';
 import { dayOfMonth, weekdayLetter, weekdayOf } from './model';
+import { FRESH_TEXT, badgeText, tabLabel } from './fresh';
 
 // ---------- tags ----------
 export const TAG_FAMILIES = {
@@ -34,6 +35,14 @@ export function Tag({ tag, big = false }) {
 
 export function NowLabel({ text = 'NOW' }) {
   return <Text style={styles.now} accessibilityLabel={text === 'NOW' ? 'Now' : 'Next'}>{text}</Text>;
+}
+
+// «NEW» or «UPDATED» on a row (fresh.js; design notifications/app.html .mk): the same blue pill
+// as NEW at an office message in the card (#19). It never shrinks: the area gives way first.
+export function FreshMark({ kind }) {
+  const text = FRESH_TEXT[kind];
+  if (!text) return null;
+  return <Text style={styles.mark} accessibilityLabel={text}>{text.toUpperCase()}</Text>;
 }
 
 // The visit's number in a circle, coloured as its state
@@ -92,7 +101,7 @@ export function Strip({ strip }) {
 }
 
 // ---------- the list ----------
-export function DayRow({ row, onDirections, onCall, onPress }) {
+export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
   const open = row.current || row.next;
   const address = [row.visit.address_line, row.visit.address_unit ? `Apt ${row.visit.address_unit}`.replace(/^Apt (apt|unit|#)/i, '$1') : null].filter(Boolean).join(', ');
   const body = (
@@ -109,6 +118,7 @@ export function DayRow({ row, onDirections, onCall, onPress }) {
             {row.area ? <Text style={styles.area}>{` · ${row.area}`}</Text> : null}
           </Text>
           {open ? <NowLabel text={row.current ? 'NOW' : 'NEXT'} /> : null}
+          {fresh ? <FreshMark kind={fresh} /> : null}
         </View>
         <View style={styles.line2}>
           <Text style={styles.kind} numberOfLines={1}>{[row.kind, row.duration].filter(Boolean).join(' · ')}</Text>
@@ -155,7 +165,9 @@ export function GapRow({ gap }) {
 // ---------- the week ----------
 // Seven days, Sunday first; under each the number of visits. A swipe sideways goes to the
 // week before or after.
-export function WeekRow({ week, counts, selected, today, onSelect, onWeek }) {
+// marked: { date: n } of the days with a NEW or UPDATED visit (fresh.js freshCounts): a blue
+// dot by the day's number, but not on the day open (its rows show the marks)
+export function WeekRow({ week, counts, marked = null, selected, today, onSelect, onWeek }) {
   const pan = useRef(PanResponder.create({
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 18 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
     onPanResponderRelease: (_, g) => { if (Math.abs(g.dx) > 50) onWeek(g.dx < 0 ? 1 : -1); },
@@ -166,10 +178,12 @@ export function WeekRow({ week, counts, selected, today, onSelect, onWeek }) {
         const on = date === selected;
         const weekend = weekdayOf(date) === 0 || weekdayOf(date) === 6;
         const count = counts ? counts[date] : undefined;
+        const dot = !on && !!(marked && marked[date]);
         return (
           <TouchableOpacity key={date} style={[styles.wd, on && styles.wdOn]} onPress={() => onSelect(date)}
             accessibilityRole="tab" accessibilityState={{ selected: on }}
-            accessibilityLabel={`${date}${count !== undefined ? `, ${count} visits` : ''}`}>
+            accessibilityLabel={`${date}${count !== undefined ? `, ${count} visits` : ''}${marked && marked[date] ? ', new or changed' : ''}`}>
+            {dot ? <View style={styles.wdot} /> : null}
             <Text style={[styles.wl, on && styles.wOnText]}>{weekdayLetter(date)}</Text>
             <Text style={[styles.wn, weekend && styles.wWeekend, date === today && styles.wToday, on && styles.wOnText]}>{dayOfMonth(date)}</Text>
             <Text style={[styles.wc, weekend && styles.wWeekend, !count && styles.wcNone, on && styles.wOnText]}>{count ? String(count) : '–'}</Text>
@@ -208,15 +222,20 @@ export function EmptyDay({ title, offer, onOffer }) {
 
 // ---------- the tab bar ----------
 const TABS = [['cal', 'My day', null], ['money', 'Salary', 'Salary'], ['box', 'Parts', 'Parts'], ['more', 'More', 'Home']];
-export function TabBar({ navigation, bottom }) {
+// fresh: how many visits are NEW or UPDATED (fresh.js): a blue count on the My day icon, «9+»
+export function TabBar({ navigation, bottom, fresh = 0 }) {
   return (
     <View style={[styles.tabbar, { paddingBottom: Math.max(bottom, 8) }]} accessibilityRole="tablist">
       {TABS.map(([icon, label, screen]) => {
         const on = screen === null;
+        const count = screen === null && fresh > 0 ? fresh : 0;
         return (
           <TouchableOpacity key={label} style={styles.tb} onPress={() => (screen ? navigation.navigate(screen) : null)}
-            accessibilityRole="tab" accessibilityState={{ selected: on }}>
-            <Icon name={icon} size={24} color={on ? colors.brand : colors.fgMutedField} />
+            accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={screen === null ? tabLabel(count) : label}>
+            <View>
+              <Icon name={icon} size={24} color={on ? colors.brand : colors.fgMutedField} />
+              {count ? <Text style={styles.badge}>{badgeText(count)}</Text> : null}
+            </View>
             <Text style={[styles.tbText, on && { color: colors.brand }]}>{label}</Text>
           </TouchableOpacity>
         );
@@ -232,6 +251,7 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 12, fontWeight: '700', flexShrink: 1 },
   tagTextBig: { fontSize: 13 },
   now: { flexShrink: 0, paddingHorizontal: 6, height: 20, lineHeight: 20, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.accent, color: colors.onAccent, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
+  mark: { flexShrink: 0, paddingHorizontal: 6, height: 18, lineHeight: 18, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
   dot: { position: 'absolute', left: 0, top: 2, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   dotText: { fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
 
@@ -275,6 +295,8 @@ const styles = StyleSheet.create({
 
   week: { flexDirection: 'row', gap: 2, marginTop: 8 },
   wd: { flex: 1, alignItems: 'center', height: 58, paddingVertical: 4, borderRadius: 12 },
+  // 8 pt blue with a 2 pt white ring, at the top right of the day's number (design .wdot)
+  wdot: { position: 'absolute', top: 3, left: '50%', marginLeft: 7, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.bgCard, backgroundColor: colors.infoBorder },
   wdOn: { backgroundColor: colors.brandPressed },
   wl: { fontSize: 12, fontWeight: '600', color: colors.fgMutedField },
   wn: { fontSize: 19, lineHeight: 24, fontWeight: '700', color: colors.fgDefault },
@@ -297,4 +319,6 @@ const styles = StyleSheet.create({
   tabbar: { flexDirection: 'row', paddingTop: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: colors.borderDefault, backgroundColor: colors.bgCard },
   tb: { flex: 1, alignItems: 'center', gap: 2, minHeight: 48 },
   tbText: { fontSize: 11, fontWeight: '600', color: colors.fgMutedField },
+  // the count on the My day icon (design .bdg): blue, white, a 2 pt white ring
+  badge: { position: 'absolute', top: -8, left: 13, minWidth: 24, height: 24, paddingHorizontal: 5, borderRadius: 12, borderWidth: 2, borderColor: colors.bgCard, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 12, fontWeight: '800', lineHeight: 20, textAlign: 'center' },
 });
