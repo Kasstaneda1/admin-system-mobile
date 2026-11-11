@@ -7,6 +7,7 @@ import { ActivityIndicator, Image, Modal, StyleSheet, Text, TextInput, Touchable
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 import { photoUri } from '../services/api';
+import { photoSource } from './notesPhotos';
 import Icon from './Icon';
 import { Sheet } from './visitBar';
 import { NOTE_CHIPS, NOTE_MAX, noteLength, noteReady, withChip } from './notesPhotos';
@@ -107,7 +108,7 @@ function ServerImage({ photo, header, style, resizeMode = 'cover' }) {
     );
   }
   return (
-    <Image source={{ uri: photoUri(photo.path), headers: header }} style={style} resizeMode={resizeMode}
+    <Image source={photoSource(photoUri(photo.path), header)} style={style} resizeMode={resizeMode}
       onError={() => setBroken(true)} accessibilityIgnoresInvertColors />
   );
 }
@@ -136,15 +137,19 @@ export function PhotoGrid({ photos, header, upload, waiting, onOpen, onRetry, on
         </View>
       ) : null}
       {upload && upload.failed ? (
-        <View style={s.failRow} accessibilityRole="alert">
-          <Icon name="wifioff" size={16} color={colors.warningFg} />
-          <Text style={s.failText}>{upload.failed}</Text>
-          <TouchableOpacity style={s.failBtn} onPress={onRetry} accessibilityRole="button">
-            <Text style={s.failBtnText}>Try again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.failCancel} onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel the photo">
-            <Text style={s.failCancelText}>Cancel</Text>
-          </TouchableOpacity>
+        <View style={s.failBox} accessibilityRole="alert">
+          <View style={s.failLine}>
+            <Icon name="wifioff" size={16} color={colors.warningFg} style={s.failIcon} />
+            <Text style={s.failText}>{upload.failed}</Text>
+          </View>
+          <View style={s.failActions}>
+            <TouchableOpacity style={s.failBtn} onPress={onRetry} accessibilityRole="button">
+              <Text style={s.failBtnText}>Try again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.failCancel} onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel the photo">
+              <Text style={s.failCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : null}
     </View>
@@ -201,8 +206,12 @@ const s = StyleSheet.create({
   thumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: colors.bgSunken },
   sending: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderDefault },
   broken: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgSunken },
-  failRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, padding: 8, paddingLeft: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
-  failBtn: { height: 44, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandPressed },
+  // the photo that got no answer: its words on the first line, Try again and Cancel on the second
+  failBox: { gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
+  failLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  failIcon: { marginTop: 2 },
+  failActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  failBtn: { height: 44, paddingHorizontal: 18, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandPressed },
   failBtnText: { fontSize: 15, fontWeight: '700', color: colors.fgOnFill },
   failCancel: { height: 44, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   failCancelText: { fontSize: 15, fontWeight: '600', color: colors.warningFg, textDecorationLine: 'underline' },

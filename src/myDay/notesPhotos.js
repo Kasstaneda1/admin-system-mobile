@@ -126,6 +126,14 @@ export function photoPath(visitId, photoId) {
   return `/api/scheduler/tasks/${encodeURIComponent(visitId)}/photos/${encodeURIComponent(photoId)}/file`;
 }
 
+// The source of a photo for the screen's Image: its full address (api.js photoUri), the token,
+// and never from the phone's cache. The server already says no-store (backend photos.js); this
+// keeps it so if that ever changes, so that after sign out the next person on the same phone
+// cannot get the photos of the one before from the cache (iOS cache 'reload').
+export function photoSource(uri, header) {
+  return { uri, headers: header || undefined, cache: 'reload' };
+}
+
 export function photosTitle(n) {
   return `Photos · ${n}`;
 }

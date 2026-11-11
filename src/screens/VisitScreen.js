@@ -320,6 +320,15 @@ export default function VisitScreen({ route, navigation }) {
   const photos = useMemo(() => (photoRows ? photosOf(photoRows, id, now) : null), [photoRows, id, now]);
   const [upload, setUpload] = useState(null);
   const uploading = useRef(false);
+  // a photo that got no answer: its box (the last thing on the card) comes into view with
+  // Try again, not under the bar at the bottom
+  const scrollRef = useRef(null);
+  const photoFailed = !!(upload && upload.failed);
+  useEffect(() => {
+    if (!photoFailed) return undefined;
+    const frame = requestAnimationFrame(() => scrollRef.current && scrollRef.current.scrollToEnd({ animated: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [photoFailed]);
   const [photoSheet, setPhotoSheet] = useState(false);
   const pickNext = useRef(null);                          // 'camera' | 'library', once the sheet has gone
   const [viewer, setViewer] = useState(null);             // the photo open full screen
@@ -424,7 +433,7 @@ export default function VisitScreen({ route, navigation }) {
           ) : <ActivityIndicator color={colors.brand} />}
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.body}
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.body}
           onLayout={(e) => { place.current.height = e.nativeEvent.layout.height; seenSoon(); }}
           onScroll={(e) => { place.current.top = e.nativeEvent.contentOffset.y; seenSoon(); }}
           scrollEventThrottle={100}
