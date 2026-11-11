@@ -8,6 +8,8 @@
 // Notes and photos (APP-3b): «Add note» writes a note (POST /api/my/visits/:id/notes, the same
 // id again on Try again), «Photo» takes or chooses one and sends it (POST …/tasks/:id/photos);
 // the visit's photos show as thumbnails (notesPhotos.js, visitExtras.js).
+// The office's messages (backend #141) under «From the office», the newest first, «NEW» until
+// seen; the app marks seen the ones the technician has really had on the screen (officeSeen.js).
 // No map at the top (no map key yet, and no fake one).
 //
 // Fresh: on opening, on coming back to the screen or to the app, on pulling down, after each
@@ -33,6 +35,7 @@ import Icon from '../myDay/Icon';
 import { ActionBar, FinishSheet, NoAccessSheet } from '../myDay/visitBar';
 import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
 import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
+import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
 
 export default function VisitScreen({ route, navigation }) {
   const { id, visit: fromList = null, n = null, savedAt: listSavedAt = null, skew: skewIn = 0 } = route.params || {};
@@ -48,6 +51,7 @@ export default function VisitScreen({ route, navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const loadSeq = useRef(0);
   const gone = useRef(false);
+  const seenHold = useRef(false);                        // «Seen» got no answer: wait for a fresh card
   const insets = useSafeAreaInsets();
 
   // reassigned or no longer there (404): the card goes from the phone too, back to the day.
@@ -98,6 +102,7 @@ export default function VisitScreen({ route, navigation }) {
       setShown({ visit: data.visit, savedAt, source: 'server' });
       setProblem(null);
       setTick(Date.now());
+      seenHold.current = false;
       if (!data.visit.legacy) loadPhotos();
       await updateMyDay((cache) => keepCard(cache, userId, data.visit, savedAt), mark);
     } catch (error) {
@@ -245,6 +250,71 @@ export default function VisitScreen({ route, navigation }) {
     }
   }, [id, noteText, noteSend, keepFresh, leaveGone]);
 
+  // ---------- the office's messages: «Seen» ----------
+  // Where they are (onLayout, px): the head in the scroll, the office block in the head, each
+  // message in the block; the scroll's offset and height. The check runs once the scroll has
+  // rested SEEN_REST_MS, on the card as the server gave it.
+  const place = useRef({ head: null, office: null, rows: {}, top: 0, height: 0 });
+  const seenDone = useRef(new Set());                    // sent or refused: not again
+  const seenBusy = useRef(false);
+  const seenTimer = useRef(null);
+  const cardNow = useRef(null);
+  cardNow.current = card;
+  const shownNow = useRef(shown);
+  shownNow.current = shown;
+  // a message unseen when it shows keeps «NEW» while this screen is open, after it is seen
+  const [newIds, setNewIds] = useState(() => new Set());
+  useEffect(() => {
+    const unseen = card && card.office ? card.office.messages.filter((m) => m.unseen).map((m) => m.id) : [];
+    if (unseen.some((mid) => !newIds.has(mid))) setNewIds((prev) => new Set([...prev, ...unseen]));
+  }, [card]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sendSeen = useRef(null);
+  const seenSoon = useCallback(() => {
+    clearTimeout(seenTimer.current);
+    seenTimer.current = setTimeout(() => sendSeen.current && sendSeen.current(), SEEN_REST_MS);
+  }, []);
+  sendSeen.current = async () => {
+    const office = cardNow.current && cardNow.current.office;
+    const s = shownNow.current;
+    if (!office || !s || s.source !== 'server' || gone.current || seenBusy.current || seenHold.current) return;
+    const p = place.current;
+    if (p.head === null || p.office === null) return;
+    const rows = office.messages.map((m) => (p.rows[m.id] ? { id: m.id, top: p.head + p.office + p.rows[m.id].y, height: p.rows[m.id].height } : null));
+    const unseen = office.messages.filter((m) => m.unseen).map((m) => m.id);
+    const ids = toSend(onScreen(rows, { top: p.top, height: p.height }), unseen, seenDone.current);
+    if (!ids.length) return;
+    seenBusy.current = true;
+    const mark = myDayMark();
+    let again = true;
+    try {
+      const data = await myDayAPI.seen(id, ids);
+      ids.forEach((mid) => seenDone.current.add(mid));
+      if (data && data.visit && !gone.current) await keepFresh(data.visit, mark);
+    } catch (error) {
+      const failed = seenError(error);
+      if (failed.kind === 'refused' || failed.kind === 'gone') {
+        ids.forEach((mid) => seenDone.current.add(mid));
+      } else {
+        again = false;
+        seenHold.current = true;
+        if (failed.kind === 'failed') logError('Error marking office messages seen:', error);
+      }
+    } finally {
+      seenBusy.current = false;
+    }
+    // more may have come on the screen meanwhile
+    if (again) seenSoon();
+  };
+  useEffect(() => { seenSoon(); }, [shown, officeOpen, seenSoon]);
+  useEffect(() => () => clearTimeout(seenTimer.current), []);
+  const placed = (key, mid) => (e) => {
+    const { y, height } = e.nativeEvent.layout;
+    if (key === 'row') place.current.rows[mid] = { y, height };
+    else place.current[key] = y;
+    seenSoon();
+  };
+
   // ---------- photos ----------
   // upload: { file, sending, failed } of the photo being sent; Try again sends the same file
   const photos = useMemo(() => (photoRows ? photosOf(photoRows, id, now) : null), [photoRows, id, now]);
@@ -364,8 +434,11 @@ export default function VisitScreen({ route, navigation }) {
         </View>
       ) : (
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body}
+          onLayout={(e) => { place.current.height = e.nativeEvent.layout.height; seenSoon(); }}
+          onScroll={(e) => { place.current.top = e.nativeEvent.contentOffset.y; seenSoon(); }}
+          scrollEventThrottle={100}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={colors.brand} />}>
-          <View style={styles.head}>
+          <View style={styles.head} onLayout={placed('head')}>
             <View style={styles.tagRow}>
               <Tag tag={card.tag} big />
               {card.kindLine ? <Text style={styles.kindLine} numberOfLines={1}>{card.kindLine}</Text> : null}
@@ -406,22 +479,35 @@ export default function VisitScreen({ route, navigation }) {
             ) : null}
 
             {card.office ? (
-              <View style={styles.office} accessibilityRole="summary">
+              <View style={styles.office} accessibilityRole="summary" onLayout={placed('office')}>
                 <View style={styles.officeTop}>
                   <Icon name="message" size={18} color={colors.infoFg} />
                   <Text style={styles.officeTitle}>From the office</Text>
                 </View>
-                {card.office.notes.map((note, i) => (
-                  <View key={note.key} style={[styles.officeNote, i > 0 && styles.officeNoteNext]}>
-                    {note.head ? <Text style={styles.officeHead}>{note.head}</Text> : null}
-                    <Text style={styles.officeText}>{note.text}</Text>
-                  </View>
-                ))}
+                {card.office.messages.map((m, i) => {
+                  const isNew = m.unseen || newIds.has(m.id);
+                  return (
+                    <View key={m.key} style={[styles.officeNote, i > 0 && styles.officeNoteNext]} onLayout={placed('row', m.id)}
+                      accessible accessibilityLabel={`${isNew ? 'New. ' : ''}${m.head}. ${m.text}`}>
+                      <View style={styles.officeHeadRow}>
+                        <Text style={styles.officeHead}>{m.head}</Text>
+                        {isNew ? <Text style={styles.officeNew}>NEW</Text> : null}
+                      </View>
+                      <Text style={styles.officeText}>{m.text}</Text>
+                    </View>
+                  );
+                })}
                 {card.office.more ? (
                   <TouchableOpacity style={styles.officeMore} onPress={() => setOfficeOpen(true)} accessibilityRole="button"
                     accessibilityLabel={`Show ${card.office.more} more notes from the office`}>
                     <Text style={styles.officeMoreText}>{`+${card.office.more} more`}</Text>
                   </TouchableOpacity>
+                ) : null}
+                {card.office.job ? (
+                  <View style={[styles.officeNote, card.office.messages.length > 0 && styles.officeNoteNext]}>
+                    {card.office.job.head ? <Text style={styles.officeHead}>{card.office.job.head}</Text> : null}
+                    <Text style={styles.officeText}>{card.office.job.text}</Text>
+                  </View>
                 ) : null}
               </View>
             ) : null}
@@ -555,7 +641,9 @@ const styles = StyleSheet.create({
   officeTitle: { fontSize: 15, fontWeight: '700', color: colors.infoFg },
   officeNote: { paddingBottom: 8, paddingLeft: 26 },
   officeNoteNext: { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.infoBorder },
+  officeHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   officeHead: { fontSize: 13, fontWeight: '600', color: colors.infoFg },
+  officeNew: { height: 18, lineHeight: 18, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
   officeText: { fontSize: 16, lineHeight: 22, color: colors.infoFg },
   officeMore: { minHeight: 44, justifyContent: 'center', paddingLeft: 26 },
   officeMoreText: { fontSize: 15, fontWeight: '700', color: colors.infoFg },

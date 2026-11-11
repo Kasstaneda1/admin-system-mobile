@@ -108,7 +108,8 @@ export default function MyDayScreen({ navigation }) {
   const strip = useMemo(() => (day && day.live.length ? stripOf(day, now) : null), [day, now]);
   const dates = weekOf(selected);
   const counts = useMemo(() => (visits ? weekCounts(visits, dates, now) : null), [visits, sunday, now]); // eslint-disable-line react-hooks/exhaustive-deps
-  const offer = day && !day.rows.length && counts ? nextBusyDay(counts, selected) : null;
+  // no live visit (an empty day, or only rows of the day log): the next busy day of the week
+  const offer = day && !day.live.length && counts ? nextBusyDay(counts, selected) : null;
   const small = day ? (day.summary.small || offerText(offer)) : '';
 
   const notice = problem && week && week.sunday === sunday
@@ -117,8 +118,9 @@ export default function MyDayScreen({ navigation }) {
 
   const list = day ? listItems(day).map((item) => (item.type === 'gap'
     ? <GapRow key={`gap-${item.gap.from}`} gap={item.gap} />
+    // a row of the day log is not opened: the office took the visit off this day
     : <DayRow key={item.row.key} row={item.row}
-        onPress={() => navigation.navigate('Visit', { id: item.row.id, visit: item.row.visit, n: item.row.n, savedAt: week ? week.savedAt : null, skew: skew.current })}
+        onPress={item.row.logged ? undefined : () => navigation.navigate('Visit', { id: item.row.id, visit: item.row.visit, n: item.row.n, savedAt: week ? week.savedAt : null, skew: skew.current })}
         onDirections={() => openDirections(item.row.visit)}
         onCall={() => callCustomer(item.row.visit)} />)) : [];
 
@@ -155,7 +157,7 @@ export default function MyDayScreen({ navigation }) {
         ) : null}
         {day && day.rows.length ? (
           <>
-            <Strip strip={strip} />
+            {strip ? <Strip strip={strip} /> : null}
             <View style={styles.list}>{list}</View>
           </>
         ) : null}

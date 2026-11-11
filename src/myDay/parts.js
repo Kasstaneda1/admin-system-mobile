@@ -17,13 +17,15 @@ export const TAG_FAMILIES = {
   onway: [colors.infoFg, colors.infoBg, colors.infoBorder],
   helper: [colors.violetFg, colors.violetBg, colors.violetBorder],
   neutral: [colors.neutralFg, colors.neutralBg, colors.neutralBorder],
+  // the day log (the office took the visit off the day): a white tag with a dashed grey border
+  logged: [colors.neutralFg, colors.bgCard, colors.neutralBorder],
 };
 
 export function Tag({ tag, big = false }) {
   if (!tag) return null;
   const [fg, bg, border] = TAG_FAMILIES[tag.kind] || TAG_FAMILIES.neutral;
   return (
-    <View style={[styles.tag, big && styles.tagBig, { backgroundColor: bg, borderColor: border }]}>
+    <View style={[styles.tag, big && styles.tagBig, tag.kind === 'logged' && styles.tagDashed, { backgroundColor: bg, borderColor: border }]}>
       <Icon name={tag.icon} size={14} color={fg} />
       <Text style={[styles.tagText, big && styles.tagTextBig, { color: fg }]} numberOfLines={1}>{tag.text}</Text>
     </View>
@@ -119,7 +121,7 @@ export function DayRow({ row, onDirections, onCall, onPress }) {
   if (!open) {
     return onPress
       ? <TouchableOpacity style={styles.row} onPress={onPress} accessibilityRole="button">{body}</TouchableOpacity>
-      : <View style={styles.row}>{body}</View>;
+      : <View style={styles.row} accessible={!!row.label} accessibilityLabel={row.label || undefined}>{body}</View>;
   }
   return (
     <View style={[styles.row, styles.rowOpen, row.current ? styles.rowCurrent : styles.rowNext]}>
@@ -226,6 +228,7 @@ export function TabBar({ navigation, bottom }) {
 const styles = StyleSheet.create({
   tag: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 22, paddingHorizontal: 7, borderRadius: 11, borderWidth: 1, flexShrink: 1 },
   tagBig: { height: 26 },
+  tagDashed: { borderStyle: 'dashed' },
   tagText: { fontSize: 12, fontWeight: '700', flexShrink: 1 },
   tagTextBig: { fontSize: 13 },
   now: { flexShrink: 0, paddingHorizontal: 6, height: 20, lineHeight: 20, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.accent, color: colors.onAccent, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },

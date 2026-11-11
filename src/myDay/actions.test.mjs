@@ -125,13 +125,15 @@ test('after an answer the phone keeps the card and the visit in its week', () =>
   const savedAt = at('2026-11-10T16:00:00Z');
   let cache = keepWeek(null, 7, '2026-11-08', [visit(), visit({ id: 9 })], savedAt);
   cache = keepCard(cache, 7, { ...visit(), job_visits: [], notes: [], office_notes: null }, savedAt);
-  const acted = { ...visit({ status: 'omw', actions: ['finish'] }), job_visits: [], notes: [{ id: 1 }], office_notes: 'x' };
+  const acted = { ...visit({ status: 'omw', actions: ['finish'] }), job_visits: [], notes: [{ id: 1 }], office_notes: 'x', office_messages: [{ id: 5, text: 'y', seen_at: null }] };
   const after = keepActed(cache, 7, acted, savedAt + 1000);
   assert.equal(keptCard(after, 7, 4).card.status, 'omw');
   assert.equal(keptCard(after, 7, 4).card.notes.length, 1);
   const week = keptWeek(after, 7, '2026-11-08').visits;
   assert.deepEqual(week.map((v) => [v.id, v.status]), [[4, 'omw'], [9, 'scheduled']]);
   assert.equal('notes' in week[0], false, 'the list keeps the list\'s fields');
+  assert.deepEqual(['job_visits', 'office_notes', 'office_messages'].filter((k) => k in week[0]), [], 'nor the card\'s');
+  assert.equal(keptCard(after, 7, 4).card.office_messages.length, 1);
   // another technician's phone cache: only their own card, nothing of the first
   assert.equal(keptCard(keepActed(cache, 8, acted, savedAt), 7, 4), null);
 });
