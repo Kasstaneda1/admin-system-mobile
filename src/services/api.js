@@ -159,9 +159,16 @@ export const warehouseAPI = {
 // My day (backend routes/scheduler/my.js): the technician's own visits, read only.
 // visits(from, to): New York days 'YYYY-MM-DD', both included, at most 7.
 // Answers { success, server_time, today, from, to, visits }.
+// visit(id): one visit with its job's other visits, the notes and the office's notes:
+// { success, server_time, visit: { ...as in visits, job_visits, notes, office_notes } };
+// 404 when it is no longer the technician's.
 export const myDayAPI = {
   visits: async (from, to) => {
     const response = await api.get('/api/my/visits', { params: { from, to }, timeout: 15000 });
+    return response.data;
+  },
+  visit: async (id) => {
+    const response = await api.get(`/api/my/visits/${encodeURIComponent(id)}`, { timeout: 15000 });
     return response.data;
   },
 };

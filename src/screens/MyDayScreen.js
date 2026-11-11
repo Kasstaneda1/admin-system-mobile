@@ -117,6 +117,7 @@ export default function MyDayScreen({ navigation }) {
   const list = day ? listItems(day).map((item) => (item.type === 'gap'
     ? <GapRow key={`gap-${item.gap.from}`} gap={item.gap} />
     : <DayRow key={item.row.key} row={item.row}
+        onPress={() => navigation.navigate('Visit', { id: item.row.id, visit: item.row.visit, n: item.row.n, savedAt: week ? week.savedAt : null, skew: skew.current })}
         onDirections={() => openDirections(item.row.visit)}
         onCall={() => callCustomer(item.row.visit)} />)) : [];
 
