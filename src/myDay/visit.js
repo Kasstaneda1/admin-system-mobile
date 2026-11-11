@@ -256,3 +256,44 @@ export function dropCard(cache, userId, id) {
   delete cards[id];
   return { ...cache, cards };
 }
+
+// ---------- «Updated by the office» ----------
+// The band over the card of a visit that was UPDATED in My day when it was opened (fresh.js;
+// design notifications/app.html «visit-updated», README «Приложение техника» §4). It stays
+// while the card is open. visit: the card as it is now; old: the card the phone kept from
+// before (the raw server visit) with the moment of its data `oldAt` — only a copy older than
+// the change can say what changed; without one the band asks to check. →
+// { title: 'Updated by the office · 11:02 AM', line: 'The address changed. Check it before you go.',
+//   was: { address?, access?, problem? } — under each field that changed: 'was 88-12 Queens
+//        Blvd, Apt 5A', or 'new' where there was nothing before }
+const CHANGE_NAMES = { address: 'the address', access: 'how to get in', problem: 'the problem', time: 'the time' };
+const words = (text) => (typeof text === 'string' ? text.trim() : '');
+const listWords = (items) => (items.length < 2 ? items[0] : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
+export function updatedOf(visit, old = null, oldAt = null) {
+  const at = momentWall(visit && visit.content_changed_at);
+  const title = at ? `Updated by the office · ${clockAmPm(at.minutes)}` : 'Updated by the office';
+  const changedMs = Date.parse(visit && visit.content_changed_at);
+  const usable = !!old && Number.isFinite(oldAt) && (!Number.isFinite(changedMs) || oldAt < changedMs);
+  const was = {};
+  const changed = [];
+  if (usable) {
+    const [a, b] = [addressLines(old), addressLines(visit)];
+    if (a.line1 !== b.line1 || a.line2 !== b.line2) {
+      changed.push('address');
+      const before = a.line1 !== b.line1 && a.line2 !== b.line2 ? [a.line1, a.line2].filter(Boolean).join(', ') : (a.line1 !== b.line1 ? a.line1 : a.line2);
+      was.address = before ? `was ${before}` : 'new';
+    }
+    if (words(old.access_notes) !== words(visit.access_notes)) {
+      changed.push('access');
+      was.access = words(old.access_notes) ? `was ${words(old.access_notes)}` : 'new';
+    }
+    if (words(old.description) !== words(visit.description)) {
+      changed.push('problem');
+      was.problem = words(old.description) ? `was ${words(old.description)}` : 'new';
+    }
+    if (['scheduled_start', 'scheduled_end', 'planned_start'].some((k) => (old[k] || null) !== (visit[k] || null))) changed.push('time');
+  }
+  if (!changed.length) return { title, line: 'Check the address, problem and notes.', was };
+  const named = listWords(changed.map((k) => CHANGE_NAMES[k]));
+  return { title, line: `${named.charAt(0).toUpperCase()}${named.slice(1)} changed. Check ${changed.length === 1 ? 'it' : 'them'} before you go.`, was };
+}
