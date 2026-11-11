@@ -25,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { authAPI } from '../services/api';
 import { colors } from '../constants/colors';
 import { useAuth } from '../session/AuthContext';
+import { logError } from '../utils/logError';
 
 const BACKGROUND = require('../../assets/login-bg.png');
 const APP_ICON = require('../../assets/icon.png');
@@ -71,8 +72,8 @@ export default function LoginScreen() {
       // The session keeps the tokens; the app then shows the technician's screens by itself
       await signIn(data);
     } catch (error) {
-      // Only the message: the error object carries the request, and the request the password
-      console.error('Login error:', error?.message);
+      // The message and the status only: the error object carries the request with the password
+      logError('Login error:', error);
       Alert.alert(
         'Login Failed',
         error.response?.data?.error || 'Invalid username or password'

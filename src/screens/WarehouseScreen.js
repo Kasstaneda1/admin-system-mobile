@@ -19,6 +19,7 @@ import { warehouseAPI } from '../services/api';
 import { colors } from '../constants/colors';
 import LoadingScreen from '../components/LoadingScreen';
 import EmptyState from '../components/EmptyState';
+import { logError } from '../utils/logError';
 
 const CATEGORIES = [
   { key: 'all', label: 'All' },
@@ -90,7 +91,7 @@ export default function WarehouseScreen() {
       setWarehouse(techVan);
       await loadParts(techVan.id);
     } catch (error) {
-      console.error('Failed to load warehouse:', error);
+      logError('Failed to load warehouse:', error);
       const message = error.response?.data?.error || 'Failed to load warehouse. Please check your connection.';
       Alert.alert('Error', message);
     } finally {
@@ -111,7 +112,7 @@ export default function WarehouseScreen() {
       });
       setCategoryCounts(counts);
     } catch (error) {
-      console.error('Failed to load parts:', error);
+      logError('Failed to load parts:', error);
       Alert.alert('Error', 'Failed to load parts list.');
     }
   };
@@ -157,7 +158,7 @@ export default function WarehouseScreen() {
       const detail = await warehouseAPI.getPartById(part.id);
       setPartDetail(detail);
     } catch (error) {
-      console.error('Failed to load part detail:', error);
+      logError('Failed to load part detail:', error);
       Alert.alert('Error', 'Failed to load part details.');
       setPartDetail(null);
     } finally {

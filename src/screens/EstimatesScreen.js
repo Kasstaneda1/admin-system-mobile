@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { estimatesAPI } from '../services/api';
 import { parseLocalDate } from '../utils/dateUtils';
+import { logError } from '../utils/logError';
 
 export default function EstimatesScreen({ navigation }) {
   const [estimates, setEstimates] = useState([]);
@@ -25,7 +26,7 @@ export default function EstimatesScreen({ navigation }) {
       const data = await estimatesAPI.getMyEstimates();
       setEstimates(data);
     } catch (error) {
-      console.error('Failed to load estimates:', error);
+      logError('Failed to load estimates:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);

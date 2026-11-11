@@ -8,6 +8,7 @@ import ErrorMessage from '../components/ErrorMessage';
 import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
 import { parseLocalDate } from '../utils/dateUtils';
+import { logError } from '../utils/logError';
 
 export default function UnpaidScreen() {
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,7 @@ export default function UnpaidScreen() {
       setPendingRecords(data.pending || []);
       setDeclinedRecords(data.declined || []);
     } catch (err) {
-      console.error('Error loading unpaid records:', err);
+      logError('Error loading unpaid records:', err);
       const message = err.response?.data?.error || 'Failed to load unpaid records. Please check your connection.';
       setError(message);
       Alert.alert('Error', message);

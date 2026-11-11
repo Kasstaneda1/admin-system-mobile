@@ -7,6 +7,7 @@ import ErrorMessage from '../components/ErrorMessage';
 import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
 import { parseLocalDate } from '../utils/dateUtils';
+import { logError } from '../utils/logError';
 
 export default function ReceiptsScreen() {
   const [loading, setLoading] = useState(true);
@@ -25,7 +26,7 @@ export default function ReceiptsScreen() {
       const data = await receiptsAPI.getMyReceipts();
       setReceipts(data || []);
     } catch (err) {
-      console.error('Error loading receipts:', err);
+      logError('Error loading receipts:', err);
       const message = err.response?.data?.error || 'Failed to load receipts. Please check your connection.';
       setError(message);
       Alert.alert('Error', message);

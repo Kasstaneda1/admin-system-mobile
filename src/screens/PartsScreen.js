@@ -16,6 +16,7 @@ import { colors } from '../constants/colors';
 import { parseLocalDate, formatAuthorTime } from '../utils/dateUtils';
 import LoadingScreen from '../components/LoadingScreen';
 import EmptyState from '../components/EmptyState';
+import { logError } from '../utils/logError';
 
 export default function PartsScreen() {
   const [activeTab, setActiveTab] = useState('in_transit');
@@ -35,7 +36,7 @@ export default function PartsScreen() {
       const data = await estimatesAPI.getPartsByStatus(activeTab);
       setParts(data);
     } catch (error) {
-      console.error('Failed to load parts:', error);
+      logError('Failed to load parts:', error);
       const message = error.response?.data?.error || 'Failed to load parts. Please try again.';
       Alert.alert('Error', message);
     } finally {
@@ -56,7 +57,7 @@ export default function PartsScreen() {
         const comments = await estimatesAPI.getEstimateComments(part.id);
         setSelectedPart({ ...part, comments });
       } catch (error) {
-        console.error('Failed to load comments:', error);
+        logError('Failed to load comments:', error);
         Alert.alert('Error', 'Failed to load comments.');
         setSelectedPart({ ...part, comments: [] });
       }
