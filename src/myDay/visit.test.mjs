@@ -253,12 +253,18 @@ test('«Updated by the office»: when, what changed and what it was — only fro
   // how to get in, the problem and the time
   assert.deepEqual(updatedOf(now({ access_notes: 'Ring 5B. Elevator to the 5th floor.', description: 'Install it. Take the old one away.', planned_start: '2026-11-10 14:15:00' }), before, oldAt),
     { title: 'Updated by the office · 11:02 AM', line: 'How to get in, the problem and the time changed. Check them before you go.',
-      was: { access: 'was Ring 5A.', problem: 'was Install the new dishwasher.' } });
+      was: { access: 'was Ring 5A.', problem: 'was Install the new dishwasher.', plan: 'was 1:30' } });
   // nothing before: «new»
   assert.deepEqual(updatedOf(now({ access_notes: 'Gate code 12.' }), { ...before, access_notes: null }, oldAt).was, { access: 'new' });
-  // the time only: no field to frame, the tiles show it
+  // the window only: the Window tile says what it was (the plan stays 1:30)
   assert.deepEqual(updatedOf(now({ scheduled_start: '2026-11-10 14:00:00', scheduled_end: '2026-11-10 17:00:00' }), before, oldAt),
-    { title: 'Updated by the office · 11:02 AM', line: 'The time changed. Check it before you go.', was: {} });
+    { title: 'Updated by the office · 11:02 AM', line: 'The time changed. Check it before you go.', was: { window: 'was 1–4' } });
+  // without a plan the plan follows the window: both tiles
+  const noPlan = { ...before, planned_start: null };
+  assert.deepEqual(updatedOf({ ...noPlan, content_changed_at: changedAt, scheduled_start: '2026-11-10 09:00:00', scheduled_end: '2026-11-10 12:00:00' }, noPlan, oldAt).was,
+    { window: 'was 1–4', plan: 'was 1:00' });
+  // a window where there was none: new
+  assert.deepEqual(updatedOf(now({}), { ...before, scheduled_start: null, scheduled_end: null }, oldAt).was.window, 'new');
   // no copy, a copy from after the change, or nothing the app compares changed: check it all
   const check = { title: 'Updated by the office · 11:02 AM', line: 'Check the address, problem and notes.', was: {} };
   assert.deepEqual(updatedOf(now({ address_unit: '5B' }), null, null), check);

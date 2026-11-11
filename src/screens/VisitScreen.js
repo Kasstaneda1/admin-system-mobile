@@ -501,13 +501,18 @@ export default function VisitScreen({ route, navigation }) {
             </View>
 
             <View style={styles.tiles}>
-              {card.tiles.map((t) => (
-                <View key={t.key} style={styles.tile} accessible accessibilityLabel={`${t.label} ${t.big} ${t.small}`}>
-                  <Text style={styles.tileLabel}>{t.label.toUpperCase()}</Text>
-                  <Text style={[styles.tileBig, t.big.length > 6 && styles.tileBigLong, t.struck && styles.struck]} numberOfLines={1} adjustsFontSizeToFit>{t.big}</Text>
-                  {t.small ? <Text style={styles.tileSmall} numberOfLines={1}>{t.small}</Text> : null}
-                </View>
-              ))}
+              {card.tiles.map((t) => {
+                // the office moved the time: the tile says what it was, in place of its second line
+                const wasText = updated && updated.was[t.key];
+                const small = wasText || t.small;
+                return (
+                  <View key={t.key} style={[styles.tile, wasText && styles.tileChanged]} accessible accessibilityLabel={`${t.label} ${t.big} ${small}`}>
+                    <Text style={styles.tileLabel}>{t.label.toUpperCase()}</Text>
+                    <Text style={[styles.tileBig, t.big.length > 6 && styles.tileBigLong, t.struck && styles.struck]} numberOfLines={1} adjustsFontSizeToFit>{t.big}</Text>
+                    {small ? <Text style={[styles.tileSmall, wasText && styles.tileWas]} numberOfLines={1}>{small}</Text> : null}
+                  </View>
+                );
+              })}
             </View>
 
             {card.access ? (
@@ -644,8 +649,16 @@ export default function VisitScreen({ route, navigation }) {
   );
 }
 
-// Under a field the office changed: «CHANGED» and what it was ('was 88-12 Queens Blvd, Apt 5A')
+// Under a field the office changed: «CHANGED» and what it was ('was 88-12 Queens Blvd, Apt 5A');
+// a field there was none of before: «NEW» alone
 function ChangedWas({ text }) {
+  if (text === 'new') {
+    return (
+      <View style={styles.chgWas} accessible accessibilityLabel="New">
+        <Text style={styles.chgPill}>NEW</Text>
+      </View>
+    );
+  }
   return (
     <View style={styles.chgWas} accessible accessibilityLabel={`Changed, ${text}`}>
       <Text style={styles.chgPill}>CHANGED</Text>
@@ -698,6 +711,8 @@ const styles = StyleSheet.create({
   chgWas: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   chgPill: { paddingHorizontal: 6, height: 18, lineHeight: 18, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
   chgText: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: colors.infoFg },
+  tileChanged: { borderWidth: 2, borderColor: colors.infoBorder },
+  tileWas: { color: colors.infoFg },
   access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   accessBody: { flex: 1 },
   accessTitle: { fontSize: 15, fontWeight: '700', color: colors.warningFg },

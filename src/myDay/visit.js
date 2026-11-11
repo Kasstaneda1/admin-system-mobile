@@ -264,8 +264,9 @@ export function dropCard(cache, userId, id) {
 // before (the raw server visit) with the moment of its data `oldAt` — only a copy older than
 // the change can say what changed; without one the band asks to check. →
 // { title: 'Updated by the office · 11:02 AM', line: 'The address changed. Check it before you go.',
-//   was: { address?, access?, problem? } — under each field that changed: 'was 88-12 Queens
-//        Blvd, Apt 5A', or 'new' where there was nothing before }
+//   was: { address?, access?, problem?, window?, plan? } — under each field that changed:
+//        'was 88-12 Queens Blvd, Apt 5A', 'was 11–2', 'was 1:30', or 'new' where there was
+//        nothing before (the card shows NEW then) }
 const CHANGE_NAMES = { address: 'the address', access: 'how to get in', problem: 'the problem', time: 'the time' };
 const words = (text) => (typeof text === 'string' ? text.trim() : '');
 const listWords = (items) => (items.length < 2 ? items[0] : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
@@ -291,7 +292,15 @@ export function updatedOf(visit, old = null, oldAt = null) {
       changed.push('problem');
       was.problem = words(old.description) ? `was ${words(old.description)}` : 'new';
     }
-    if (['scheduled_start', 'scheduled_end', 'planned_start'].some((k) => (old[k] || null) !== (visit[k] || null))) changed.push('time');
+    // the time: the window and the plan tiles say what they were (the time matters most)
+    const windowWas = (old.scheduled_start || null) !== (visit.scheduled_start || null) || (old.scheduled_end || null) !== (visit.scheduled_end || null);
+    if (windowWas) {
+      const before = parseWall(old.scheduled_start) ? windowText(parseWall(old.scheduled_start), parseWall(old.scheduled_end)) : '';
+      was.window = before ? `was ${before}` : 'new';
+    }
+    const [op, np] = [planOf(old), planOf(visit)];
+    if (op && np && (op.start.minutes !== np.start.minutes || op.start.date !== np.start.date)) was.plan = `was ${clock(op.start.minutes)}`;
+    if (windowWas || was.plan) changed.push('time');
   }
   if (!changed.length) return { title, line: 'Check the address, problem and notes.', was };
   const named = listWords(changed.map((k) => CHANGE_NAMES[k]));
