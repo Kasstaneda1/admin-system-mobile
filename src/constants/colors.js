@@ -23,6 +23,7 @@ export const colors = {
   scrim: 'rgba(21, 28, 39, 0.45)', // --fg-default at 45%: behind a sheet (design src3/add.css .scrim)
   bgSubtle: '#FAFAFA',       // --bg-subtle
   bgSunken: '#F5F5F5',       // --bg-sunken
+  focusRing: '#00685F',      // --focus-ring: the field being typed in (design src3/add.css .ta)
   borderSubtle: '#E5E5E5',   // --border-subtle
   borderDefault: '#D4D4D4',  // --border-default
   borderStrong: '#737373',   // --border-strong

@@ -18,7 +18,7 @@ import {
   addDays, buildDay, emptyText, failedText, headerLine, keepWeek, keptWeek, listItems, nextBusyDay, nowWall, offerText,
   offlineText, skewOf, stripOf, weekCounts, weekOf,
 } from '../myDay/model';
-import { readMyDay, updateMyDay } from '../myDay/storage';
+import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { DayRow, EmptyDay, GapRow, NoticeBar, Strip, TabBar, WeekRow } from '../myDay/parts';
 
@@ -44,6 +44,7 @@ export default function MyDayScreen({ navigation }) {
 
   const load = useCallback(async (target, { pull = false } = {}) => {
     const seq = ++loadSeq.current;
+    const mark = myDayMark();                           // an answer after sign out is not kept
     if (pull) setRefreshing(true); else setLoading(true);
     const kept = await readMyDay();
     const keptOne = keptWeek(kept, userId, target);
@@ -60,7 +61,7 @@ export default function MyDayScreen({ navigation }) {
       setWeek({ sunday: target, visits, savedAt, source: 'server' });
       setProblem(null);
       setTick(Date.now());
-      await updateMyDay((cache) => keepWeek(cache, userId, target, visits, savedAt));
+      await updateMyDay((cache) => keepWeek(cache, userId, target, visits, savedAt), mark);
     } catch (error) {
       if (seq !== loadSeq.current) return;
       const status = error.response?.status;

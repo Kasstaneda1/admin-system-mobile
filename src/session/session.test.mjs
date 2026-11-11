@@ -468,3 +468,28 @@ test('codes alone, without words, are enough', async () => {
   assert.equal(await stillPending(cutBlocked), true);
   assert.deepEqual(blocked.ends, ['blocked']);
 });
+
+test('authHeader: the live token for a photo; refreshed first when it has run out; nothing when signed out', async () => {
+  const w = world({ accessLeftMs: 10 * 1000 });
+  await w.session.load();
+  // about to end: the one shared refresh, then the new token
+  const [header, res] = await Promise.all([w.session.authHeader(), w.api.get('/api/me')]);
+  assert.deepEqual(w.server.refreshes, ['r0'], 'the photo and the request share one refresh');
+  assert.equal(res.status, 200);
+  assert.match(header.Authorization, /^Bearer /);
+  assert.notEqual(header.Authorization, `Bearer ${w.first.access}`);
+  assert.equal(w.server.valid.has(header.Authorization.slice(7)), true);
+  // live now: as it is, no new refresh
+  assert.deepEqual(await w.session.authHeader(), header);
+  assert.equal(w.server.refreshes.length, 1);
+  await w.session.signOut();
+  assert.equal(await w.session.authHeader(), null);
+});
+
+test('authHeader: a refresh refused ends the session, no header', async () => {
+  const w = world({ accessLeftMs: -1000 });
+  await w.session.load();
+  w.server.refreshAnswer = { status: 401, data: { error: 'Invalid refresh token', code: 'refresh_invalid' } };
+  assert.equal(await w.session.authHeader(), null);
+  assert.equal(await endOf(w), 'expired');
+});
