@@ -7,3 +7,6 @@ export const MY_DAY_KEY = 'semix.myday';
 // moments only, no customer data, per technician; it stays after sign out, so a visit given
 // while signed out is still NEW at the next sign in.
 export const SEEN_KEY = 'semix.myday.seen';
+// The office's phone and name for «Call the office» (office.js, officeStore.js): the
+// company's own number, no customer data, per technician; it stays after sign out.
+export const OFFICE_KEY = 'semix.office';

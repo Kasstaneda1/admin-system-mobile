@@ -469,11 +469,11 @@ export default function VisitScreen({ route, navigation }) {
             {card.address.line2 ? <Text style={styles.addr2}>{card.address.line2}</Text> : null}
 
             <View style={styles.buttons}>
-              <TouchableOpacity style={[styles.bigBtn, styles.bigFill]} onPress={() => openDirections(shown.visit)} accessibilityRole="button" accessibilityLabel={`Directions to ${card.name}`}>
+              <TouchableOpacity style={[styles.bigBtn, styles.bigFill]} onPress={() => openDirections(shown.visit, userId)} accessibilityRole="button" accessibilityLabel={`Directions to ${card.name}`}>
                 <Icon name="nav" size={22} color={colors.fgOnFill} />
                 <Text style={[styles.bigText, { color: colors.fgOnFill }]}>Directions</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.bigBtn, styles.bigGhost]} onPress={() => callCustomer(shown.visit)} accessibilityRole="button" accessibilityLabel={`Call ${card.name}`}>
+              <TouchableOpacity style={[styles.bigBtn, styles.bigGhost]} onPress={() => callCustomer(shown.visit, userId)} accessibilityRole="button" accessibilityLabel={`Call ${card.name}`}>
                 <Icon name="phone" size={22} color={colors.brandPressed} />
                 <Text style={[styles.bigText, { color: colors.brandPressed }]}>Call</Text>
               </TouchableOpacity>
@@ -605,7 +605,7 @@ export default function VisitScreen({ route, navigation }) {
             onFinish={(outcome) => { setFinishOpen(false); send({ action: 'finish', outcome, requestId: newRequestId(Date.now() + skew.current) }); }} />
           <NoAccessSheet step={noAccessStep} words={noAccessWords(shown.visit)} bottom={insets.bottom}
             onClose={() => setNoAccessStep(null)}
-            onCall={() => { callCustomer(shown.visit); setNoAccessStep('close'); }}
+            onCall={() => { callCustomer(shown.visit, userId); setNoAccessStep('close'); }}
             onNext={() => setNoAccessStep('close')}
             onConfirm={() => { setNoAccessStep(null); send({ action: 'no_access', requestId: newRequestId(Date.now() + skew.current) }); }} />
           <NoteSheet visible={noteOpen && extras} text={noteText} sending={!!(noteSend && noteSend.sending)} failure={noteSend ? noteSend.failed : null}

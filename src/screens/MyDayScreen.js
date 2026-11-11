@@ -28,6 +28,7 @@ import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
 import { freshCounts, freshMarks, noteShown, noteWeek, shownAt } from '../myDay/fresh';
 import { seenMark, updateSeen } from '../myDay/seenStore';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
+import { callOffice, primeOffice } from '../myDay/officeStore';
 import { DayRow, EmptyDay, GapRow, NoticeBar, Strip, TabBar, WeekRow } from '../myDay/parts';
 import { hasIssue } from '../myDay/route';
 import { keepRoute, keptRoute, marksOf } from '../myDay/routeMarks';
@@ -83,6 +84,7 @@ export default function MyDayScreen({ navigation }) {
       setWeek({ sunday: target, visits, savedAt, source: 'server' });
       setProblem(null);
       setTick(Date.now());
+      primeOffice(userId);   // the office's phone for «Call the office», offline later too
       updateSeen((s) => noteWeek(s, userId, target, visits, savedAt), seenMark()).then(setSeen);
       await updateMyDay((cache) => keepWeek(cache, userId, target, visits, savedAt), mark);
     } catch (error) {
@@ -185,8 +187,8 @@ export default function MyDayScreen({ navigation }) {
     // a row of the day log is not opened: the office took the visit off this day
     : <DayRow key={item.row.key} row={item.row} fresh={marks[item.row.key] || null}
         onPress={item.row.logged ? undefined : () => navigation.navigate('Visit', { id: item.row.id, visit: item.row.visit, n: item.row.n, savedAt: week ? week.savedAt : null, skew: skew.current })}
-        onDirections={() => openDirections(item.row.visit)}
-        onCall={() => callCustomer(item.row.visit)} />)) : [];
+        onDirections={() => openDirections(item.row.visit, userId)}
+        onCall={() => callCustomer(item.row.visit, userId)} />)) : [];
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -229,7 +231,8 @@ export default function MyDayScreen({ navigation }) {
         {day && !day.rows.length ? (
           <EmptyDay title={emptyText(selected, now)}
             offer={offer ? offerText(offer, { long: true }) : null}
-            onOffer={() => offer && setSelected(offer.date)} />
+            onOffer={() => offer && setSelected(offer.date)}
+            onCallOffice={() => callOffice(userId)} />
         ) : null}
         {day && day.rows.length ? (
           <>
