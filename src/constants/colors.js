@@ -49,6 +49,11 @@ export const colors = {
   neutralFg: '#404040',      // --neutral-fg: no access, old task
   neutralBg: '#F5F5F5',      // --neutral-bg
   neutralBorder: '#737373',  // --neutral-border
+  // The route (design A3 final-route: .rm-leg.bad, .detour)
+  stateLate: '#EA580C',      // --state-late: a leg of a back-and-forth, the ring of its stops (3.56:1 on white)
+  lateFg: '#7C2D12',         // --visit-late-fg: the words of a back-and-forth, 8.83:1
+  lateBg: '#FFF7ED',         // --visit-late-bg
+  lateBorder: '#EA580C',     // --visit-late-border
 
   // Primary
   primary: '#14B8A6',

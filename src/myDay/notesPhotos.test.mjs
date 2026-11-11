@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   NOTE_MAX, NOTE_CHIPS, canAddExtras, cleanNote, noteToSend, noteLength, noteReady, withChip, noteRequest, noteBody, noteError,
-  photoFile, photosOf, photoPath, photosTitle, photoError, photoMoment,
+  photoFile, photosOf, photoPath, photosTitle, photoError, photoMoment, photoSource,
 } from './notesPhotos.js';
 import { nowWall } from './model.js';
 
@@ -101,4 +101,11 @@ test('a failed upload: no answer tries the same photo again; too large or refuse
   assert.equal(photoError({ response: { status: 400, data: { error: 'No file uploaded' } } }).text, 'No file uploaded');
   assert.deepEqual(photoError({ response: { status: 500, data: { error: 'Failed to upload photo' } } }),
     { kind: 'failed', text: 'Photo not sent. The server did not answer.', retry: true });
+});
+
+test('a photo on the screen: the address, the token, never from the phone\'s cache', () => {
+  const uri = 'http://127.0.0.1:8291/api/scheduler/tasks/11/photos/9/file';
+  assert.deepEqual(photoSource(uri, { Authorization: 'Bearer t' }), { uri, headers: { Authorization: 'Bearer t' }, cache: 'reload' });
+  // no token (yet): no header at all, not a null one
+  assert.deepEqual(photoSource(uri, null), { uri, headers: undefined, cache: 'reload' });
 });

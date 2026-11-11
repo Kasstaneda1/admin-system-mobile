@@ -229,6 +229,9 @@ export function tagOf(visit, { long = false } = {}) {
 // closed on its new day), so the row is grey whatever the status says: no number, no
 // actions, not counted, not in the strip, not opened.
 export const isLogged = (visit) => !!(visit && visit.office_change);
+// The list's key of a row: one visit may come twice in a range (moved by the office: a grey
+// row on the old day, a live one on the new), so the id and the window it has on that day
+export const rowKey = (visit) => `${visit.id}@${visit.scheduled_start || ''}`;
 
 // Where a moved visit is now, from the day `date`: 'Thu 9–12' (a day more than six days
 // away says its date: 'Dec 3 9–12'); long: 'Thu, Nov 12 · 9–12'. '' when unknown.
@@ -301,9 +304,7 @@ export function buildDay(visits, date, now) {
     const clientFull = (typeof v.client_name === 'string' && v.client_name.trim()) || 'Customer';
     return {
       id: v.id,
-      // the list's key: one visit may come twice in a range (moved by the office: a grey row on
-      // the old day, a live one on the new), so the id and the window it has on this day
-      key: `${v.id}@${v.scheduled_start || ''}`,
+      key: rowKey(v),
       n: state === 'moved' ? null : ++number,
       visit: v,
       state,

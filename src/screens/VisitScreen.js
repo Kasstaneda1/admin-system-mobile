@@ -11,6 +11,9 @@
 // The office's messages (backend #141) under «From the office», the newest first, «NEW» until
 // seen; the app marks seen the ones the technician has really had on the screen (officeSeen.js).
 // No map at the top (no map key yet, and no fake one).
+// Shown, the visit is seen (fresh.js markSeen, N3-APP): its NEW or UPDATED on My day goes, as of
+// the moment of the data shown (the list's or the server's answer; a card kept from before
+// counts only when that moment is later than the one already seen).
 //
 // Fresh: on opening, on coming back to the screen or to the app, on pulling down, after each
 // press (§4). The office took the visit away (404): «This visit was changed by the office»,
@@ -25,7 +28,9 @@ import { colors } from '../constants/colors';
 import { myDayAPI, photosAPI, session } from '../services/api';
 import { logError } from '../utils/logError';
 import { useAuth } from '../session/AuthContext';
-import { failedText, nowWall, offlineText, skewOf } from '../myDay/model';
+import { failedText, nowWall, offlineText, skewOf, visitDay } from '../myDay/model';
+import { markSeen } from '../myDay/fresh';
+import { seenMark, updateSeen } from '../myDay/seenStore';
 import { dropCard, keepCard, keptCard, visitCard } from '../myDay/visit';
 import { actionBody, actionError, barOf, defaultOutcome, finishChoices, finishSubtitle, keepActed, newRequestId, noAccessWords } from '../myDay/actions';
 import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
@@ -121,6 +126,14 @@ export default function VisitScreen({ route, navigation }) {
 
   // on opening and every time the screen comes back
   useFocusEffect(useCallback(() => { setTick(Date.now()); load(); }, [load]));
+
+  // the technician has this visit on the screen: seen as of the data's moment
+  const shownAt = shown ? shown.savedAt : null;
+  const shownDay = shown && shown.visit ? visitDay(shown.visit) : null;
+  useEffect(() => {
+    if (!Number.isFinite(shownAt)) return;
+    updateSeen((s) => markSeen(s, userId, [{ id, day: shownDay }], shownAt), seenMark());
+  }, [id, userId, shownAt, shownDay]);
   // back to the app
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -328,6 +341,15 @@ export default function VisitScreen({ route, navigation }) {
   const photos = useMemo(() => (photoRows ? photosOf(photoRows, id, now) : null), [photoRows, id, now]);
   const [upload, setUpload] = useState(null);
   const uploading = useRef(false);
+  // a photo that got no answer: its box (the last thing on the card) comes into view with
+  // Try again, not under the bar at the bottom
+  const scrollRef = useRef(null);
+  const photoFailed = !!(upload && upload.failed);
+  useEffect(() => {
+    if (!photoFailed) return undefined;
+    const frame = requestAnimationFrame(() => scrollRef.current && scrollRef.current.scrollToEnd({ animated: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [photoFailed]);
   const [photoSheet, setPhotoSheet] = useState(false);
   const pickNext = useRef(null);                          // 'camera' | 'library', once the sheet has gone
   const [viewer, setViewer] = useState(null);             // the photo open full screen
@@ -432,7 +454,7 @@ export default function VisitScreen({ route, navigation }) {
           ) : <ActivityIndicator color={colors.brand} />}
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.body}
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.body}
           onLayout={(e) => { place.current.height = e.nativeEvent.layout.height; seenSoon(); }}
           onScroll={(e) => { place.current.top = e.nativeEvent.contentOffset.y; seenSoon(); }}
           scrollEventThrottle={100}

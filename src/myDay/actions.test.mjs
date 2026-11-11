@@ -114,6 +114,13 @@ test('the bar, closed: undo for 15 minutes, then the green box of how it ended',
     { primary: null, noAccess: false, undo: null, closed: { text: 'Finished at 10:52', note: 'undo closed after 15 min' }, line: null, empty: false });
   // the server still lists the undo but its time is over: the box, not a dead button
   assert.equal(barOf(closed, at('2026-11-10T16:07:00Z')).closed.text, 'Finished at 10:52');
+  // right after the press the phone's clock may be a moment before the server's: never more
+  // than the window (it read «16 min to undo»); then down by the minute as before
+  for (const early of ['2026-11-10T15:51:59.950Z', '2026-11-10T15:51:00Z', '2026-11-10T15:52:00Z']) {
+    assert.equal(barOf(closed, at(early)).undo.left, '15 min to undo', early);
+  }
+  assert.equal(barOf(closed, at('2026-11-10T15:52:00.001Z')).undo.left, '15 min to undo');
+  assert.equal(barOf(closed, at('2026-11-10T15:53:00.001Z')).undo.left, '14 min to undo');
   const noAccess = visit({ status: 'completed', outcome: 'no_access', closed_at: '2026-11-10T16:05:00.000Z', actions: ['undo_finish'], undo_until: '2026-11-10T16:20:00.000Z' });
   assert.equal(barOf(noAccess, NOW).undo.text, 'Closed as no access at 11:05');
   assert.equal(barOf({ ...noAccess, actions: [] }, NOW).closed.text, 'Closed as no access at 11:05');

@@ -113,7 +113,10 @@ export function barOf(visit, nowMs) {
   if (undoAction && Number.isFinite(until) && until > nowMs) {
     const at = momentWall(until - UNDO_MINUTES * 60 * 1000);
     const what = undoAction === 'undo_omw' ? 'On my way' : closedWord(visit);
-    const left = Math.max(1, Math.ceil((until - nowMs) / 60000));
+    // whole minutes left, rounded up, never more than the window itself: right after a press
+    // the phone's clock (corrected by the server's, which is off by the answer's way) may be a
+    // moment before the server's, and 15 min and a few ms would read «16 min to undo»
+    const left = Math.min(UNDO_MINUTES, Math.max(1, Math.ceil((until - nowMs) / 60000)));
     undo = { action: undoAction, text: at ? `${what} at ${clock(at.minutes)}` : what, left: `${left} min to undo` };
   }
 

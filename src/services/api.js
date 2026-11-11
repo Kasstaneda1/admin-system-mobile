@@ -184,6 +184,12 @@ export const myDayAPI = {
     const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/notes`, body, { timeout: 15000 });
     return response.data;
   },
+  // The route of a New York day (backend routes/scheduler/route.js, route.js here): { success,
+  // date, today, stops, total_miles, stops_without_point, flags }; 400 for a bad date.
+  route: async (date) => {
+    const response = await api.get('/api/my/route', { params: { date }, timeout: 15000 });
+    return response.data;
+  },
   // The office's messages the technician has had on the screen (officeSeen.js): ids.
   // 200 { success, marked, visit }; again, nothing changes; 400 { error } for an id that is
   // not a message of this visit; 404, 409 (an old task) { error }.

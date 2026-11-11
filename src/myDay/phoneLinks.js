@@ -2,6 +2,7 @@
 // work offline too (design README: «без сети Call и Directions работают»).
 import { ActionSheetIOS, Alert, Linking, Platform } from 'react-native';
 import { addressLine, directionsLinks, telLink } from './model';
+import { MAPS_STOPS_MAX } from './route';
 
 async function open(url, failText) {
   try {
@@ -61,4 +62,20 @@ export function callCustomer(visit) {
   }
   choose(`Call ${visit.client_name || 'the customer'}`, null,
     phones.map((p) => ({ text: p.label ? `${p.label} · ${p.number}` : p.number, onPress: () => call(p.number) })));
+}
+
+// Open in Maps: the day's stops ahead in Apple Maps (all of them) or Google Maps (the next
+// MAPS_STOPS_MAX), from where the phone is (route.js routeLinks). Android has no Apple Maps.
+export function openRoute(links) {
+  if (!links) {
+    Alert.alert('No stops ahead on the map');
+    return;
+  }
+  const google = { text: 'Google Maps', onPress: () => open(links.google, 'Could not open Google Maps') };
+  const note = links.cut ? `Google Maps takes the next ${MAPS_STOPS_MAX} stops` : `${links.count} stop${links.count === 1 ? '' : 's'} ahead`;
+  if (Platform.OS !== 'ios') {
+    choose('Open the route in', note, [google]);
+    return;
+  }
+  choose('Open the route in', note, [{ text: 'Apple Maps', onPress: () => open(links.apple, 'Could not open Apple Maps') }, google]);
 }
