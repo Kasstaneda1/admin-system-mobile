@@ -11,6 +11,9 @@
 // The office's messages (backend #141) under «From the office», the newest first, «NEW» until
 // seen; the app marks seen the ones the technician has really had on the screen (officeSeen.js).
 // No map at the top (no map key yet, and no fake one).
+// UPDATED in My day when it was opened (route param fresh): «Updated by the office · 11:02 AM»
+// over the card while it is open, and under each field that changed what it was, from the card
+// this phone kept from before (visit.js updatedOf; design notifications «visit-updated»).
 // Shown, the visit is seen (fresh.js markSeen, N3-APP): its NEW or UPDATED on My day goes, as of
 // the moment of the data shown (the list's or the server's answer; a card kept from before
 // counts only when that moment is later than the one already seen).
@@ -31,7 +34,7 @@ import { useAuth } from '../session/AuthContext';
 import { failedText, nowWall, offlineText, skewOf, visitDay } from '../myDay/model';
 import { markSeen } from '../myDay/fresh';
 import { seenMark, updateSeen } from '../myDay/seenStore';
-import { dropCard, keepCard, keptCard, visitCard } from '../myDay/visit';
+import { dropCard, keepCard, keptCard, updatedOf, visitCard } from '../myDay/visit';
 import { actionBody, actionError, barOf, defaultOutcome, finishChoices, finishSubtitle, keepActed, newRequestId, noAccessWords } from '../myDay/actions';
 import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
@@ -43,7 +46,9 @@ import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myD
 import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
 
 export default function VisitScreen({ route, navigation }) {
-  const { id, visit: fromList = null, n = null, savedAt: listSavedAt = null, skew: skewIn = 0 } = route.params || {};
+  const { id, visit: fromList = null, n = null, savedAt: listSavedAt = null, skew: skewIn = 0, fresh = null } = route.params || {};
+  // the card this phone kept from before this opening: { visit, at } | null (undefined: not read yet)
+  const [before, setBefore] = useState(undefined);
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
@@ -94,6 +99,7 @@ export default function VisitScreen({ route, navigation }) {
     if (pull) setRefreshing(true);
     const kept = await readMyDay();
     const keptOne = keptCard(kept, userId, id);
+    setBefore((b) => (b === undefined ? (keptOne ? { visit: keptOne.card, at: keptOne.savedAt } : null) : b));
     // the kept card brings history and notes; the list's visit, fresher, its state
     if (keptOne && seq === loadSeq.current) {
       setShown((s) => (s && s.source === 'server' ? s : { visit: { ...keptOne.card, ...(fromList || {}) }, savedAt: keptOne.savedAt, source: 'kept' }));
@@ -145,6 +151,9 @@ export default function VisitScreen({ route, navigation }) {
   // the office's notes beyond the first two show after «+N more»
   const [officeOpen, setOfficeOpen] = useState(false);
   const card = useMemo(() => (shown ? visitCard(shown.visit, { n, now, officeOpen }) : null), [shown, n, now, officeOpen]);
+  // the band and the old words (only for a visit UPDATED when it was opened; stays while open)
+  const updated = useMemo(() => (fresh === 'updated' && shown && before !== undefined
+    ? updatedOf(shown.visit, before && before.visit, before && before.at) : null), [fresh, shown, before]);
   const notice = problem && shown ? (problem === 'offline' ? offlineText(shown.savedAt, now) : failedText(shown.savedAt, now)) : null;
   // history and notes come only with the card itself
   const waiting = problem ? 'Needs connection' : 'Loading…';
@@ -459,14 +468,26 @@ export default function VisitScreen({ route, navigation }) {
           onScroll={(e) => { place.current.top = e.nativeEvent.contentOffset.y; seenSoon(); }}
           scrollEventThrottle={100}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={colors.brand} />}>
+          {updated ? (
+            <View style={styles.upd} accessible accessibilityRole="alert" accessibilityLabel={`${updated.title}. ${updated.line}`}>
+              <Icon name="refresh" size={18} color={colors.infoFg} style={styles.updIcon} />
+              <View style={styles.updBody}>
+                <Text style={styles.updTitle}>{updated.title}</Text>
+                <Text style={styles.updLine}>{updated.line}</Text>
+              </View>
+            </View>
+          ) : null}
           <View style={styles.head} onLayout={placed('head')}>
             <View style={styles.tagRow}>
               <Tag tag={card.tag} big />
               {card.kindLine ? <Text style={styles.kindLine} numberOfLines={1}>{card.kindLine}</Text> : null}
             </View>
             <Text style={styles.name} accessibilityRole="header">{card.name}</Text>
-            {card.address.line1 ? <Text style={styles.addr1}>{card.address.line1}</Text> : null}
-            {card.address.line2 ? <Text style={styles.addr2}>{card.address.line2}</Text> : null}
+            <View style={updated && updated.was.address ? styles.chg : null}>
+              {card.address.line1 ? <Text style={styles.addr1}>{card.address.line1}</Text> : null}
+              {card.address.line2 ? <Text style={styles.addr2}>{card.address.line2}</Text> : null}
+              {updated && updated.was.address ? <ChangedWas text={updated.was.address} /> : null}
+            </View>
 
             <View style={styles.buttons}>
               <TouchableOpacity style={[styles.bigBtn, styles.bigFill]} onPress={() => openDirections(shown.visit, userId)} accessibilityRole="button" accessibilityLabel={`Directions to ${card.name}`}>
@@ -480,13 +501,18 @@ export default function VisitScreen({ route, navigation }) {
             </View>
 
             <View style={styles.tiles}>
-              {card.tiles.map((t) => (
-                <View key={t.key} style={styles.tile} accessible accessibilityLabel={`${t.label} ${t.big} ${t.small}`}>
-                  <Text style={styles.tileLabel}>{t.label.toUpperCase()}</Text>
-                  <Text style={[styles.tileBig, t.big.length > 6 && styles.tileBigLong, t.struck && styles.struck]} numberOfLines={1} adjustsFontSizeToFit>{t.big}</Text>
-                  {t.small ? <Text style={styles.tileSmall} numberOfLines={1}>{t.small}</Text> : null}
-                </View>
-              ))}
+              {card.tiles.map((t) => {
+                // the office moved the time: the tile says what it was, in place of its second line
+                const wasText = updated && updated.was[t.key];
+                const small = wasText || t.small;
+                return (
+                  <View key={t.key} style={[styles.tile, wasText && styles.tileChanged]} accessible accessibilityLabel={`${t.label} ${t.big} ${small}`}>
+                    <Text style={styles.tileLabel}>{t.label.toUpperCase()}</Text>
+                    <Text style={[styles.tileBig, t.big.length > 6 && styles.tileBigLong, t.struck && styles.struck]} numberOfLines={1} adjustsFontSizeToFit>{t.big}</Text>
+                    {small ? <Text style={[styles.tileSmall, wasText && styles.tileWas]} numberOfLines={1}>{small}</Text> : null}
+                  </View>
+                );
+              })}
             </View>
 
             {card.access ? (
@@ -495,6 +521,7 @@ export default function VisitScreen({ route, navigation }) {
                 <View style={styles.accessBody}>
                   <Text style={styles.accessTitle}>How to get in</Text>
                   <Text style={styles.accessText}>{card.access}</Text>
+                  {updated && updated.was.access ? <ChangedWas text={updated.was.access} /> : null}
                 </View>
               </View>
             ) : null}
@@ -535,7 +562,10 @@ export default function VisitScreen({ route, navigation }) {
           </View>
 
           <Section label="Problem">
-            <Text style={card.problem ? styles.text : styles.quiet}>{card.problem || 'No description'}</Text>
+            <View style={updated && updated.was.problem ? styles.chg : null}>
+              <Text style={card.problem ? styles.text : styles.quiet}>{card.problem || 'No description'}</Text>
+              {updated && updated.was.problem ? <ChangedWas text={updated.was.problem} /> : null}
+            </View>
             {card.appliances.map((a) => (
               <View key={a.key} style={styles.appliance}>
                 <Icon name="wrench" size={14} color={colors.fgSecondary} />
@@ -619,6 +649,24 @@ export default function VisitScreen({ route, navigation }) {
   );
 }
 
+// Under a field the office changed: «CHANGED» and what it was ('was 88-12 Queens Blvd, Apt 5A');
+// a field there was none of before: «NEW» alone
+function ChangedWas({ text }) {
+  if (text === 'new') {
+    return (
+      <View style={styles.chgWas} accessible accessibilityLabel="New">
+        <Text style={styles.chgPill}>NEW</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.chgWas} accessible accessibilityLabel={`Changed, ${text}`}>
+      <Text style={styles.chgPill}>CHANGED</Text>
+      <Text style={styles.chgText} numberOfLines={3}>{text}</Text>
+    </View>
+  );
+}
+
 function Section({ label, children }) {
   return (
     <View style={styles.section}>
@@ -653,6 +701,18 @@ const styles = StyleSheet.create({
   tileBigLong: { fontSize: 18, lineHeight: 32 },
   tileSmall: { fontSize: 12, fontWeight: '600', color: colors.fgSecondary },
   struck: { textDecorationLine: 'line-through', color: colors.fgSecondary },
+  // «Updated by the office» (design .upd) and a field that changed (.chg, .chg-was)
+  upd: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
+  updIcon: { marginTop: 1 },
+  updBody: { flex: 1 },
+  updTitle: { fontSize: 16, lineHeight: 21, fontWeight: '700', color: colors.infoFg },
+  updLine: { fontSize: 15, lineHeight: 20, color: colors.infoFg },
+  chg: { marginTop: 4, marginHorizontal: -2, paddingVertical: 8, paddingLeft: 12, paddingRight: 10, borderLeftWidth: 4, borderLeftColor: colors.infoBorder, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, borderTopRightRadius: 10, borderBottomRightRadius: 10, backgroundColor: colors.infoBg },
+  chgWas: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  chgPill: { paddingHorizontal: 6, height: 18, lineHeight: 18, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
+  chgText: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: colors.infoFg },
+  tileChanged: { borderWidth: 2, borderColor: colors.infoBorder },
+  tileWas: { color: colors.infoFg },
   access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   accessBody: { flex: 1 },
   accessTitle: { fontSize: 15, fontWeight: '700', color: colors.warningFg },

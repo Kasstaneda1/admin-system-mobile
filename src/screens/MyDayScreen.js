@@ -186,7 +186,7 @@ export default function MyDayScreen({ navigation }) {
     ? <GapRow key={`gap-${item.gap.from}`} gap={item.gap} />
     // a row of the day log is not opened: the office took the visit off this day
     : <DayRow key={item.row.key} row={item.row} fresh={marks[item.row.key] || null}
-        onPress={item.row.logged ? undefined : () => navigation.navigate('Visit', { id: item.row.id, visit: item.row.visit, n: item.row.n, savedAt: week ? week.savedAt : null, skew: skew.current })}
+        onPress={item.row.logged ? undefined : () => navigation.navigate('Visit', { id: item.row.id, visit: item.row.visit, n: item.row.n, savedAt: week ? week.savedAt : null, skew: skew.current, fresh: marks[item.row.key] || null })}
         onDirections={() => openDirections(item.row.visit, userId)}
         onCall={() => callCustomer(item.row.visit, userId)} />)) : [];
 
