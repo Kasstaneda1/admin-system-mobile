@@ -136,7 +136,7 @@ export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
   );
   if (!open) {
     return onPress
-      ? <TouchableOpacity style={styles.row} onPress={onPress} accessibilityRole="button">{body}</TouchableOpacity>
+      ? <TouchableOpacity style={styles.row} onPress={onPress} accessibilityRole="button" accessibilityLabel={row.label || undefined}>{body}</TouchableOpacity>
       : <View style={styles.row} accessible={!!row.label} accessibilityLabel={row.label || undefined}>{body}</View>;
   }
   return (

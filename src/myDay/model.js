@@ -227,7 +227,7 @@ export function tagOf(visit, { long = false } = {}) {
 // office_change { kind, changed_at, to_date, to_window: { start, end } } (to_* only when
 // moved and still theirs: where it is now). Its status is the visit's now (a moved one may be
 // closed on its new day), so the row is grey whatever the status says: no number, no
-// actions, not counted, not in the strip, not opened.
+// actions, not counted, not in the strip; it opens only read only (moved.js, MovedScreen).
 export const isLogged = (visit) => !!(visit && visit.office_change);
 // The list's key of a row: one visit may come twice in a range (moved by the office: a grey
 // row on the old day, a live one on the new), so the id and the window it has on that day
