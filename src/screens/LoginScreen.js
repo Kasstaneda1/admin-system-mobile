@@ -25,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { authAPI } from '../services/api';
 import { colors } from '../constants/colors';
 import { useAuth } from '../session/AuthContext';
+import { loginFailureText } from '../session/model';
 import { logError } from '../utils/logError';
 
 const BACKGROUND = require('../../assets/login-bg.png');
@@ -74,10 +75,8 @@ export default function LoginScreen() {
     } catch (error) {
       // The message and the status only: the error object carries the request with the password
       logError('Login error:', error);
-      Alert.alert(
-        'Login Failed',
-        error.response?.data?.error || 'Invalid username or password'
-      );
+      // A turned-off technician gets the app's phrase, any other refusal the server's words
+      Alert.alert('Login Failed', loginFailureText(error.response?.status, error.response?.data));
     } finally {
       setLoading(false);
     }
