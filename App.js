@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './src/session/AuthContext';
 import LoginScreen from './src/screens/LoginScreen';
 import MyDayScreen from './src/screens/MyDayScreen';
 import VisitScreen from './src/screens/VisitScreen';
+import RouteScreen from './src/screens/RouteScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
 import PartsScreen from './src/screens/PartsScreen';
@@ -76,6 +77,11 @@ function Screens() {
               name="Visit"
               component={VisitScreen}
               options={{ headerShown: false, title: 'Visit' }}
+            />
+            <Stack.Screen
+              name="Route"
+              component={RouteScreen}
+              options={{ headerShown: false, title: 'Route' }}
             />
             <Stack.Screen
               name="Home"
