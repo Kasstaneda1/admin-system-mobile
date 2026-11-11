@@ -70,7 +70,7 @@ export function Strip({ strip }) {
           const left = px(it.from);
           const w = Math.max(16, px(it.to) - left);
           return (
-            <React.Fragment key={it.id}>
+            <React.Fragment key={it.key}>
               <View style={[styles.win, { top: it.track ? 9 : 3, left: px(it.winFrom), width: Math.max(4, px(it.winTo) - px(it.winFrom)), backgroundColor: winColor }]} />
               <View style={[styles.block, { left: Math.min(left, width - w), width: w, backgroundColor: c.backgroundColor, borderColor: c.borderColor, borderWidth: c.borderWidth || 0, zIndex: it.current ? 4 : 2 }]}>
                 <Text style={[styles.blockText, { color: c.color }]} numberOfLines={1}>{it.n}</Text>

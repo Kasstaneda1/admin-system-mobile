@@ -187,7 +187,7 @@ export function tagOf(visit, { long = false } = {}) {
 //   date, isToday, isPast, rows: [row], current: row|null, next: row|null,
 //   summary: { big, small }, gaps: [{ afterId, from, to, text }], count, done
 // }
-// row: { id, n, visit, state, current, next, helper, legacy, client, area, kind, window,
+// row: { id, key, n, visit, state, current, next, helper, legacy, client, area, kind, window,
 //        timeText, tag, start, end (minutes of the plan), winStart, winEnd (minutes on this
 //        day, clamped to it) }
 // Numbers go by planned time, 1..n, the same in the strip and in the list; only live visits
@@ -195,8 +195,10 @@ export function tagOf(visit, { long = false } = {}) {
 export function buildDay(visits, date, now) {
   const isToday = date === now.date;
   const isPast = date < now.date;
+  // A visit the office took off this technician's day (office_change, coming from the server)
+  // will be a grey row of its own; until the screen draws it, it is left out as before.
   const day = (visits || [])
-    .filter((v) => v && stateOf(v) !== 'cancelled' && visitDay(v) === date)
+    .filter((v) => v && !v.office_change && stateOf(v) !== 'cancelled' && visitDay(v) === date)
     .map((v) => ({ v, plan: planOf(v) }))
     .sort((a, b) => a.plan.start.minutes - b.plan.start.minutes || a.v.id - b.v.id);
 
@@ -208,12 +210,16 @@ export function buildDay(visits, date, now) {
     const onDay = (w, fallback) => (!w ? fallback : w.date < date ? 0 : w.date > date ? 1440 : w.minutes);
     let timeText = `plan ${clock(plan.start.minutes)}`;
     if (state === 'closed') {
-      const at = momentWall(v.updated_at);
+      // closed_at: the moment it was closed; the servers before that field: the last change
+      const at = momentWall(v.closed_at) || momentWall(v.updated_at);
       timeText = at && at.date === date ? `done ${clock(at.minutes)}` : 'done';
     }
     if (state === 'moved') timeText = 'moved';
     return {
       id: v.id,
+      // the list's key: one visit may come twice in a range (moved by the office: a grey row on
+      // the old day, a live one on the new), so the id and the window it has on this day
+      key: `${v.id}@${v.scheduled_start || ''}`,
       n: state === 'moved' ? null : ++number,
       visit: v,
       state,
@@ -308,7 +314,7 @@ export function stripOf(day, now) {
   const x = (m) => Math.min(1, Math.max(0, (m - DAY_START) / span));
   return {
     items: day.live.map((r, i) => ({
-      id: r.id, n: r.n, state: r.state, helper: r.helper, current: r.current || r.next,
+      id: r.id, key: r.key, n: r.n, state: r.state, helper: r.helper, current: r.current || r.next,
       track: i % 2, winFrom: x(r.winStart), winTo: x(r.winEnd), from: x(r.start), to: x(r.end),
     })),
     now: day.isToday && now.minutes >= DAY_START && now.minutes <= DAY_END ? x(now.minutes) : null,

@@ -25,6 +25,8 @@ function visit(o) {
     client_name: o.client || 'Client', city: 'city' in o ? o.city : 'Bayside', address_line: o.street || '1 Main St',
     address_unit: o.unit || null, state: 'NY', zip: '11361', lat: null, lng: null,
     main_technician_name: o.main || 'Ivan Petrov', helper_name: o.helper || null,
+    ...('closed_at' in o ? { closed_at: o.closed_at } : {}),
+    ...('office_change' in o ? { office_change: o.office_change } : {}),
   };
 }
 // The design's Tuesday: two closed, Patel on the way, Nguyen as helper, Chen later
@@ -290,6 +292,25 @@ test('a past day: closed visits, no free time', () => {
   assert.deepEqual(day.gaps, []);
   assert.equal(day.rows[0].timeText, 'done 10:00');
   assert.equal(headerLine(MON, NOW), 'Yesterday · Mon, Nov 9');
+});
+
+test('the close time: closed_at, else (an older server, or null) updated_at', () => {
+  const closed = (o) => visit({ w0: '08:00', w1: '10:00', p: '08:30', status: 'completed', outcome: 'done', updated_at: '2026-11-10T16:30:00Z', ...o });
+  assert.equal(buildDay([closed({ id: 81, closed_at: '2026-11-10T14:41:00Z' })], TUE, NOW).rows[0].timeText, 'done 9:41');
+  assert.equal(buildDay([closed({ id: 82, closed_at: null })], TUE, NOW).rows[0].timeText, 'done 11:30');
+  assert.equal(buildDay([closed({ id: 83 })], TUE, NOW).rows[0].timeText, 'done 11:30');
+});
+
+test('a visit the office took off the day is left out for now; a row is keyed by id and window', () => {
+  const vs = [
+    visit({ id: 91, w0: '09:00', w1: '12:00', p: '09:30', office_change: { kind: 'moved', changed_at: '2026-11-10T15:40:00Z', to_date: '2026-11-12', to_window: '09:00-12:00' } }),
+    visit({ id: 92, w0: '13:00', w1: '16:00', p: '13:30', office_change: null }),
+  ];
+  const day = buildDay(vs, TUE, NOW);
+  assert.deepEqual(day.rows.map((r) => r.id), [92]);
+  assert.equal(day.count, 1);
+  assert.equal(day.rows[0].key, '92@2026-11-10 13:00:00');
+  assert.equal(stripOf(day, NOW).items[0].key, '92@2026-11-10 13:00:00');
 });
 
 test('the strip: windows on two tracks, plans, now, ticks', () => {
