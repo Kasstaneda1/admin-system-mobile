@@ -145,7 +145,7 @@ export function actionError(error) {
 
 // After an answer: the card kept for offline, and the visit in the kept weeks, so the day
 // shows it right before its own refresh
-const CARD_ONLY = ['job_visits', 'notes', 'office_notes'];
+const CARD_ONLY = ['job_visits', 'notes', 'office_notes', 'office_messages'];
 export function keepActed(cache, userId, visit, savedAt) {
   const kept = keepCard(cache, userId, visit, savedAt);
   if (!kept.weeks) return kept;

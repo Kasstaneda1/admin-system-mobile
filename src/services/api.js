@@ -159,8 +159,8 @@ export const warehouseAPI = {
 // My day (backend routes/scheduler/my.js): the technician's own visits, their actions and notes.
 // visits(from, to): New York days 'YYYY-MM-DD', both included, at most 7.
 // Answers { success, server_time, today, from, to, visits }.
-// visit(id): one visit with its job's other visits, the notes and the office's notes:
-// { success, server_time, visit: { ...as in visits, job_visits, notes, office_notes } };
+// visit(id): one visit with its job's other visits, the notes and the office's words:
+// { success, server_time, visit: { ...as in visits, job_visits, notes, office_notes, office_messages } };
 // 404 when it is no longer the technician's.
 export const myDayAPI = {
   visits: async (from, to) => {
@@ -182,6 +182,13 @@ export const myDayAPI = {
   // (also a success); 400 { error }; 404 { error }; 409 { error, visit }.
   note: async (id, body) => {
     const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/notes`, body, { timeout: 15000 });
+    return response.data;
+  },
+  // The office's messages the technician has had on the screen (officeSeen.js): ids.
+  // 200 { success, marked, visit }; again, nothing changes; 400 { error } for an id that is
+  // not a message of this visit; 404, 409 (an old task) { error }.
+  seen: async (id, ids) => {
+    const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/office-messages/seen`, { ids }, { timeout: 15000 });
     return response.data;
   },
 };

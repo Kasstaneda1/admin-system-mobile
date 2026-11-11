@@ -33,6 +33,7 @@ function card(o = {}) {
       job_visits: o.jobVisits || [],
       notes: o.notes || [],
       office_notes: o.officeNotes || null,
+      office_messages: o.officeMessages || [],
     }),
   };
 }
@@ -121,28 +122,39 @@ test('when a note was written: today the time, another day the date', () => {
   assert.deepEqual(notesOf(card({ notes: [{ id: 1, author_name: 'Ivan Petrov', created_at: '2026-11-09T20:00:00.000Z', text: 'x' }] }), NOW)[0].head, 'Ivan P. · Nov 9');
 });
 
-test('the office notes: the job note as it is; a list newest first, two, then «+N more»; nothing, no block', () => {
-  // today's server: the job's notes, one text without author or time
+test('the office: its messages newest first, two, then «+N more»; the job notes last, always', () => {
+  // only the job's common text: as it is, no head
   assert.deepEqual(officeNotesOf(card({ officeNotes: '  Customer asks to call 10 min before.  ' }), NOW),
-    { notes: [{ key: 'o0', head: '', text: 'Customer asks to call 10 min before.' }], more: 0 });
-  // a list of notes: the newest first, who and when, two shown
-  const list = card({ officeNotes: [
-    { id: 1, author_name: 'Anna Lee', created_at: '2026-11-09T14:00:00.000Z', text: 'Gate code changed to 7788.' },
-    { id: 3, author_name: 'Anna Lee', created_at: '2026-11-10T14:12:00.000Z', text: 'Come after 4 PM.' },
-    { id: 2, author_name: 'Mark', created_at: '2026-11-10T13:00:00.000Z', text: 'Customer prefers text messages.' },
-    { id: 4, author_name: 'Mark', created_at: '2026-11-10T12:00:00.000Z', text: '   ' },
-  ] });
-  assert.deepEqual(officeNotesOf(list, NOW), { notes: [
-    { key: 'o3', head: 'Anna · 9:12 AM', text: 'Come after 4 PM.' },
-    { key: 'o2', head: 'Mark · 8:00 AM', text: 'Customer prefers text messages.' },
-  ], more: 1 });
-  const open = officeNotesOf(list, NOW, { open: true });
-  assert.deepEqual([open.notes.map((n) => n.key), open.more], [['o3', 'o2', 'o1'], 0]);
-  assert.equal(open.notes[2].head, 'Anna · Nov 9');
-  assert.equal(visitCard(list, { now: NOW }).office.more, 1);
-  assert.equal(visitCard(list, { now: NOW, officeOpen: true }).office.more, 0);
+    { messages: [], more: 0, job: { head: '', text: 'Customer asks to call 10 min before.' } });
+  // the office's messages (backend #141): the newest first, who and when, unseen until seen_at
+  const messages = [
+    { id: 11, author_name: 'Anna Lee', created_at: '2026-11-09T14:00:00.000Z', text: 'Gate code changed to 7788.', seen_at: '2026-11-09T15:00:00.000Z' },
+    { id: 13, author_name: 'Anna Lee', created_at: '2026-11-10T14:12:00.000Z', text: '  Come after 4 PM.  ', seen_at: null },
+    { id: 12, author_name: 'Mark', created_at: '2026-11-10T13:00:00.000Z', text: 'Customer prefers text messages.', seen_at: '2026-11-10T13:30:00.000Z' },
+    { id: 14, author_name: 'Mark', created_at: '2026-11-10T12:00:00.000Z', text: '   ', seen_at: null },
+    { id: 15, author_name: null, created_at: '2026-11-10T14:12:00.000Z', text: 'Same minute, newer id.', seen_at: null },
+    { author_name: 'Mark', created_at: '2026-11-10T14:30:00.000Z', text: 'No id: not a message.' },
+  ];
+  const both = card({ officeNotes: 'Second floor, no elevator.', officeMessages: messages });
+  assert.deepEqual(officeNotesOf(both, NOW), {
+    messages: [
+      { key: 'm15', id: 15, head: 'Office · 9:12 AM', text: 'Same minute, newer id.', unseen: true },
+      { key: 'm13', id: 13, head: 'Anna · 9:12 AM', text: 'Come after 4 PM.', unseen: true },
+    ],
+    more: 2,
+    job: { head: 'Job notes', text: 'Second floor, no elevator.' },
+  });
+  const open = officeNotesOf(both, NOW, { open: true });
+  assert.deepEqual([open.messages.map((m) => [m.id, m.unseen]), open.more], [[[15, true], [13, true], [12, false], [11, false]], 0]);
+  assert.equal(open.messages[3].head, 'Anna · Nov 9');
+  assert.equal(visitCard(both, { now: NOW }).office.more, 2);
+  assert.equal(visitCard(both, { now: NOW, officeOpen: true }).office.more, 0);
+  // messages without the job's text
+  assert.deepEqual(officeNotesOf(card({ officeMessages: messages.slice(0, 1) }), NOW),
+    { messages: [{ key: 'm11', id: 11, head: 'Anna · Nov 9', text: 'Gate code changed to 7788.', unseen: false }], more: 0, job: null });
   // nothing to say: no block
-  for (const empty of [null, '', '   ', [], [{ text: ' ' }]]) assert.equal(officeNotesOf(card({ officeNotes: empty }), NOW), null);
+  for (const empty of [null, '', '   ']) assert.equal(officeNotesOf(card({ officeNotes: empty }), NOW), null);
+  assert.equal(officeNotesOf(card({ officeMessages: [{ id: 1, text: ' ' }] }), NOW), null);
   assert.equal(visitCard(card({ list: true }), { now: NOW }).office, null);
 });
 
@@ -178,7 +190,7 @@ test('history: by window, later visits after this one, the moved one says so', (
 test('notes: today says the time; the office note; the list visit is not the full card', () => {
   const v = card({ notes: [{ id: 7, visit_id: 3, author_name: 'Alex Kim', created_at: '2026-11-10T15:40:00.000Z', text: 'Bring the long hose.' }], officeNotes: '  Customer asks to call 10 min before.  ' });
   assert.deepEqual(notesOf(v, NOW), [{ key: 'n7', head: 'Alex K. · 10:40 AM', text: 'Bring the long hose.' }]);
-  assert.equal(visitCard(v, { now: NOW }).office.notes[0].text, 'Customer asks to call 10 min before.');
+  assert.equal(visitCard(v, { now: NOW }).office.job.text, 'Customer asks to call 10 min before.');
   const fromList = visitCard(card({ list: true }), { now: NOW });
   assert.equal(fromList.full, false);
   assert.deepEqual([fromList.history, fromList.notes, fromList.notesTitle], [[], [], 'Notes · 0']);
