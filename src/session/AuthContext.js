@@ -35,6 +35,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const stopListening = session.onEnd((reason) => {
+      checking.current = false; // a check cut off by the end never answers
       setState({ status: 'signedOut', user: null, notice: NOTICE[reason] || null });
     });
     let alive = true;
@@ -56,11 +57,13 @@ export function AuthProvider({ children }) {
 
   const signIn = useCallback(async (data) => {
     await session.signIn({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
+    checking.current = false;
     lastCheck.current = Date.now();
     setState({ status: 'signedIn', user: data.user, notice: null });
   }, []);
 
   const signOut = useCallback(async () => {
+    checking.current = false;
     setState({ status: 'signedOut', user: null, notice: null });
     await session.signOut();
   }, []);

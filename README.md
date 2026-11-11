@@ -204,7 +204,8 @@ The Android emulator reaches this Mac as `10.0.2.2`, not `127.0.0.1`.
 - The session ends by the server's word: refresh refused, or 403 «Access to system blocked».
   Everything kept is wiped and the sign-in screen says why («Your account was turned off.
   Please contact the office.» / «Your session has ended. Please sign in again.»). No network,
-  a server failure or 429 never sign anyone out.
+  a server failure or 429 never sign anyone out. A request the end cuts off never answers:
+  the screen that asked is gone, so its error alert does not cover the sign-in screen.
 - Start: a refresh token younger than 7 days and the profile open the technician's screens
   at once, without the network; `GET /api/me` then checks the session in the background,
   and again on return to the app (at most once per 5 minutes).

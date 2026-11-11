@@ -11,19 +11,15 @@
 //           (no network: status 0): refresh(refreshToken), logout(refreshToken)
 //   now   — the clock (ms)
 // attach(axiosInstance) puts the session into the API client (api.js).
+//
+// A request the end of the session cuts off (or one made while signed out) never answers: the
+// screen that asked is gone already, and an answer would only show its error alert on top of
+// the sign-in screen, which says why in its own words.
 import {
-  NOTICE, accessUsable, answerKind, refreshOutcome, startState, isAuthPath,
+  accessUsable, answerKind, refreshOutcome, startState, isAuthPath,
 } from './model.js';
 
-// The request was not sent or not repeated: the session is over (reason: 'blocked' | 'expired'
-// | null when signed out). The screen behind it is already gone; its message is the notice.
-export class SessionEnded extends Error {
-  constructor(reason) {
-    super(reason ? NOTICE[reason] : 'Signed out');
-    this.name = 'SessionEnded';
-    this.reason = reason;
-  }
-}
+const silence = () => new Promise(() => {});
 
 const EMPTY = { access: null, refresh: null, savedAt: null };
 
@@ -126,13 +122,13 @@ export function createSession({ store, http, now = () => Date.now() }) {
   function attach(api) {
     api.interceptors.request.use(async (config) => {
       if (isAuthPath(config.url)) return config;
-      if (ended) throw new SessionEnded(null);
+      if (ended) return silence();
       let access = tokens.access;
       if (!accessUsable(access, now())) {
         const result = await refreshOnce();
         if (result.outcome === 'ok') access = result.access;
         else if (result.outcome === 'later') config._refreshTried = true; // sent as it is: the screen shows its failure
-        else throw new SessionEnded(result.reason);
+        else return silence();
       }
       if (access) config.headers.Authorization = `Bearer ${access}`;
       config._sentWith = access;
@@ -141,14 +137,14 @@ export function createSession({ store, http, now = () => Date.now() }) {
 
     api.interceptors.response.use(undefined, async (error) => {
       const config = error?.config;
-      if (error instanceof SessionEnded || !config || isAuthPath(config.url)) throw error;
+      if (!config || isAuthPath(config.url)) throw error;
       const kind = answerKind(error.response?.status, error.response?.data);
       if (kind === 'blocked') {
         await end('blocked');
-        throw new SessionEnded('blocked');
+        return silence();
       }
       if (kind !== 'refresh' || config._retried) throw error;
-      if (ended) throw new SessionEnded(null);
+      if (ended) return silence();
       config._retried = true;
       // Another request may have refreshed already: then just send this one again
       const refreshedMeanwhile = tokens.access && tokens.access !== config._sentWith && accessUsable(tokens.access, now());
@@ -156,7 +152,7 @@ export function createSession({ store, http, now = () => Date.now() }) {
         if (config._refreshTried) throw error;
         const result = await refreshOnce();
         if (result.outcome === 'later') throw error;
-        if (result.outcome !== 'ok') throw new SessionEnded(result.reason);
+        if (result.outcome !== 'ok') return silence();
       }
       return api.request(config);
     });

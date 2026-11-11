@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import axios, { AxiosError } from 'axios';
-import { createSession, SessionEnded } from './session.js';
+import { createSession } from './session.js';
 import { NOTICE, REFRESH_LIFE_MS, accessExpiresAt } from './model.js';
 
 const START = Date.parse('2026-11-10T17:00:00Z');
@@ -13,6 +13,11 @@ let serial = 0;
 const access = (at, ms) => `${b64url({ alg: 'HS256' })}.${b64url({ id: 7, exp: Math.floor((at + ms) / 1000), n: (serial += 1) })}.sig`;
 const USER = { id: 7, username: 'nia', role: 'technician', fullName: 'Nia Test' };
 const tick = (ms = 5) => new Promise((resolve) => setTimeout(resolve, ms));
+// A request the end of the session cut off never answers: still pending after `ms`
+const stillPending = async (promise, ms = 60) => {
+  const outcome = await Promise.race([promise.then(() => 'answered', () => 'failed'), tick(ms).then(() => 'pending')]);
+  return outcome === 'pending';
+};
 
 function world({ accessLeftMs = 15 * 60 * 1000 } = {}) {
   let clock = START;
@@ -152,19 +157,14 @@ test('refresh refused, the account is turned off: the session ends once and ever
   const w = world({ accessLeftMs: -1000 });
   await w.session.load();
   w.server.refreshAnswer = { status: 401, data: { error: 'Account is deactivated' } };
-  const outcomes = await Promise.allSettled([w.api.get('/api/a'), w.api.get('/api/b'), w.api.get('/api/c')]);
-  for (const o of outcomes) {
-    assert.equal(o.status, 'rejected');
-    assert.equal(o.reason instanceof SessionEnded, true);
-    assert.equal(o.reason.reason, 'blocked');
-    assert.equal(o.reason.message, NOTICE.blocked);
-  }
+  const cut = [w.api.get('/api/a'), w.api.get('/api/b'), w.api.get('/api/c')];
+  for (const request of cut) assert.equal(await stillPending(request), true, 'no answer, no error alert over sign in');
   assert.deepEqual(w.ends, ['blocked']);
   assert.equal(w.server.refreshes.length, 1);
   assert.equal(w.server.requests.length, 0, 'nothing reached the server');
   assert.deepEqual(w.store.kept, { access: null, refresh: null, savedAt: null, user: null });
   assert.equal(w.session.signedIn, false);
-  await assert.rejects(w.api.get('/api/d'), (e) => e instanceof SessionEnded && e.reason === null);
+  assert.equal(await stillPending(w.api.get('/api/d')), true);
   assert.equal(w.server.requests.length, 0);
 });
 
@@ -174,7 +174,7 @@ for (const error of ['Invalid refresh token', 'Refresh token expired']) {
     await w.session.load();
     w.server.valid.clear();
     w.server.refreshAnswer = { status: 401, data: { error } };
-    await assert.rejects(w.api.get('/api/me'), (e) => e instanceof SessionEnded && e.reason === 'expired' && e.message === NOTICE.expired);
+    assert.equal(await stillPending(w.api.get('/api/me')), true);
     assert.deepEqual(w.ends, ['expired']);
     assert.equal(w.store.kept.refresh, null);
   });
@@ -185,7 +185,7 @@ for (const [label, answer] of [['no network', { status: 0, data: null }], ['a se
     const w = world({ accessLeftMs: -1000 });
     await w.session.load();
     w.server.refreshAnswer = answer;
-    await assert.rejects(w.api.get('/api/me'), (e) => !(e instanceof SessionEnded) && e.response?.status === 401);
+    await assert.rejects(w.api.get('/api/me'), (e) => e.response?.status === 401);
     assert.equal(w.server.refreshes.length, 1, 'no second refresh for the same request');
     assert.deepEqual(w.ends, []);
     assert.equal(w.session.signedIn, true);
@@ -210,8 +210,8 @@ test('403 «Access to system blocked» on any request ends the session at once, 
   const w = world();
   await w.session.load();
   w.server.answer403 = { error: 'Access to system blocked. Contact administrator.' };
-  const outcomes = await Promise.allSettled([w.api.get('/api/a'), w.api.get('/api/b')]);
-  assert.equal(outcomes.every((o) => o.status === 'rejected' && o.reason instanceof SessionEnded && o.reason.reason === 'blocked'), true);
+  const cut = [w.api.get('/api/a'), w.api.get('/api/b')];
+  for (const request of cut) assert.equal(await stillPending(request), true);
   assert.deepEqual(w.ends, ['blocked']);
   assert.equal(w.server.refreshes.length, 0);
   assert.equal(w.store.kept.refresh, null);
@@ -254,7 +254,8 @@ test('sign out: what is kept goes at once, the server revokes the refresh token;
   assert.deepEqual(w.store.kept, { access: null, refresh: null, savedAt: null, user: null });
   assert.equal(w.session.signedIn, false);
   assert.deepEqual(w.ends, [], 'signing out is not an end with a notice');
-  await assert.rejects(w.api.get('/api/me'), (e) => e instanceof SessionEnded);
+  assert.equal(await stillPending(w.api.get('/api/me')), true);
+  assert.equal(w.server.requests.length, 0);
 });
 
 test('sign out while a refresh runs: its answer is dropped, its new token revoked', async () => {
@@ -264,7 +265,7 @@ test('sign out while a refresh runs: its answer is dropped, its new token revoke
   const pending = w.api.get('/api/me');
   await tick(5);
   await w.session.signOut();
-  await assert.rejects(pending, (e) => e instanceof SessionEnded);
+  assert.equal(await stillPending(pending, 80), true);
   assert.deepEqual(w.store.kept, { access: null, refresh: null, savedAt: null, user: null }, 'nothing written back');
   assert.deepEqual(w.server.logouts, ['r0', 'r1']);
 });
@@ -274,7 +275,7 @@ test('start: 7 days after the last save the session is over, with the notice', a
   w.store.kept.savedAt = START - REFRESH_LIFE_MS;
   assert.deepEqual(await w.session.load(), { signedIn: false, notice: NOTICE.expired, user: null });
   assert.equal(w.store.clears, 1);
-  await assert.rejects(w.api.get('/api/me'), (e) => e instanceof SessionEnded);
+  assert.equal(await stillPending(w.api.get('/api/me')), true);
   assert.equal(w.server.requests.length, 0);
 });
 
