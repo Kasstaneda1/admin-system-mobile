@@ -6,7 +6,7 @@ import { PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } fro
 import { colors } from '../constants/colors';
 import Icon from './Icon';
 import { dayOfMonth, weekdayLetter, weekdayOf } from './model';
-import { FRESH_TEXT, badgeText, tabLabel } from './fresh';
+import { FRESH_TEXT, badgeText, markLabel, tabLabel } from './fresh';
 
 // ---------- tags ----------
 export const TAG_FAMILIES = {
@@ -39,10 +39,16 @@ export function NowLabel({ text = 'NOW' }) {
 
 // «NEW» or «UPDATED» on a row (fresh.js; design notifications/app.html .mk): the same blue pill
 // as NEW at an office message in the card (#19). It never shrinks: the area gives way first.
+// NOTE (an office message not seen yet) has the message icon in it, as in the design.
 export function FreshMark({ kind }) {
   const text = FRESH_TEXT[kind];
   if (!text) return null;
-  return <Text style={styles.mark} accessibilityLabel={text}>{text.toUpperCase()}</Text>;
+  return (
+    <View style={styles.mark} accessible accessibilityLabel={markLabel(kind)}>
+      {kind === 'note' ? <Icon name="message" size={12} color={colors.fgOnFill} /> : null}
+      <Text style={styles.markText}>{text.toUpperCase()}</Text>
+    </View>
+  );
 }
 
 // The visit's number in a circle, coloured as its state
@@ -251,7 +257,8 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 12, fontWeight: '700', flexShrink: 1 },
   tagTextBig: { fontSize: 13 },
   now: { flexShrink: 0, paddingHorizontal: 6, height: 20, lineHeight: 20, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.accent, color: colors.onAccent, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
-  mark: { flexShrink: 0, paddingHorizontal: 6, height: 18, lineHeight: 18, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
+  mark: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, height: 18, borderRadius: 6, backgroundColor: colors.infoBorder },
+  markText: { fontSize: 11, lineHeight: 18, fontWeight: '800', letterSpacing: 0.66, color: colors.fgOnFill },
   dot: { position: 'absolute', left: 0, top: 2, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   dotText: { fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
 

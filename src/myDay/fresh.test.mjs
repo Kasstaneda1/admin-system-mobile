@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  noteWeek, markSeen, noteShown, shownAt, freshMarks, freshCounts, tabLabel, badgeText, SEEN_V, SEEN_MAX, WEEK_KEEP_MS, SEEN_KEEP_MS,
+  noteWeek, markSeen, noteShown, shownAt, freshMarks, freshCounts, tabLabel, badgeText, markLabel, FRESH_TEXT, SEEN_V, SEEN_MAX, WEEK_KEEP_MS, SEEN_KEEP_MS,
 } from './fresh.js';
 import { buildDay, rowKey } from './model.js';
 
@@ -24,6 +24,7 @@ function visit(id, o = {}) {
     scheduled_start: `${date} ${o.w0 || '13:00'}:00`, scheduled_end: `${date} ${o.w1 || '16:00'}:00`,
     planned_start: null, duration_minutes: 60,
     ...('changed' in o ? { content_changed_at: o.changed } : {}),
+    ...('unseen' in o ? { unseen_office_messages: o.unseen } : {}),
     ...('office_change' in o ? { office_change: o.office_change } : {}),
   };
 }
@@ -231,4 +232,35 @@ test('the phone forgets old weeks, days and visits, and keeps at most SEEN_MAX v
   const many = Array.from({ length: SEEN_MAX + 5 }, (_, i) => visit(1000 + i));
   const big = noteWeek(null, ME, SUN, many, T0);
   assert.equal(Object.keys(big.seen).length, SEEN_MAX);
+});
+
+test('NOTE: an office message not seen yet, the third mark — after NEW and UPDATED, before nothing', () => {
+  const s = noteWeek(null, ME, SUN, WEEK(), T0);
+  const changed = '2026-11-10T15:00:00Z';
+  const list = [
+    visit(1, { status: 'completed', unseen: 2 }),                // closed: none
+    visit(2, { status: 'omw', unseen: 1 }),                      // on the way: NOTE
+    visit(3, { unseen: 3, changed }),                            // changed too: UPDATED wins
+    visit(4, { date: WED, unseen: 0 }),                          // all seen: none
+    visit(5, { unseen: 1 }),                                     // a visit the phone did not know: NEW wins
+    visit(6, { date: '2026-11-09', unseen: 1 }),                 // yesterday: none
+    visit(7, { unseen: 2, office_change: { kind: 'reassigned', changed_at: '2026-11-10T12:00:00Z' } }), // a grey row: none
+    visit(8, { date: WED, unseen: '2' }),                        // a number as text still counts
+    visit(9, { date: WED, unseen: null }),                       // a server without the field: none
+  ];
+  // 8 and 9 are new to the phone (not in WEEK): NEW
+  assert.deepEqual(marked(s, list), { 2: 'note', 3: 'updated', 5: 'new', 8: 'new', 9: 'new' });
+  // 8 known: its NOTE shows
+  const s8 = markSeen(s, ME, [{ id: 8, day: WED }, { id: 9, day: WED }], T0 + 1000);
+  assert.deepEqual(marked(s8, list), { 2: 'note', 3: 'updated', 5: 'new', 8: 'note' });
+  // NOTE needs nothing the phone keeps: the week's first answer, another technician, no state at all
+  const first = [visit(2, { status: 'omw', unseen: 1 }), visit(3, { changed }), visit(4, { date: WED, unseen: 1 }),
+    visit(7, { unseen: 2, office_change: { kind: 'cancelled', changed_at: changed } }), visit(1, { status: 'completed', unseen: 1 })];
+  assert.deepEqual(marked(null, first), { 2: 'note', 4: 'note' });
+  assert.deepEqual(byVisit(freshMarks(s, 99, SUN, first, NOW), first), { 2: 'note', 4: 'note' });
+  // counted like the others
+  assert.deepEqual(freshCounts(freshMarks(s8, ME, SUN, list, NOW), list), { byDay: { [TUE]: 3, [WED]: 1 }, total: 4 });
+  // the words
+  assert.equal(FRESH_TEXT.note, 'Note');
+  assert.deepEqual(['new', 'updated', 'note', 'x'].map(markLabel), ['New', 'Updated', 'New office note', '']);
 });
