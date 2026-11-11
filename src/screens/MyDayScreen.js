@@ -184,9 +184,9 @@ export default function MyDayScreen({ navigation }) {
 
   const list = day ? listItems(day).map((item) => (item.type === 'gap'
     ? <GapRow key={`gap-${item.gap.from}`} gap={item.gap} />
-    // a row of the day log is not opened: the office took the visit off this day
+    // a row of the day log opens read only (MovedScreen): the office took the visit off this day
     : <DayRow key={item.row.key} row={item.row} fresh={marks[item.row.key] || null}
-        onPress={item.row.logged ? undefined : () => navigation.navigate('Visit', { id: item.row.id, visit: item.row.visit, n: item.row.n, savedAt: week ? week.savedAt : null, skew: skew.current, fresh: marks[item.row.key] || null })}
+        onPress={item.row.logged ? () => navigation.navigate('Moved', { visit: item.row.visit, date: day.date, skew: skew.current }) : () => navigation.navigate('Visit', { id: item.row.id, visit: item.row.visit, n: item.row.n, savedAt: week ? week.savedAt : null, skew: skew.current, fresh: marks[item.row.key] || null })}
         onDirections={() => openDirections(item.row.visit, userId)}
         onCall={() => callCustomer(item.row.visit, userId)} />)) : [];
 

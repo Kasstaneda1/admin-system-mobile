@@ -377,13 +377,16 @@ test('the day log: grey whatever the status now; reassigned, cancelled, customer
   assert.deepEqual(day.rows.map((r) => r.n), [null, null, null, null, null, null, 1]);
   assert.deepEqual(day.rows.map((r) => r.tag && [r.tag.kind, r.tag.icon, r.tag.text]), [
     ['logged', 'moved', 'Moved · Thu 9–12'],
-    ['logged', 'people', 'Reassigned by office'],
-    ['logged', 'moved', 'Cancelled by office'],
-    ['logged', 'moved', 'Customer rescheduled'],
-    ['logged', 'people', 'Reassigned by office'],
-    ['logged', 'moved', 'Changed by office'],
+    ['logged', 'people', 'Reassigned'],
+    ['logged', 'xcal', 'Cancelled'],
+    ['logged', 'moved', 'Rescheduled'],
+    ['logged', 'people', 'Reassigned'],
+    ['logged', 'moved', 'Changed'],
     null,
   ]);
+  // the row's words are short (who did it is on the card); VoiceOver says it all
+  assert.deepEqual(['reassigned', 'cancelled', 'client_rescheduled', 'something_new'].map((k) => loggedTag(change(k), TUE, { long: true }).text),
+    ['Reassigned by the office', 'Cancelled by the office', 'Customer rescheduled', 'Changed by the office']);
   assert.deepEqual(day.rows.map((r) => r.timeText), ['was today', 'was today', 'was today', 'was today', 'was today', 'was today', 'plan 4:00']);
   assert.equal(day.current, null);
   assert.equal(day.next.id, 107);
@@ -442,7 +445,8 @@ test('where a moved visit is now, in words', () => {
   assert.equal(movedToText(moved({ to_date: null }), TUE), 'Thu 9–12');
   assert.equal(movedToText(moved({ to_date: null, to_window: null }), TUE), '');
   assert.equal(movedToText(null, TUE), '');
-  assert.deepEqual(loggedTag(moved({ to_date: null, to_window: null }), TUE), { kind: 'logged', icon: 'moved', text: 'Moved by office' });
+  assert.deepEqual(loggedTag(moved({ to_date: null, to_window: null }), TUE), { kind: 'logged', icon: 'moved', text: 'Moved' });
+  assert.equal(loggedTag(moved({ to_date: null, to_window: null }), TUE, { long: true }).text, 'Moved by the office');
   assert.equal(loggedTag(moved({ to_window: null }), TUE, { long: true }).text, 'Moved to Thu, Nov 12');
   assert.equal(isLogged(visit({ w0: '09:00', w1: '12:00', office_change: null })), false);
   assert.equal(isLogged(visit({ w0: '09:00', w1: '12:00' })), false);

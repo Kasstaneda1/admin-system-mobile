@@ -227,7 +227,7 @@ export function tagOf(visit, { long = false } = {}) {
 // office_change { kind, changed_at, to_date, to_window: { start, end } } (to_* only when
 // moved and still theirs: where it is now). Its status is the visit's now (a moved one may be
 // closed on its new day), so the row is grey whatever the status says: no number, no
-// actions, not counted, not in the strip, not opened.
+// actions, not counted, not in the strip; it opens only read only (moved.js, MovedScreen).
 export const isLogged = (visit) => !!(visit && visit.office_change);
 // The list's key of a row: one visit may come twice in a range (moved by the office: a grey
 // row on the old day, a live one on the new), so the id and the window it has on that day
@@ -247,20 +247,23 @@ export function movedToText(change, date, { long = false } = {}) {
   return window ? `${day}${long ? ' · ' : ' '}${window}` : day;
 }
 
-// What the office did, as the row's tag (one dashed grey tag, as the design's «Moved · Thu
-// 9–12»): { kind: 'logged', icon, text }; long for VoiceOver: 'Moved to Thu, Nov 12 · 9–12'
+// What the office did, as the row's tag: one dashed grey tag in short words, as the design's
+// «Moved · Thu 9–12», «Rescheduled», «Cancelled», «Reassigned» (who did it is on the card,
+// moved.js): { kind: 'logged', icon, text }; long for VoiceOver: 'Moved to Thu, Nov 12 · 9–12',
+// 'Cancelled by the office'
 const LOGGED = {
-  reassigned: ['people', 'Reassigned by office'],
-  cancelled: ['moved', 'Cancelled by office'],
-  client_rescheduled: ['moved', 'Customer rescheduled'],
+  reassigned: ['people', 'Reassigned', 'Reassigned by the office'],
+  cancelled: ['xcal', 'Cancelled', 'Cancelled by the office'],
+  client_rescheduled: ['moved', 'Rescheduled', 'Customer rescheduled'],
 };
 export function loggedTag(change, date, { long = false } = {}) {
   if (change && change.kind === 'moved') {
     const to = movedToText(change, date, { long });
-    return { kind: 'logged', icon: 'moved', text: to ? (long ? `Moved to ${to}` : `Moved · ${to}`) : 'Moved by office' };
+    if (to) return { kind: 'logged', icon: 'moved', text: long ? `Moved to ${to}` : `Moved · ${to}` };
+    return { kind: 'logged', icon: 'moved', text: long ? 'Moved by the office' : 'Moved' };
   }
-  const [icon, text] = LOGGED[change && change.kind] || ['moved', 'Changed by office'];
-  return { kind: 'logged', icon, text };
+  const [icon, short, full] = LOGGED[change && change.kind] || ['moved', 'Changed', 'Changed by the office'];
+  return { kind: 'logged', icon, text: long ? full : short };
 }
 
 // ---------- the day ----------

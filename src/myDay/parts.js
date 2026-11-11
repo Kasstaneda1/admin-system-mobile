@@ -22,11 +22,13 @@ export const TAG_FAMILIES = {
   logged: [colors.neutralFg, colors.bgCard, colors.neutralBorder],
 };
 
-export function Tag({ tag, big = false }) {
+// fixed: the tag never shrinks in its row, the text beside it gives way (a grey row of the
+// day log: its words are short and say what happened)
+export function Tag({ tag, big = false, fixed = false }) {
   if (!tag) return null;
   const [fg, bg, border] = TAG_FAMILIES[tag.kind] || TAG_FAMILIES.neutral;
   return (
-    <View style={[styles.tag, big && styles.tagBig, tag.kind === 'logged' && styles.tagDashed, { backgroundColor: bg, borderColor: border }]}>
+    <View style={[styles.tag, big && styles.tagBig, fixed && styles.tagFixed, tag.kind === 'logged' && styles.tagDashed, { backgroundColor: bg, borderColor: border }]}>
       <Icon name={tag.icon} size={14} color={fg} />
       <Text style={[styles.tagText, big && styles.tagTextBig, { color: fg }]} numberOfLines={1}>{tag.text}</Text>
     </View>
@@ -128,7 +130,7 @@ export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
         </View>
         <View style={styles.line2}>
           <Text style={styles.kind} numberOfLines={1}>{[row.kind, row.duration].filter(Boolean).join(' · ')}</Text>
-          <Tag tag={row.tag} />
+          <Tag tag={row.tag} fixed={row.logged} />
         </View>
       </View>
       {onPress && !open ? <Icon name="chev" size={18} color={colors.fgMutedField} style={styles.chev} /> : null}
@@ -136,7 +138,7 @@ export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
   );
   if (!open) {
     return onPress
-      ? <TouchableOpacity style={styles.row} onPress={onPress} accessibilityRole="button">{body}</TouchableOpacity>
+      ? <TouchableOpacity style={styles.row} onPress={onPress} accessibilityRole="button" accessibilityLabel={row.label || undefined}>{body}</TouchableOpacity>
       : <View style={styles.row} accessible={!!row.label} accessibilityLabel={row.label || undefined}>{body}</View>;
   }
   return (
@@ -260,6 +262,7 @@ const styles = StyleSheet.create({
   tag: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 22, paddingHorizontal: 7, borderRadius: 11, borderWidth: 1, flexShrink: 1 },
   tagBig: { height: 26 },
   tagDashed: { borderStyle: 'dashed' },
+  tagFixed: { flexShrink: 0 },
   tagText: { fontSize: 12, fontWeight: '700', flexShrink: 1 },
   tagTextBig: { fontSize: 13 },
   now: { flexShrink: 0, paddingHorizontal: 6, height: 20, lineHeight: 20, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.accent, color: colors.onAccent, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },

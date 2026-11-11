@@ -37,6 +37,7 @@ const ICONS = {
   warn: require('../../assets/icons/warn.png'),
   wifioff: require('../../assets/icons/wifioff.png'),
   wrench: require('../../assets/icons/wrench.png'),
+  xcal: require('../../assets/icons/xcal.png'),
 };
 
 export default function Icon({ name, size = 18, color, style }) {

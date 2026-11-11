@@ -27,9 +27,10 @@
 // NEW on a grey row of the day log (backend #139: moved off the day, given to another,
 //           cancelled, «the customer moved it») — the office did it after the day's list was
 //           last on the screen (office_change.changed_at later than days[date], or than the
-//           week's first read for a day not shown yet). Such a row cannot be opened and says
-//           all there is, so its NEW goes when the day is shown the next time: while the day
-//           stays on the screen the screen keeps the moment it had when the showing began.
+//           week's first read for a day not shown yet). Such a row says all there is (its
+//           card, MovedScreen, shows only what the row has), so its NEW goes when the day is
+//           shown the next time, not when the card opens: while the day stays on the screen
+//           the screen keeps the moment it had when the showing began.
 // NOTE    — a live row with office messages this technician has not seen yet
 //           (unseen_office_messages, backend #152: per technician, 0 on grey rows). The server
 //           counts it, so NOTE goes when the messages are seen (the card marks those really on
