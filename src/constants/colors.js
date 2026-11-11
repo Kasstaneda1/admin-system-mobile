@@ -20,6 +20,7 @@ export const colors = {
   accent: '#F59E0B',         // --accent (= --warning-solid): main button, NOW, the current visit
   onAccent: '#431407',       // --on-accent (= --warning-on-solid), 7.3:1 on accent
   bgPage: '#F9F9FF',         // --bg-page
+  scrim: 'rgba(21, 28, 39, 0.45)', // --fg-default at 45%: behind a sheet (design src3/add.css .scrim)
   bgSubtle: '#FAFAFA',       // --bg-subtle
   bgSunken: '#F5F5F5',       // --bg-sunken
   borderSubtle: '#E5E5E5',   // --border-subtle
