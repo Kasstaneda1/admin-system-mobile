@@ -486,6 +486,33 @@ test('authHeader: the live token for a photo; refreshed first when it has run ou
   assert.equal(await w.session.authHeader(), null);
 });
 
+test('authHeader: signed out while the photo waits for its refresh: no header, its new token revoked, nothing kept', async () => {
+  const w = world({ accessLeftMs: -1000 });
+  await w.session.load();
+  w.server.refreshDelay = 30;
+  const header = w.session.authHeader();
+  await tick(5);
+  await w.session.signOut();
+  assert.equal(await header, null);
+  assert.deepEqual(w.server.logouts, ['r0', 'r1'], 'the old token by sign out, the new one as of no use');
+  assert.deepEqual(w.store.kept, { access: null, refresh: null, savedAt: null, user: null }, 'nothing written back');
+  // and after: no header, no refresh
+  assert.equal(await w.session.authHeader(), null);
+  assert.equal(w.server.refreshes.length, 1);
+});
+
+test('authHeader after the session ended by the server: no header, no refresh', async () => {
+  const w = world();
+  await w.session.load();
+  const live = await w.session.authHeader();
+  assert.equal(live.Authorization, `Bearer ${w.first.access}`);
+  w.server.answer403 = { error: 'Access to system blocked. Contact administrator.' };
+  w.api.get('/api/a');
+  assert.equal(await endOf(w), 'blocked');
+  assert.equal(await w.session.authHeader(), null);
+  assert.equal(w.server.refreshes.length, 0);
+});
+
 test('authHeader: a refresh refused ends the session, no header', async () => {
   const w = world({ accessLeftMs: -1000 });
   await w.session.load();
