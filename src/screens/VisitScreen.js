@@ -184,6 +184,14 @@ export default function VisitScreen({ route, navigation }) {
       if (failed.kind === 'gone') {
         setPending(null);
         await leaveGone(mark);
+      } else if (failed.kind === 'outcome') {
+        // not an outcome of this kind of visit (the office changed it meanwhile): the fresh
+        // visit with its outcomes, and «How did it end?» again with them
+        setPending(null);
+        if (failed.visit) await keep(failed.visit);
+        else setShown((s) => (s ? { ...s, visit: { ...s.visit, finish_outcomes: failed.outcomes } } : s));
+        Alert.alert('Choose another outcome', failed.text,
+          [{ text: 'OK', onPress: () => { if (failed.outcomes.length) setFinishOpen(true); } }]);
       } else if (failed.kind === 'refused') {
         // the server's words, and the visit as it is now (another phone, the office, 15 minutes)
         setPending(null);
