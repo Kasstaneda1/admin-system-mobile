@@ -9,18 +9,37 @@
 export const ACCESS_MARGIN_MS = 30 * 1000;            // refresh this long before the access token ends
 export const REFRESH_LIFE_MS = 7 * 24 * 60 * 60 * 1000; // the server's refresh token life
 export const CHECK_GAP_MS = 5 * 60 * 1000;            // GET /api/me on return to the app, at most this often
+// A refresh lost on the way (no network) is sent again with the same token after these pauses,
+// within this window of the first try (the server's repeat window is 60 seconds)
+export const REFRESH_RETRY_DELAYS_MS = [2000, 5000];
+export const REFRESH_RETRY_WINDOW_MS = 60 * 1000;
 
 export const NOTICE = {
   blocked: 'Your account was turned off. Please contact the office.',
   expired: 'Your session has ended. Please sign in again.',
 };
 
-// The server's own words: a turned-off user gets 403 «Access to system blocked. Contact
-// administrator.» on every request, and 401 «Account is deactivated» from /api/auth/refresh.
+// The server's answers. Since backend #132 each refusal has a machine `code` next to its text;
+// the app reads the code first and the server's words only when there is no code (an older
+// server), so it works with both:
+//   403 account_blocked — any request of a turned-off or deleted user (and /api/login);
+//   /api/auth/refresh: 401 account_deactivated, refresh_invalid, refresh_expired;
+//                      400 refresh_required; 429 refresh_rate_limited.
+const CODE_OUTCOME = {
+  account_blocked: 'blocked',
+  account_deactivated: 'blocked',
+  refresh_invalid: 'expired',
+  refresh_expired: 'expired',
+  refresh_required: 'expired',
+  refresh_rate_limited: 'later',
+};
+// The words of a server without codes: 403 «Access to system blocked. Contact
+// administrator.» on every request of a turned-off user, 401 «Account is deactivated» from refresh
 const BLOCKED_WORDS = 'Access to system blocked';
 const DEACTIVATED_WORDS = 'Account is deactivated';
 
 const startsWith = (body, words) => typeof body?.error === 'string' && body.error.startsWith(words);
+const codeOf = (body) => (typeof body?.code === 'string' && CODE_OUTCOME[body.code] ? body.code : null);
 
 // base64url → text, byte by byte (Hermes in React Native has no atob). Letters beyond ASCII
 // come out as single bytes, which is enough to read the token's numbers.
@@ -75,11 +94,16 @@ export function accessUsable(token, now) {
 
 // What an answer to an ordinary request means for the session:
 //  'refresh' — the access token was refused (401): refresh once and send the request again;
-//  'blocked' — the user was turned off (403 with the server's words): the session ends now;
+//  'blocked' — the user was turned off (403 account_blocked, or the server's words): the
+//              session ends now;
 //  'pass'    — anything else: the screen gets the answer as it is.
 export function answerKind(status, body) {
   if (status === 401) return 'refresh';
-  if (status === 403 && startsWith(body, BLOCKED_WORDS)) return 'blocked';
+  if (status === 403) {
+    const code = codeOf(body);
+    if (code) return code === 'account_blocked' ? 'blocked' : 'pass';
+    if (startsWith(body, BLOCKED_WORDS)) return 'blocked';
+  }
   return 'pass';
 }
 
@@ -88,10 +112,13 @@ export function answerKind(status, body) {
 //  'blocked' — the user was turned off: the session ends;
 //  'expired' — the refresh token is unknown, revoked or old: the session ends;
 //  'later'   — no network, a server failure, too many refreshes: keep the session, try again later.
+// The code decides when there is one; without it, the status and the server's words.
 export function refreshOutcome(status, body) {
   if (status >= 200 && status < 300) {
     return typeof body?.accessToken === 'string' && typeof body?.refreshToken === 'string' ? 'ok' : 'later';
   }
+  const code = codeOf(body);
+  if (code) return CODE_OUTCOME[code];
   if (status === 401 || status === 403) {
     return startsWith(body, DEACTIVATED_WORDS) || startsWith(body, BLOCKED_WORDS) ? 'blocked' : 'expired';
   }

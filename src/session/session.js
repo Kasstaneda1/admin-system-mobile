@@ -2,28 +2,36 @@
 // the tokens in memory and in the phone's store, one refresh shared by every request that needs
 // it, one repeat of a refused request, and the end of the session.
 //
-// createSession({ store, http, now })
+// createSession({ store, http, now, sleep })
 //   store — where the phone keeps it (store.js: SecureStore for the tokens, AsyncStorage for
 //           the profile the screens read):
 //           read() → { access, refresh, savedAt, user }; writeTokens({ access, refresh, savedAt });
 //           writeUser(user); clear()
 //   http  — the two calls outside the API client, answered as { status, data }, never thrown
 //           (no network: status 0): refresh(refreshToken), logout(refreshToken)
-//   now   — the clock (ms)
+//   now   — the clock (ms); sleep(ms) — a pause (both stand-ins in the tests)
 // attach(axiosInstance) puts the session into the API client (api.js).
+//
+// A refresh whose answer is lost on the way (no network: status 0) is sent again with the same
+// old token, at most twice and within 60 seconds of the first: a server with the repeat window
+// gives the same new pair again; a server without it says refresh_invalid, and the session
+// ends as it would anyway.
 //
 // A request the end of the session cuts off (or one made while signed out) never answers: the
 // screen that asked is gone already, and an answer would only show its error alert on top of
 // the sign-in screen, which says why in its own words.
 import {
   accessUsable, answerKind, refreshOutcome, startState, isAuthPath,
+  REFRESH_RETRY_DELAYS_MS, REFRESH_RETRY_WINDOW_MS,
 } from './model.js';
 
 const silence = () => new Promise(() => {});
 
 const EMPTY = { access: null, refresh: null, savedAt: null };
 
-export function createSession({ store, http, now = () => Date.now() }) {
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function createSession({ store, http, now = () => Date.now(), sleep = pause }) {
   let tokens = EMPTY;
   let user = null;
   let ended = true;
@@ -92,7 +100,15 @@ export function createSession({ store, http, now = () => Date.now() }) {
     const started = generation;
     const sent = tokens.refresh;
     if (ended || !sent) return { outcome: 'ended', reason: null };
-    const answer = await http.refresh(sent);
+    const first = now();
+    let answer = await http.refresh(sent);
+    for (const delay of REFRESH_RETRY_DELAYS_MS) {
+      if (answer.status !== 0 || started !== generation) break;
+      if (now() + delay - first > REFRESH_RETRY_WINDOW_MS) break;
+      await sleep(delay);
+      if (started !== generation) break;
+      answer = await http.refresh(sent); // the same old token: the lost answer may come again
+    }
     if (started !== generation) {
       // Signed out or in again meanwhile: this answer is of no use; its new token is revoked
       if (answer.status === 200 && typeof answer.data?.refreshToken === 'string') http.logout(answer.data.refreshToken);

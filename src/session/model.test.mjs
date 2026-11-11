@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  NOTICE, ACCESS_MARGIN_MS, REFRESH_LIFE_MS, CHECK_GAP_MS,
+  NOTICE, ACCESS_MARGIN_MS, REFRESH_LIFE_MS, CHECK_GAP_MS, REFRESH_RETRY_DELAYS_MS, REFRESH_RETRY_WINDOW_MS,
   accessExpiresAt, accessUsable, answerKind, refreshOutcome, startState, checkDue, profileFromMe, isAuthPath,
 } from './model.js';
 
@@ -126,4 +126,50 @@ test('isAuthPath: sign in, refresh and sign out only', () => {
 test('the notices are short English sentences', () => {
   assert.equal(NOTICE.blocked, 'Your account was turned off. Please contact the office.');
   assert.equal(NOTICE.expired, 'Your session has ended. Please sign in again.');
+});
+
+test('answerKind reads the code first (backend #132), the words when there is no code', () => {
+  const words = 'Access to system blocked. Contact administrator.';
+  // the server with codes
+  assert.equal(answerKind(403, { error: words, code: 'account_blocked' }), 'blocked');
+  assert.equal(answerKind(403, { code: 'account_blocked' }), 'blocked', 'the code alone');
+  assert.equal(answerKind(403, { error: 'Access denied. Office staff only', code: 'account_blocked' }), 'blocked', 'the code wins over the words');
+  assert.equal(answerKind(403, { error: words, code: 'refresh_invalid' }), 'pass', 'a known code that is not «blocked»');
+  // the server of words only
+  assert.equal(answerKind(403, { error: words }), 'blocked');
+  // an unknown code: as if there were none
+  assert.equal(answerKind(403, { error: words, code: 'something_new' }), 'blocked');
+  assert.equal(answerKind(403, { error: 'Access denied. Office staff only', code: 'something_new' }), 'pass');
+  assert.equal(answerKind(401, { error: 'Invalid or expired token', code: 'anything' }), 'refresh');
+});
+
+test('refreshOutcome reads the code first (backend #132), the words when there is no code', () => {
+  const cases = [
+    // [status, with code, words only, expected]
+    [401, { error: 'Account is deactivated', code: 'account_deactivated' }, { error: 'Account is deactivated' }, 'blocked'],
+    [401, { error: 'Invalid refresh token', code: 'refresh_invalid' }, { error: 'Invalid refresh token' }, 'expired'],
+    [401, { error: 'Refresh token expired', code: 'refresh_expired' }, { error: 'Refresh token expired' }, 'expired'],
+    [400, { error: 'Refresh token required', code: 'refresh_required' }, { error: 'Refresh token required' }, 'expired'],
+    [429, { error: 'Too many token refresh requests, please try again later', code: 'refresh_rate_limited' }, { error: 'Too many token refresh requests, please try again later' }, 'later'],
+    [403, { error: 'Access to system blocked. Contact administrator.', code: 'account_blocked' }, { error: 'Access to system blocked. Contact administrator.' }, 'blocked'],
+  ];
+  for (const [status, coded, worded, expected] of cases) {
+    assert.equal(refreshOutcome(status, coded), expected, `${status} ${coded.code}`);
+    assert.equal(refreshOutcome(status, worded), expected, `${status} ${worded.error} (no code)`);
+    assert.equal(refreshOutcome(status, { code: coded.code }), expected, `${coded.code} alone`);
+  }
+  // the code wins over words that say otherwise
+  assert.equal(refreshOutcome(401, { error: 'Account is deactivated', code: 'refresh_invalid' }), 'expired');
+  assert.equal(refreshOutcome(401, { error: 'Invalid refresh token', code: 'account_deactivated' }), 'blocked');
+  // an unknown code: the status and the words decide
+  assert.equal(refreshOutcome(401, { error: 'Account is deactivated', code: 'something_new' }), 'blocked');
+  assert.equal(refreshOutcome(401, { code: 'something_new' }), 'expired');
+  assert.equal(refreshOutcome(503, { code: 'something_new' }), 'later');
+  // a success never looks at codes
+  assert.equal(refreshOutcome(200, { accessToken: 'a', refreshToken: 'r', code: 'refresh_invalid' }), 'ok');
+});
+
+test('the lost-refresh repeats fit the server window: two pauses inside 60 seconds', () => {
+  assert.deepEqual(REFRESH_RETRY_DELAYS_MS, [2000, 5000]);
+  assert.equal(REFRESH_RETRY_WINDOW_MS, 60000);
 });

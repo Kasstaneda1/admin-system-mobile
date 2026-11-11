@@ -201,27 +201,41 @@ The Android emulator reaches this Mac as `10.0.2.2`, not `127.0.0.1`.
 - Every request goes through it (`session.attach` in `src/services/api.js`): an access token
   about to end, or a 401, means **one** refresh that all waiting requests share, then each
   refused request is sent once more.
-- The session ends by the server's word: refresh refused, or 403 «Access to system blocked».
-  Everything kept is wiped and the sign-in screen says why («Your account was turned off.
+- The session ends by the server's word: refresh refused, or 403 `account_blocked`. The app
+  reads the machine `code` of the answer first (backend #132: `account_blocked`,
+  `account_deactivated`, `refresh_invalid`, `refresh_expired`, `refresh_required`,
+  `refresh_rate_limited`) and the server's words only when there is no code, so an older
+  server works too. Everything kept is wiped and the sign-in screen says why («Your account was turned off.
   Please contact the office.» / «Your session has ended. Please sign in again.»). No network,
   a server failure or 429 never sign anyone out. A request the end cuts off never answers:
   the screen that asked is gone, so its error alert does not cover the sign-in screen.
 - Start: a refresh token younger than 7 days and the profile open the technician's screens
   at once, without the network; `GET /api/me` then checks the session in the background,
   and again on return to the app (at most once per 5 minutes).
+- A refresh whose answer is lost on the way (no network) is sent again with the same old
+  token, at most twice (after 2 s and 5 s) and within 60 seconds of the first try. A server
+  with the repeat window gives the same new pair again; one without it answers
+  `refresh_invalid`, and the technician signs in again, as before (both checked against a
+  stand: backend `aeb8f19` without the window, main `3bb532c` with it).
 - Logout wipes everything kept at once and asks the server to revoke the refresh token.
 - `npm test` runs the session's tests on node (`src/session/*.test.mjs`) and the server
   address rule (`config/apiUrl.test.js`).
 
-### Known limitations (to fix on the server later)
+### Known limitations
 
-- The server limits refreshes per IP (30 an hour), not per user: several technicians behind
-  one carrier IP can run into it (429). The session survives it, the requests fail until then.
-- If the answer to a refresh is lost on the way, the server has already revoked the old
-  refresh token: the next refresh is refused and the technician signs in again. A short
-  window in which the old token still works would fix it.
-- A turned-off technician is recognised by the server's words in the 403 («Access to
-  system blocked»), not by an error code.
+- The repeat window for a lost refresh answer (backend #134: the old token gives the same
+  pair for 60 seconds) lives in the server's memory: if the server restarts within that
+  minute, a lost answer still means signing in again.
+- Refreshes are limited to 30 an hour per user, both phones together (backend #132; before
+  it, per IP). Over the limit (`refresh_rate_limited`) the session stays and requests fail
+  until the hour moves on.
+
+### Notes for development
+
+- Hermes (the app's JS engine) has no `atob` / `btoa`: the access token's times are read
+  by `model.js` itself. Node has them, so a test runs without `atob` on purpose.
+- Metro may miss file changes on an external volume (no watchman): after an edit, restart
+  it with `npx expo start -c`, or the app keeps the old code.
 
 ## Builds
 

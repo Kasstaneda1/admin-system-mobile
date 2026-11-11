@@ -40,6 +40,11 @@ function world({ accessLeftMs = 15 * 60 * 1000 } = {}) {
     currentRefresh: 'r0',
     refreshAnswer: null,      // null: rotate normally; else { status, data }
     refreshDelay: 5,
+    refreshTakesMs: 0,        // how far the clock moves while a refresh is on its way
+    codes: false,             // answers with the machine codes of backend #132 next to the words
+    repeatWindow: false,      // the coming server: the old token gives the same pair for 60 s
+    lose: 0,                  // this many refresh answers are lost after the server did the work
+    lastTurn: null,
     answer403: null,          // a 403 body for every API request
     always401: false,
     requests: [],             // [url, Authorization]
@@ -51,12 +56,27 @@ function world({ accessLeftMs = 15 * 60 * 1000 } = {}) {
     async refresh(token) {
       server.refreshes.push(token);
       await tick(server.refreshDelay);
+      clock += server.refreshTakesMs;
       if (server.refreshAnswer) return server.refreshAnswer;
-      if (token !== server.currentRefresh) return { status: 401, data: { error: 'Invalid refresh token' } };
-      const fresh = access(clock, 15 * 60 * 1000);
-      server.valid.add(fresh);
-      server.currentRefresh = `r${server.refreshes.length}`;
-      return { status: 200, data: { accessToken: fresh, refreshToken: server.currentRefresh, token: fresh } };
+      let answer;
+      const turn = server.lastTurn;
+      if (server.repeatWindow && turn && token === turn.from && clock - turn.at <= 60000) {
+        answer = { status: 200, data: turn.pair };
+      } else if (token !== server.currentRefresh) {
+        answer = { status: 401, data: server.codes ? { error: 'Invalid refresh token', code: 'refresh_invalid' } : { error: 'Invalid refresh token' } };
+      } else {
+        const fresh = access(clock, 15 * 60 * 1000);
+        server.valid.add(fresh);
+        server.currentRefresh = `r${server.refreshes.length}`;
+        const pair = { accessToken: fresh, refreshToken: server.currentRefresh, token: fresh };
+        server.lastTurn = { from: token, pair, at: clock };
+        answer = { status: 200, data: pair };
+      }
+      if (server.lose > 0) {
+        server.lose -= 1;
+        return { status: 0, data: null };
+      }
+      return answer;
     },
     async logout(token) {
       server.logouts.push(token);
@@ -83,11 +103,13 @@ function world({ accessLeftMs = 15 * 60 * 1000 } = {}) {
   };
 
   const api = axios.create({ baseURL: 'http://stand.test', adapter });
-  const session = createSession({ store, http, now });
+  const sleeps = [];
+  const sleep = async (ms) => { sleeps.push(ms); clock += ms; await tick(1); };
+  const session = createSession({ store, http, now, sleep });
   session.attach(api);
   const ends = [];
   session.onEnd((reason) => ends.push(reason));
-  return { api, session, store, server, ends, first, advance(ms) { clock += ms; }, now };
+  return { api, session, store, server, ends, first, sleeps, advance(ms) { clock += ms; }, now };
 }
 
 const sentWith = (server, url) => server.requests.filter(([u]) => u === url).map(([, auth]) => auth);
@@ -186,14 +208,17 @@ for (const [label, answer] of [['no network', { status: 0, data: null }], ['a se
     await w.session.load();
     w.server.refreshAnswer = answer;
     await assert.rejects(w.api.get('/api/me'), (e) => e.response?.status === 401);
-    assert.equal(w.server.refreshes.length, 1, 'no second refresh for the same request');
+    // no network: the same token twice more (2 s, 5 s later); an answer of the server: no repeat
+    const sends = answer.status === 0 ? 3 : 1;
+    assert.deepEqual(w.server.refreshes, Array(sends).fill('r0'));
+    assert.deepEqual(w.sleeps, answer.status === 0 ? [2000, 5000] : []);
     assert.deepEqual(w.ends, []);
     assert.equal(w.session.signedIn, true);
     assert.equal(w.store.kept.refresh, 'r0');
     w.server.refreshAnswer = null;
     const res = await w.api.get('/api/me');
     assert.equal(res.status, 200);
-    assert.equal(w.store.kept.refresh, 'r2');
+    assert.equal(w.store.kept.refresh, `r${w.server.refreshes.length}`);
   });
 }
 
@@ -295,4 +320,99 @@ test('updateUser keeps the new profile while signed in only', async () => {
   await w.session.signOut();
   await w.session.updateUser(USER);
   assert.equal(w.store.kept.user, null);
+});
+
+test('a refresh answer lost on the way, server with the repeat window: the same token gets the same pair', async () => {
+  const w = world({ accessLeftMs: -1000 });
+  await w.session.load();
+  w.server.repeatWindow = true;
+  w.server.lose = 1;
+  const res = await w.api.get('/api/me');
+  assert.equal(res.status, 200);
+  assert.deepEqual(w.server.refreshes, ['r0', 'r0'], 'sent again with the same old token');
+  assert.deepEqual(w.sleeps, [2000]);
+  assert.equal(w.store.kept.refresh, 'r1', 'the pair the lost answer carried');
+  assert.deepEqual(w.ends, []);
+});
+
+test('a refresh answer lost on the way, server of today: the repeat gets refresh_invalid, sign in follows', async () => {
+  const w = world({ accessLeftMs: -1000 });
+  await w.session.load();
+  w.server.codes = true;
+  w.server.lose = 1;
+  assert.equal(await stillPending(w.api.get('/api/me')), true);
+  assert.deepEqual(w.server.refreshes, ['r0', 'r0']);
+  assert.deepEqual(w.ends, ['expired']);
+  assert.equal(w.store.kept.refresh, null);
+});
+
+test('the repeats of a lost refresh stop 60 seconds after the first try', async () => {
+  const w = world({ accessLeftMs: -1000 });
+  await w.session.load();
+  w.server.refreshAnswer = { status: 0, data: null };
+  w.server.refreshTakesMs = 30000; // each try waits 30 s for nothing
+  await assert.rejects(w.api.get('/api/me'), (e) => e.response?.status === 401);
+  // first at 0 s, answered at 30 s; pause 2 s; second at 32 s, answered at 62 s: no third
+  assert.deepEqual(w.server.refreshes, ['r0', 'r0']);
+  assert.deepEqual(w.sleeps, [2000]);
+  assert.equal(w.session.signedIn, true);
+});
+
+test('sign out during the pause before a repeat: no repeat, nothing written back', async () => {
+  const w = world({ accessLeftMs: -1000 });
+  await w.session.load();
+  w.server.refreshAnswer = { status: 0, data: null };
+  const pending = w.api.get('/api/me');
+  await tick(3);
+  await w.session.signOut();
+  assert.equal(await stillPending(pending), true);
+  assert.ok(w.server.refreshes.length <= 2);
+  assert.deepEqual(w.store.kept, { access: null, refresh: null, savedAt: null, user: null });
+});
+
+for (const [label, server] of [['the server with codes', true], ['the server of words only', false]]) {
+  test(`${label}: turned off, revoked and limited mean the same to the session`, async () => {
+    const refusals = server
+      ? { off: { error: 'Account is deactivated', code: 'account_deactivated' }, revoked: { error: 'Invalid refresh token', code: 'refresh_invalid' }, limited: { error: 'Too many token refresh requests, please try again later', code: 'refresh_rate_limited' }, blocked: { error: 'Access to system blocked. Contact administrator.', code: 'account_blocked' } }
+      : { off: { error: 'Account is deactivated' }, revoked: { error: 'Invalid refresh token' }, limited: { error: 'Too many token refresh requests, please try again later' }, blocked: { error: 'Access to system blocked. Contact administrator.' } };
+
+    const off = world({ accessLeftMs: -1000 });
+    await off.session.load();
+    off.server.refreshAnswer = { status: 401, data: refusals.off };
+    assert.equal(await stillPending(off.api.get('/api/me')), true);
+    assert.deepEqual(off.ends, ['blocked']);
+
+    const revoked = world({ accessLeftMs: -1000 });
+    await revoked.session.load();
+    revoked.server.refreshAnswer = { status: 401, data: refusals.revoked };
+    assert.equal(await stillPending(revoked.api.get('/api/me')), true);
+    assert.deepEqual(revoked.ends, ['expired']);
+
+    const limited = world({ accessLeftMs: -1000 });
+    await limited.session.load();
+    limited.server.refreshAnswer = { status: 429, data: refusals.limited };
+    await assert.rejects(limited.api.get('/api/me'), (e) => e.response?.status === 401);
+    assert.deepEqual(limited.ends, []);
+    assert.equal(limited.session.signedIn, true);
+
+    const blocked = world();
+    await blocked.session.load();
+    blocked.server.answer403 = refusals.blocked;
+    assert.equal(await stillPending(blocked.api.get('/api/me')), true);
+    assert.deepEqual(blocked.ends, ['blocked']);
+  });
+}
+
+test('codes alone, without words, are enough', async () => {
+  const off = world({ accessLeftMs: -1000 });
+  await off.session.load();
+  off.server.refreshAnswer = { status: 401, data: { code: 'account_deactivated' } };
+  assert.equal(await stillPending(off.api.get('/api/me')), true);
+  assert.deepEqual(off.ends, ['blocked']);
+
+  const blocked = world();
+  await blocked.session.load();
+  blocked.server.answer403 = { code: 'account_blocked' };
+  assert.equal(await stillPending(blocked.api.get('/api/me')), true);
+  assert.deepEqual(blocked.ends, ['blocked']);
 });
