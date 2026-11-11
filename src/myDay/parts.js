@@ -129,11 +129,11 @@ export function DayRow({ row, onDirections, onCall, onPress }) {
           <Icon name="pin" size={14} color={row.current ? colors.infoFg : colors.brandSoftFg} />
           <Text style={[styles.whereText, { color: row.current ? colors.infoFg : colors.brandSoftFg }]} numberOfLines={2}>{address || row.area}</Text>
         </View>
-        <TouchableOpacity style={styles.mini} onPress={onDirections} accessibilityRole="button" accessibilityLabel={`Directions to ${row.client}`}>
+        <TouchableOpacity style={styles.mini} onPress={onDirections} accessibilityRole="button" accessibilityLabel={`Directions to ${row.clientFull}`}>
           <Icon name="nav" size={18} color={colors.fgOnFill} />
           <Text style={styles.miniText}>Directions</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.mini, styles.miniGhost]} onPress={onCall} accessibilityRole="button" accessibilityLabel={`Call ${row.client}`}>
+        <TouchableOpacity style={[styles.mini, styles.miniGhost]} onPress={onCall} accessibilityRole="button" accessibilityLabel={`Call ${row.clientFull}`}>
           <Icon name="phone" size={18} color={colors.brandPressed} />
           <Text style={[styles.miniText, styles.miniGhostText]}>Call</Text>
         </TouchableOpacity>
@@ -170,7 +170,7 @@ export function WeekRow({ week, counts, selected, today, onSelect, onWeek }) {
             accessibilityLabel={`${date}${count !== undefined ? `, ${count} visits` : ''}`}>
             <Text style={[styles.wl, on && styles.wOnText]}>{weekdayLetter(date)}</Text>
             <Text style={[styles.wn, weekend && styles.wWeekend, date === today && styles.wToday, on && styles.wOnText]}>{dayOfMonth(date)}</Text>
-            <Text style={[styles.wc, weekend && styles.wWeekend, on && styles.wOnText]}>{count ? String(count) : '–'}</Text>
+            <Text style={[styles.wc, weekend && styles.wWeekend, !count && styles.wcNone, on && styles.wOnText]}>{count ? String(count) : '–'}</Text>
           </TouchableOpacity>
         );
       })}
@@ -277,6 +277,7 @@ const styles = StyleSheet.create({
   wn: { fontSize: 19, lineHeight: 24, fontWeight: '700', color: colors.fgDefault },
   wc: { fontSize: 12, fontWeight: '700', color: colors.brand },
   wWeekend: { color: colors.fgMutedField, fontWeight: '500' },
+  wcNone: { color: colors.fgMutedField, fontWeight: '500' }, // a day without visits: a grey dash
   wToday: { color: colors.brand },
   wOnText: { color: colors.fgOnFill },
 

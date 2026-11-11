@@ -104,6 +104,37 @@ export function greeting(minutes) {
 }
 export const firstName = (name) => (typeof name === 'string' && name.trim() ? name.trim().split(/\s+/)[0] : '');
 
+// The customer in the day's list, short as in the design: 'Sanjay Patel' → 'Patel S.' (the
+// surname and the first initial; 'Patel, Sanjay' too). One word, or a business ('… LLC'), stays
+// as it is; the full name is on the visit card.
+const TITLES = /^(mr|mrs|ms|miss|dr)\.?$/i;
+const SUFFIXES = /^(jr|sr|ii|iii|iv)\.?,?$/i;
+const BUSINESS = /^(llc|inc|corp|corporation|co|ltd|company|group|&)\.?,?$/i;
+export function shortName(name) {
+  const full = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
+  if (!full) return 'Customer';
+  let surname;
+  let first;
+  const comma = full.match(/^([^,]+),\s*(.+)$/);
+  if (comma && !BUSINESS.test(comma[2].split(' ')[0])) {
+    surname = comma[1];
+    first = comma[2].split(' ').filter((w) => !TITLES.test(w))[0];
+  } else {
+    const words = full.split(' ');
+    if (words.some((w) => BUSINESS.test(w))) return full;
+    const parts = words.filter((w) => !TITLES.test(w));
+    while (parts.length > 2 && SUFFIXES.test(parts[parts.length - 1])) parts.pop();
+    if (parts.length < 2) return full;
+    // already short ('Rossi A.'): the last word is one initial
+    if (parts[parts.length - 1].replace(/\.$/, '').length === 1) return full;
+    surname = parts[parts.length - 1].replace(/,$/, '');
+    first = parts[0];
+  }
+  // the first letter (any cased alphabet), not a bracket or a quote
+  const initial = [...(first || '')].find((ch) => ch.toLowerCase() !== ch.toUpperCase());
+  return initial ? `${surname} ${initial.toUpperCase()}.` : surname;
+}
+
 // ---------- a visit ----------
 const KINDS = { diagnostics: 'Diagnostics', repair: 'Repair', installation: 'Installation', recall: 'Recall' };
 // The outcome of a closed visit: [long word, short word in the list, icon, colour family]
@@ -187,7 +218,7 @@ export function tagOf(visit, { long = false } = {}) {
 //   date, isToday, isPast, rows: [row], current: row|null, next: row|null,
 //   summary: { big, small }, gaps: [{ afterId, from, to, text }], count, done
 // }
-// row: { id, key, n, visit, state, current, next, helper, legacy, client, area, kind, window,
+// row: { id, key, n, visit, state, current, next, helper, legacy, client (short), clientFull, area, kind, window,
 //        timeText, tag, start, end (minutes of the plan), winStart, winEnd (minutes on this
 //        day, clamped to it) }
 // Numbers go by planned time, 1..n, the same in the strip and in the list; only live visits
@@ -210,8 +241,9 @@ export function buildDay(visits, date, now) {
     const onDay = (w, fallback) => (!w ? fallback : w.date < date ? 0 : w.date > date ? 1440 : w.minutes);
     let timeText = `plan ${clock(plan.start.minutes)}`;
     if (state === 'closed') {
-      // closed_at: the moment it was closed; the servers before that field: the last change
-      const at = momentWall(v.closed_at) || momentWall(v.updated_at);
+      // closed_at (backend #138): the moment it was closed, null when the server does not know
+      // it (then no time); only a server without the field (or a week kept from one): the last change
+      const at = 'closed_at' in v ? momentWall(v.closed_at) : momentWall(v.updated_at);
       timeText = at && at.date === date ? `done ${clock(at.minutes)}` : 'done';
     }
     if (state === 'moved') timeText = 'moved';
@@ -227,7 +259,8 @@ export function buildDay(visits, date, now) {
       next: false,
       helper: v.role === 'helper',
       legacy: !!v.legacy,
-      client: v.client_name || 'Customer',
+      client: shortName(v.client_name),
+      clientFull: (typeof v.client_name === 'string' && v.client_name.trim()) || 'Customer',
       area: areaOf(v),
       kind: kindText(v),
       duration: state === 'sched' && v.role !== 'helper' ? durationText(plan.duration) : null,
@@ -309,6 +342,7 @@ export function listItems(day) {
 
 // The strip of the day, 8 AM to 7 PM in fractions 0..1: for each row its window (two tracks,
 // so neighbours do not touch) and its planned work; the now line; ticks 8a .. 6p.
+// Known limit: when the plans themselves overlap, their blocks overlap on the strip too.
 export function stripOf(day, now) {
   const span = DAY_END - DAY_START;
   const x = (m) => Math.min(1, Math.max(0, (m - DAY_START) / span));

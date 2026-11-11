@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   nyOffsetMinutes, nyWall, momentWall, parseWall, addDays, weekOf, dayLabel, weekdayLetter, dayOfMonth,
-  clock, clockAmPm, windowText, durationText, greeting, firstName, planOf, visitDay, stateOf, kindText, areaOf, tagOf,
+  clock, clockAmPm, windowText, durationText, greeting, firstName, shortName, planOf, visitDay, stateOf, kindText, areaOf, tagOf,
   buildDay, listItems, stripOf, headerLine, weekCounts, nextBusyDay, offerText, emptyText, keepWeek, keptWeek, offlineText, failedText,
   skewOf, nowWall, addressLine, directionsLinks, telLink, MAX_WEEKS_KEPT, DAY_START, DAY_END,
 } from './model.js';
@@ -31,11 +31,11 @@ function visit(o) {
 }
 // The design's Tuesday: two closed, Patel on the way, Nguyen as helper, Chen later
 const DAY5 = () => [
-  visit({ id: 1, client: 'Rossi A.', city: 'Forest Hills', w0: '08:00', w1: '10:00', p: '08:15', dur: 45, status: 'completed', outcome: 'diagnostics_only', kind: 'diagnostics', updated_at: '2026-11-10T14:02:00Z' }),
-  visit({ id: 2, client: 'Kowalski M.', city: 'Forest Hills', w0: '09:00', w1: '11:00', p: '09:40', dur: 70, status: 'completed', outcome: 'done', updated_at: '2026-11-10T15:52:00Z' }),
-  visit({ id: 3, client: 'Patel S.', w0: '11:00', w1: '14:00', p: '11:45', dur: 75, status: 'omw', omw_at: '2026-11-10T16:08:00Z', n: 2, of: 2 }),
-  visit({ id: 4, client: 'Nguyen T.', city: 'Rego Park', w0: '13:00', w1: '16:00', p: '13:30', dur: 120, role: 'helper', main: 'Alex Kim', kind: 'installation', n: 2, of: 2 }),
-  visit({ id: 5, client: 'Chen W.', w0: '15:00', w1: '18:00', p: '15:45', dur: 60, kind: 'recall', n: 3, of: 3 }),
+  visit({ id: 1, client: 'Anna Rossi', city: 'Forest Hills', w0: '08:00', w1: '10:00', p: '08:15', dur: 45, status: 'completed', outcome: 'diagnostics_only', kind: 'diagnostics', updated_at: '2026-11-10T14:02:00Z' }),
+  visit({ id: 2, client: 'Marta Kowalski', city: 'Forest Hills', w0: '09:00', w1: '11:00', p: '09:40', dur: 70, status: 'completed', outcome: 'done', updated_at: '2026-11-10T15:52:00Z' }),
+  visit({ id: 3, client: 'Sanjay Patel', w0: '11:00', w1: '14:00', p: '11:45', dur: 75, status: 'omw', omw_at: '2026-11-10T16:08:00Z', n: 2, of: 2 }),
+  visit({ id: 4, client: 'Thanh Nguyen', city: 'Rego Park', w0: '13:00', w1: '16:00', p: '13:30', dur: 120, role: 'helper', main: 'Alex Kim', kind: 'installation', n: 2, of: 2 }),
+  visit({ id: 5, client: 'Wei Chen', w0: '15:00', w1: '18:00', p: '15:45', dur: 60, kind: 'recall', n: 3, of: 3 }),
 ];
 
 test('New York offset follows the US daylight rule, the same as Intl', () => {
@@ -294,11 +294,36 @@ test('a past day: closed visits, no free time', () => {
   assert.equal(headerLine(MON, NOW), 'Yesterday · Mon, Nov 9');
 });
 
-test('the close time: closed_at, else (an older server, or null) updated_at', () => {
+test('the close time: closed_at; updated_at only when the server has no such field', () => {
+  // closed at 9:41, changed later at 11:30: the list says when it was closed
   const closed = (o) => visit({ w0: '08:00', w1: '10:00', p: '08:30', status: 'completed', outcome: 'done', updated_at: '2026-11-10T16:30:00Z', ...o });
   assert.equal(buildDay([closed({ id: 81, closed_at: '2026-11-10T14:41:00Z' })], TUE, NOW).rows[0].timeText, 'done 9:41');
-  assert.equal(buildDay([closed({ id: 82, closed_at: null })], TUE, NOW).rows[0].timeText, 'done 11:30');
+  // the server has the field but does not know the moment: no time rather than the last change
+  assert.equal(buildDay([closed({ id: 82, closed_at: null })], TUE, NOW).rows[0].timeText, 'done');
+  // a server before backend #138 (or a week kept on the phone from it): the last change
   assert.equal(buildDay([closed({ id: 83 })], TUE, NOW).rows[0].timeText, 'done 11:30');
+});
+
+test('the customer in the list: the surname and the first initial, as in the design', () => {
+  assert.equal(shortName('Sanjay Patel'), 'Patel S.');
+  assert.equal(shortName('Maximiliana Rodriguez-Villanueva'), 'Rodriguez-Villanueva M.');
+  assert.equal(shortName('  Anna   Rossi '), 'Rossi A.');
+  assert.equal(shortName('Mary Ann Smith'), 'Smith M.');
+  assert.equal(shortName('John Smith Jr.'), 'Smith J.');
+  assert.equal(shortName('Dr. Wei Chen'), 'Chen W.');
+  assert.equal(shortName('Patel, Sanjay'), 'Patel S.');
+  assert.equal(shortName('sanjay patel'), 'patel S.');
+  assert.equal(shortName('Ольга Иванова'), 'Иванова О.');
+  // as it is: one word, already short, a business, nothing
+  assert.equal(shortName('Cher'), 'Cher');
+  assert.equal(shortName('Rossi A.'), 'Rossi A.');
+  assert.equal(shortName('Acme Plumbing LLC'), 'Acme Plumbing LLC');
+  assert.equal(shortName('Smith & Sons'), 'Smith & Sons');
+  assert.equal(shortName(''), 'Customer');
+  assert.equal(shortName(null), 'Customer');
+  // the row keeps the full name for the card and VoiceOver
+  const row = buildDay([visit({ id: 85, client: 'Maximiliana Rodriguez-Villanueva', w0: '13:00', w1: '16:00', p: '13:30' })], TUE, NOW).rows[0];
+  assert.deepEqual([row.client, row.clientFull], ['Rodriguez-Villanueva M.', 'Maximiliana Rodriguez-Villanueva']);
 });
 
 test('a visit the office took off the day is left out for now; a row is keyed by id and window', () => {
