@@ -16,6 +16,38 @@ export const colors = {
   warningOnSolid: '#431407', // --warning-on-solid (on-accent), 7.29:1 on warningSolid
   shadow: '#000000',
 
+  // My day (design A3, design-mockups/tech-app/README.md «Итог»)
+  accent: '#F59E0B',         // --accent (= --warning-solid): main button, NOW, the current visit
+  onAccent: '#431407',       // --on-accent (= --warning-on-solid), 7.3:1 on accent
+  bgPage: '#F9F9FF',         // --bg-page
+  bgSubtle: '#FAFAFA',       // --bg-subtle
+  bgSunken: '#F5F5F5',       // --bg-sunken
+  borderSubtle: '#E5E5E5',   // --border-subtle
+  borderDefault: '#D4D4D4',  // --border-default
+  borderStrong: '#737373',   // --border-strong
+  nowLine: '#1E3A8A',        // --now-line
+  stateDone: '#E5E5E5',      // --state-done: a closed visit's number
+  stateDoneFg: '#404040',    // --state-done-fg
+  stateDoneBorder: '#737373', // --state-done-border
+  infoFg: '#1E40AF',         // --info-fg = --visit-onway-fg = --pd-recall-fg
+  infoBg: '#DBEAFE',         // --info-bg
+  infoBorder: '#1D4ED8',     // --info-border
+  successFg: '#064E3B',      // --success-fg = --pd-done-fg: free time, Repaired
+  successBg: '#D1FAE5',      // --success-bg
+  successBorder: '#047857',  // --success-border
+  warningFg: '#78350F',      // --warning-fg = --pd-diagnostics-fg: offline, how to get in
+  warningBg: '#FEF3C7',      // --warning-bg
+  warningBorder: '#B45309',  // --warning-border
+  violetFg: '#5B21B6',       // --violet-fg: the helper
+  violetBg: '#EDE9FE',       // --violet-bg
+  violetBorder: '#7C3AED',   // --violet-border
+  indigoFg: '#3730A3',       // --indigo-fg = --pd-deposit-fg
+  indigoBg: '#E0E7FF',       // --indigo-bg
+  indigoBorder: '#4F46E5',   // --indigo-border
+  neutralFg: '#404040',      // --neutral-fg: no access, old task
+  neutralBg: '#F5F5F5',      // --neutral-bg
+  neutralBorder: '#737373',  // --neutral-border
+
   // Primary
   primary: '#14B8A6',
   primaryDark: '#0D9488',

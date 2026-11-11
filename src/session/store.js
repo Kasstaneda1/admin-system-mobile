@@ -3,6 +3,7 @@
 // AsyncStorage under 'user', the shape /api/login gives, which the screens read.
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MY_DAY_KEY } from '../myDay/storage';
 
 const KEYS = { access: 'semix.session.access', refresh: 'semix.session.refresh', savedAt: 'semix.session.savedAt' };
 const OPTIONS = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
@@ -41,7 +42,8 @@ export const deviceStore = {
       SecureStore.deleteItemAsync(KEYS.refresh, OPTIONS),
       SecureStore.deleteItemAsync(KEYS.access, OPTIONS),
       SecureStore.deleteItemAsync(KEYS.savedAt, OPTIONS),
-      AsyncStorage.multiRemove([PROFILE, OLD_TOKEN]),
+      // My day kept for offline (customers' names, phones, addresses) goes with the session
+      AsyncStorage.multiRemove([PROFILE, OLD_TOKEN, MY_DAY_KEY]),
     ]);
   },
 };
