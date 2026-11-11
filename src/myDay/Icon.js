@@ -14,6 +14,7 @@ const ICONS = {
   history: require('../../assets/icons/history.png'),
   install: require('../../assets/icons/install.png'),
   key: require('../../assets/icons/key.png'),
+  message: require('../../assets/icons/message.png'),
   money: require('../../assets/icons/money.png'),
   more: require('../../assets/icons/more.png'),
   moved: require('../../assets/icons/moved.png'),

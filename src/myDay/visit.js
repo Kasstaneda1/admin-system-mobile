@@ -125,14 +125,47 @@ export function appliancesOf(visit) {
   }));
 }
 
-// Who else and for whom: [{ label, value }]
+// Who else is on the visit: the main technician sees the helper. The helper's own card says
+// whom they help in its tag («Helping Alex»); the company is for the bill, not here.
 export function teamOf(visit) {
-  const lines = [];
-  if (visit.role === 'helper' && visit.main_technician_name) lines.push({ label: 'Main technician', value: visit.main_technician_name });
-  if (visit.role !== 'helper' && visit.helper_name) lines.push({ label: 'Helper', value: visit.helper_name });
-  if (visit.company_name) lines.push({ label: 'Company', value: visit.company_name });
-  return lines;
+  return visit.role !== 'helper' && visit.helper_name ? [{ label: 'Helper', value: visit.helper_name }] : [];
 }
+
+// When a note was written, as the card says it: today the time ('10:32 PM'), another day the
+// date ('Nov 6'); '' when unknown
+export function noteWhen(createdAt, now) {
+  const at = momentWall(createdAt);
+  if (!at) return '';
+  return at.date === now.date ? clockAmPm(at.minutes) : monthDay(at.date);
+}
+
+// The office's notes for the technician, under «How to get in». The server gives the job's
+// notes as one text (office_notes, no author, no time); a list of notes { author_name,
+// created_at, text } is read too, the newest first. Two show, the rest behind «+N more».
+// Returns null when there is nothing, else { notes: [{ key, head ('Anna · 9:12 AM' or ''), text }], more }.
+export const OFFICE_NOTES_SHOWN = 2;
+export function officeNotesOf(visit, now, { open = false } = {}) {
+  const value = visit.office_notes;
+  let all;
+  if (Array.isArray(value)) {
+    all = value
+      .filter((note) => note && typeof note.text === 'string' && note.text.trim())
+      .map((note, i) => ({ note, i, at: Date.parse(note.created_at) || 0 }))
+      .sort((a, b) => b.at - a.at || b.i - a.i)
+      .map(({ note, i }) => ({
+        key: `o${note.id ?? i}`,
+        head: [firstWord(note.author_name), noteWhen(note.created_at, now)].filter(Boolean).join(' · '),
+        text: note.text.trim(),
+      }));
+  } else {
+    const text = typeof value === 'string' ? value.trim() : '';
+    all = text ? [{ key: 'o0', head: '', text }] : [];
+  }
+  if (!all.length) return null;
+  const shown = open ? all : all.slice(0, OFFICE_NOTES_SHOWN);
+  return { notes: shown, more: all.length - shown.length };
+}
+const firstWord = (name) => (typeof name === 'string' && name.trim() ? name.trim().split(/\s+/)[0] : '');
 
 // This job's visits, this one among them, by window: [{ key, title, text, mark }]
 // title 'Nov 6 · Diagnostics · Ivan P.' (this visit: 'Today · Repair'); mark: 'past' (closed
@@ -164,19 +197,19 @@ export function historyOf(visit, now) {
 // The technicians' notes as the server gives them (oldest first): [{ key, head: 'Ivan P. · Nov 6', text }]
 // A note of today says its time instead: 'Ivan P. · 10:42 AM'.
 export function notesOf(visit, now) {
-  return (Array.isArray(visit.notes) ? visit.notes : []).map((note) => {
-    const at = momentWall(note.created_at);
-    const when = at ? (at.date === now.date ? clockAmPm(at.minutes) : monthDay(at.date)) : '';
-    return { key: `n${note.id}`, head: [techName(note.author_name) || 'Technician', when].filter(Boolean).join(' · '), text: typeof note.text === 'string' ? note.text : '' };
-  });
+  return (Array.isArray(visit.notes) ? visit.notes : []).map((note) => ({
+    key: `n${note.id}`,
+    head: [techName(note.author_name) || 'Technician', noteWhen(note.created_at, now)].filter(Boolean).join(' · '),
+    text: typeof note.text === 'string' ? note.text : '',
+  }));
 }
 
 // Everything the card shows. visit: the card from the server, or the list's visit (no
 // job_visits, notes: full false, the screen says those need the connection).
-export function visitCard(visit, { n = null, now }) {
+// officeOpen: every office note shows, not two
+export function visitCard(visit, { n = null, now, officeOpen = false }) {
   const history = historyOf(visit, now);
   const notes = notesOf(visit, now);
-  const noteText = typeof visit.office_notes === 'string' ? visit.office_notes.trim() : '';
   return {
     id: visit.id,
     full: Array.isArray(visit.job_visits) && Array.isArray(visit.notes),
@@ -190,7 +223,7 @@ export function visitCard(visit, { n = null, now }) {
     problem: typeof visit.description === 'string' && visit.description.trim() ? visit.description.trim() : null,
     appliances: appliancesOf(visit),
     team: teamOf(visit),
-    officeNote: noteText || null,
+    office: officeNotesOf(visit, now, { open: officeOpen }),
     history,
     historyTitle: history.length ? `This job · ${history.length} visit${history.length === 1 ? '' : 's'}` : '',
     notes,

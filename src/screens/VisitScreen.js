@@ -84,7 +84,9 @@ export default function VisitScreen({ route, navigation }) {
     return () => sub.remove();
   }, [load]);
 
-  const card = useMemo(() => (shown ? visitCard(shown.visit, { n, now }) : null), [shown, n, now]);
+  // the office's notes beyond the first two show after «+N more»
+  const [officeOpen, setOfficeOpen] = useState(false);
+  const card = useMemo(() => (shown ? visitCard(shown.visit, { n, now, officeOpen }) : null), [shown, n, now, officeOpen]);
   const notice = problem && shown ? (problem === 'offline' ? offlineText(shown.savedAt, now) : failedText(shown.savedAt, now)) : null;
   // history and notes come only with the card itself
   const waiting = problem ? 'Needs connection' : 'Loading…';
@@ -153,6 +155,27 @@ export default function VisitScreen({ route, navigation }) {
                 </View>
               </View>
             ) : null}
+
+            {card.office ? (
+              <View style={styles.office} accessibilityRole="summary">
+                <View style={styles.officeTop}>
+                  <Icon name="message" size={18} color={colors.infoFg} />
+                  <Text style={styles.officeTitle}>From the office</Text>
+                </View>
+                {card.office.notes.map((note, i) => (
+                  <View key={note.key} style={[styles.officeNote, i > 0 && styles.officeNoteNext]}>
+                    {note.head ? <Text style={styles.officeHead}>{note.head}</Text> : null}
+                    <Text style={styles.officeText}>{note.text}</Text>
+                  </View>
+                ))}
+                {card.office.more ? (
+                  <TouchableOpacity style={styles.officeMore} onPress={() => setOfficeOpen(true)} accessibilityRole="button"
+                    accessibilityLabel={`Show ${card.office.more} more notes from the office`}>
+                    <Text style={styles.officeMoreText}>{`+${card.office.more} more`}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
           </View>
 
           <Section label="Problem">
@@ -171,12 +194,6 @@ export default function VisitScreen({ route, navigation }) {
               <Text key={line.label} style={styles.teamLine}><Text style={styles.teamLabel}>{line.label}</Text>{`  ${line.value}`}</Text>
             ))}
           </Section>
-
-          {card.officeNote ? (
-            <Section label="From the office">
-              <Text style={styles.text}>{card.officeNote}</Text>
-            </Section>
-          ) : null}
 
           {card.full && card.history.length ? (
             <Section label={card.historyTitle}>
@@ -248,6 +265,15 @@ const styles = StyleSheet.create({
   accessBody: { flex: 1 },
   accessTitle: { fontSize: 15, fontWeight: '700', color: colors.warningFg },
   accessText: { fontSize: 15, lineHeight: 20, color: colors.warningFg },
+  office: { marginTop: 10, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4, borderRadius: 14, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
+  officeTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  officeTitle: { fontSize: 15, fontWeight: '700', color: colors.infoFg },
+  officeNote: { paddingBottom: 8, paddingLeft: 26 },
+  officeNoteNext: { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.infoBorder },
+  officeHead: { fontSize: 13, fontWeight: '600', color: colors.infoFg },
+  officeText: { fontSize: 16, lineHeight: 22, color: colors.infoFg },
+  officeMore: { minHeight: 44, justifyContent: 'center', paddingLeft: 26 },
+  officeMoreText: { fontSize: 15, fontWeight: '700', color: colors.infoFg },
   section: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 18, gap: 8, borderTopWidth: 10, borderTopColor: colors.bgPage },
   sectionLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
   text: { fontSize: 16, lineHeight: 22, color: colors.fgDefault },
