@@ -201,20 +201,23 @@ The Android emulator reaches this Mac as `10.0.2.2`, not `127.0.0.1`.
 - Every request goes through it (`session.attach` in `src/services/api.js`): an access token
   about to end, or a 401, means **one** refresh that all waiting requests share, then each
   refused request is sent once more.
-- The session ends by the server's word: refresh refused, or 403 `account_blocked`. The app
-  reads the machine `code` of the answer first (backend #132: `account_blocked`,
-  `account_deactivated`, `refresh_invalid`, `refresh_expired`, `refresh_required`,
-  `refresh_rate_limited`) and the server's words only when there is no code, so an older
-  server works too. Everything kept is wiped and the sign-in screen says why («Your account was turned off.
+- The session ends by the server's word: refresh refused, or 403 `account_blocked`. The
+  machine `code` of the answer decides whenever there is one (backend #132:
+  `account_blocked`, `account_deactivated` → turned off; `refresh_invalid`,
+  `refresh_expired`, `refresh_required` → ended; `refresh_rate_limited` → try later; an
+  unknown code on a refused refresh → ended). The server's words are read only when there is
+  no code, so an older server works too. Everything kept is wiped and the sign-in screen says why («Your account was turned off.
   Please contact the office.» / «Your session has ended. Please sign in again.»). No network,
   a server failure or 429 never sign anyone out. A request the end cuts off never answers:
   the screen that asked is gone, so its error alert does not cover the sign-in screen.
 - Start: a refresh token younger than 7 days and the profile open the technician's screens
   at once, without the network; `GET /api/me` then checks the session in the background,
   and again on return to the app (at most once per 5 minutes).
-- A refresh whose answer is lost on the way (no network) is sent again with the same old
-  token, at most twice (after 2 s and 5 s) and within 60 seconds of the first try. A server
-  with the repeat window gives the same new pair again; one without it answers
+- A refresh whose answer is lost on the way (no answer or a timeout) is sent again with the
+  same old token inside the same shared refresh, after about 2 s and 10 s, never later than
+  45 seconds after the first send; still nothing: the session stays and tries later. A 5xx
+  or a 429 is not repeated. A server with the repeat window gives the same new pair again;
+  one without it answers
   `refresh_invalid`, and the technician signs in again, as before (both checked against a
   stand: backend `aeb8f19` without the window, main `3bb532c` with it).
 - Logout wipes everything kept at once and asks the server to revoke the refresh token.

@@ -40,7 +40,8 @@ export default function LoginScreen() {
       // The session keeps the tokens; the app then shows the technician's screens by itself
       await signIn(data);
     } catch (error) {
-      console.error('Login error:', error);
+      // Only the message: the error object carries the request, and the request the password
+      console.error('Login error:', error?.message);
       Alert.alert(
         'Login Failed',
         error.response?.data?.error || 'Invalid username or password'

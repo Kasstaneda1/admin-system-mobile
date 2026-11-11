@@ -13,7 +13,8 @@ let serial = 0;
 const access = (at, ms) => `${b64url({ alg: 'HS256' })}.${b64url({ id: 7, exp: Math.floor((at + ms) / 1000), n: (serial += 1) })}.sig`;
 const USER = { id: 7, username: 'nia', role: 'technician', fullName: 'Nia Test' };
 const tick = (ms = 5) => new Promise((resolve) => setTimeout(resolve, ms));
-// A request the end of the session cut off never answers: still pending after `ms`
+// A request the end of the session cut off never answers: still pending after `ms` (asked
+// only once the end has happened: endOf() waits for that event, not for a time)
 const stillPending = async (promise, ms = 60) => {
   const outcome = await Promise.race([promise.then(() => 'answered', () => 'failed'), tick(ms).then(() => 'pending')]);
   return outcome === 'pending';
@@ -108,9 +109,14 @@ function world({ accessLeftMs = 15 * 60 * 1000 } = {}) {
   const session = createSession({ store, http, now, sleep });
   session.attach(api);
   const ends = [];
-  session.onEnd((reason) => ends.push(reason));
-  return { api, session, store, server, ends, first, sleeps, advance(ms) { clock += ms; }, now };
+  let signalEnd;
+  const ended = new Promise((resolve) => { signalEnd = resolve; });
+  session.onEnd((reason) => { ends.push(reason); signalEnd(reason); });
+  return { api, session, store, server, ends, ended, first, sleeps, advance(ms) { clock += ms; }, now };
 }
+
+// The session's end, as the event itself (a guard of 5 s only so a broken session fails, not hangs)
+const endOf = (w) => Promise.race([w.ended, tick(5000).then(() => 'no end within 5 s')]);
 
 const sentWith = (server, url) => server.requests.filter(([u]) => u === url).map(([, auth]) => auth);
 
@@ -180,6 +186,7 @@ test('refresh refused, the account is turned off: the session ends once and ever
   await w.session.load();
   w.server.refreshAnswer = { status: 401, data: { error: 'Account is deactivated' } };
   const cut = [w.api.get('/api/a'), w.api.get('/api/b'), w.api.get('/api/c')];
+  assert.equal(await endOf(w), 'blocked');
   for (const request of cut) assert.equal(await stillPending(request), true, 'no answer, no error alert over sign in');
   assert.deepEqual(w.ends, ['blocked']);
   assert.equal(w.server.refreshes.length, 1);
@@ -196,7 +203,9 @@ for (const error of ['Invalid refresh token', 'Refresh token expired']) {
     await w.session.load();
     w.server.valid.clear();
     w.server.refreshAnswer = { status: 401, data: { error } };
-    assert.equal(await stillPending(w.api.get('/api/me')), true);
+    const cutW = w.api.get('/api/me');
+    assert.equal(await endOf(w), 'expired');
+    assert.equal(await stillPending(cutW), true);
     assert.deepEqual(w.ends, ['expired']);
     assert.equal(w.store.kept.refresh, null);
   });
@@ -208,10 +217,10 @@ for (const [label, answer] of [['no network', { status: 0, data: null }], ['a se
     await w.session.load();
     w.server.refreshAnswer = answer;
     await assert.rejects(w.api.get('/api/me'), (e) => e.response?.status === 401);
-    // no network: the same token twice more (2 s, 5 s later); an answer of the server: no repeat
+    // no network: the same token twice more (about 2 s, 10 s later); 5xx or 429: no repeat
     const sends = answer.status === 0 ? 3 : 1;
     assert.deepEqual(w.server.refreshes, Array(sends).fill('r0'));
-    assert.deepEqual(w.sleeps, answer.status === 0 ? [2000, 5000] : []);
+    assert.deepEqual(w.sleeps, answer.status === 0 ? [2000, 10000] : []);
     assert.deepEqual(w.ends, []);
     assert.equal(w.session.signedIn, true);
     assert.equal(w.store.kept.refresh, 'r0');
@@ -236,6 +245,7 @@ test('403 «Access to system blocked» on any request ends the session at once, 
   await w.session.load();
   w.server.answer403 = { error: 'Access to system blocked. Contact administrator.' };
   const cut = [w.api.get('/api/a'), w.api.get('/api/b')];
+  assert.equal(await endOf(w), 'blocked');
   for (const request of cut) assert.equal(await stillPending(request), true);
   assert.deepEqual(w.ends, ['blocked']);
   assert.equal(w.server.refreshes.length, 0);
@@ -340,22 +350,54 @@ test('a refresh answer lost on the way, server of today: the repeat gets refresh
   await w.session.load();
   w.server.codes = true;
   w.server.lose = 1;
-  assert.equal(await stillPending(w.api.get('/api/me')), true);
+  const cut = w.api.get('/api/me');
+  assert.equal(await endOf(w), 'expired');
+  assert.equal(await stillPending(cut), true);
   assert.deepEqual(w.server.refreshes, ['r0', 'r0']);
   assert.deepEqual(w.ends, ['expired']);
   assert.equal(w.store.kept.refresh, null);
 });
 
-test('the repeats of a lost refresh stop 60 seconds after the first try', async () => {
+for (const [takes, sends, sleeps] of [[15000, 3, [2000, 10000]], [20000, 2, [2000]], [30000, 2, [2000]]]) {
+  test(`no repeat of a lost refresh starts later than 45 s after the first send (each try ${takes / 1000} s)`, async () => {
+    const w = world({ accessLeftMs: -1000 });
+    await w.session.load();
+    w.server.refreshAnswer = { status: 0, data: null };
+    w.server.refreshTakesMs = takes; // each try waits this long for nothing (a timeout)
+    await assert.rejects(w.api.get('/api/me'), (e) => e.response?.status === 401);
+    // 15 s: sends at 0, 17, 42 s; 20 s: at 0, 22 s (the next would be 52 s); 30 s: at 0, 32 s
+    assert.deepEqual(w.server.refreshes, Array(sends).fill('r0'));
+    assert.deepEqual(w.sleeps, sleeps);
+    assert.deepEqual(w.ends, []);
+    assert.equal(w.session.signedIn, true);
+  });
+}
+
+test('three lost answers in a row: later, the session lives; with the repeat window the next refresh gets the pair', async () => {
   const w = world({ accessLeftMs: -1000 });
   await w.session.load();
-  w.server.refreshAnswer = { status: 0, data: null };
-  w.server.refreshTakesMs = 30000; // each try waits 30 s for nothing
+  w.server.repeatWindow = true;
+  w.server.lose = 3;
   await assert.rejects(w.api.get('/api/me'), (e) => e.response?.status === 401);
-  // first at 0 s, answered at 30 s; pause 2 s; second at 32 s, answered at 62 s: no third
-  assert.deepEqual(w.server.refreshes, ['r0', 'r0']);
-  assert.deepEqual(w.sleeps, [2000]);
+  assert.deepEqual(w.server.refreshes, ['r0', 'r0', 'r0']);
+  assert.deepEqual(w.ends, []);
   assert.equal(w.session.signedIn, true);
+  assert.equal(w.store.kept.refresh, 'r0', 'nothing was answered, nothing changed');
+  const res = await w.api.get('/api/me');
+  assert.equal(res.status, 200);
+  assert.equal(w.store.kept.refresh, 'r1', 'the same pair the lost answers carried');
+});
+
+test('500 or 429 on refresh: no repeat, later', async () => {
+  for (const status of [500, 502, 429]) {
+    const w = world({ accessLeftMs: -1000 });
+    await w.session.load();
+    w.server.refreshAnswer = { status, data: status === 429 ? { code: 'refresh_rate_limited' } : null };
+    await assert.rejects(w.api.get('/api/me'), (e) => e.response?.status === 401);
+    assert.deepEqual(w.server.refreshes, ['r0'], String(status));
+    assert.deepEqual(w.sleeps, [], String(status));
+    assert.equal(w.session.signedIn, true, String(status));
+  }
 });
 
 test('sign out during the pause before a repeat: no repeat, nothing written back', async () => {
@@ -379,13 +421,17 @@ for (const [label, server] of [['the server with codes', true], ['the server of 
     const off = world({ accessLeftMs: -1000 });
     await off.session.load();
     off.server.refreshAnswer = { status: 401, data: refusals.off };
-    assert.equal(await stillPending(off.api.get('/api/me')), true);
+    const cutOff = off.api.get('/api/me');
+    assert.equal(await endOf(off), 'blocked');
+    assert.equal(await stillPending(cutOff), true);
     assert.deepEqual(off.ends, ['blocked']);
 
     const revoked = world({ accessLeftMs: -1000 });
     await revoked.session.load();
     revoked.server.refreshAnswer = { status: 401, data: refusals.revoked };
-    assert.equal(await stillPending(revoked.api.get('/api/me')), true);
+    const cutRevoked = revoked.api.get('/api/me');
+    assert.equal(await endOf(revoked), 'expired');
+    assert.equal(await stillPending(cutRevoked), true);
     assert.deepEqual(revoked.ends, ['expired']);
 
     const limited = world({ accessLeftMs: -1000 });
@@ -398,7 +444,9 @@ for (const [label, server] of [['the server with codes', true], ['the server of 
     const blocked = world();
     await blocked.session.load();
     blocked.server.answer403 = refusals.blocked;
-    assert.equal(await stillPending(blocked.api.get('/api/me')), true);
+    const cutBlocked = blocked.api.get('/api/me');
+    assert.equal(await endOf(blocked), 'blocked');
+    assert.equal(await stillPending(cutBlocked), true);
     assert.deepEqual(blocked.ends, ['blocked']);
   });
 }
@@ -407,12 +455,16 @@ test('codes alone, without words, are enough', async () => {
   const off = world({ accessLeftMs: -1000 });
   await off.session.load();
   off.server.refreshAnswer = { status: 401, data: { code: 'account_deactivated' } };
-  assert.equal(await stillPending(off.api.get('/api/me')), true);
+  const cutOff = off.api.get('/api/me');
+  assert.equal(await endOf(off), 'blocked');
+  assert.equal(await stillPending(cutOff), true);
   assert.deepEqual(off.ends, ['blocked']);
 
   const blocked = world();
   await blocked.session.load();
   blocked.server.answer403 = { code: 'account_blocked' };
-  assert.equal(await stillPending(blocked.api.get('/api/me')), true);
+  const cutBlocked = blocked.api.get('/api/me');
+  assert.equal(await endOf(blocked), 'blocked');
+  assert.equal(await stillPending(cutBlocked), true);
   assert.deepEqual(blocked.ends, ['blocked']);
 });

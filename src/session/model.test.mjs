@@ -137,8 +137,8 @@ test('answerKind reads the code first (backend #132), the words when there is no
   assert.equal(answerKind(403, { error: words, code: 'refresh_invalid' }), 'pass', 'a known code that is not «blocked»');
   // the server of words only
   assert.equal(answerKind(403, { error: words }), 'blocked');
-  // an unknown code: as if there were none
-  assert.equal(answerKind(403, { error: words, code: 'something_new' }), 'blocked');
+  // an unknown code: the code still decides, the words are not read
+  assert.equal(answerKind(403, { error: words, code: 'something_new' }), 'pass');
   assert.equal(answerKind(403, { error: 'Access denied. Office staff only', code: 'something_new' }), 'pass');
   assert.equal(answerKind(401, { error: 'Invalid or expired token', code: 'anything' }), 'refresh');
 });
@@ -161,15 +161,47 @@ test('refreshOutcome reads the code first (backend #132), the words when there i
   // the code wins over words that say otherwise
   assert.equal(refreshOutcome(401, { error: 'Account is deactivated', code: 'refresh_invalid' }), 'expired');
   assert.equal(refreshOutcome(401, { error: 'Invalid refresh token', code: 'account_deactivated' }), 'blocked');
-  // an unknown code: the status and the words decide
-  assert.equal(refreshOutcome(401, { error: 'Account is deactivated', code: 'something_new' }), 'blocked');
+  // an unknown code on a 401 or 403: 'expired', whatever the words; elsewhere the status
+  assert.equal(refreshOutcome(401, { error: 'Account is deactivated', code: 'something_new' }), 'expired');
   assert.equal(refreshOutcome(401, { code: 'something_new' }), 'expired');
+  assert.equal(refreshOutcome(403, { error: 'Access to system blocked. Contact administrator.', code: 'something_new' }), 'expired');
+  assert.equal(refreshOutcome(429, { code: 'something_new' }), 'later');
   assert.equal(refreshOutcome(503, { code: 'something_new' }), 'later');
   // a success never looks at codes
   assert.equal(refreshOutcome(200, { accessToken: 'a', refreshToken: 'r', code: 'refresh_invalid' }), 'ok');
 });
 
-test('the lost-refresh repeats fit the server window: two pauses inside 60 seconds', () => {
-  assert.deepEqual(REFRESH_RETRY_DELAYS_MS, [2000, 5000]);
-  assert.equal(REFRESH_RETRY_WINDOW_MS, 60000);
+test('the lost-refresh repeats: after about 2 s and 10 s, none later than 45 s after the first send', () => {
+  assert.deepEqual(REFRESH_RETRY_DELAYS_MS, [2000, 10000]);
+  assert.equal(REFRESH_RETRY_WINDOW_MS, 45000);
+  assert.ok(REFRESH_RETRY_WINDOW_MS < 60000, 'inside the server repeat window');
+});
+
+test('every code, on refresh and on a request; and the words without a code, as before', () => {
+  const refresh = {
+    account_blocked: 'blocked', account_deactivated: 'blocked',
+    refresh_invalid: 'expired', refresh_expired: 'expired', refresh_required: 'expired',
+    refresh_rate_limited: 'later',
+  };
+  for (const [code, expected] of Object.entries(refresh)) {
+    for (const status of [400, 401, 403, 429]) {
+      assert.equal(refreshOutcome(status, { code }), expected, `refresh ${status} ${code}`);
+      assert.equal(refreshOutcome(status, { code, error: 'Any words at all' }), expected, `refresh ${status} ${code} with words`);
+    }
+  }
+  // an ordinary request: only account_blocked on a 403 ends the session
+  for (const code of Object.keys(refresh)) {
+    assert.equal(answerKind(403, { code }), code === 'account_blocked' ? 'blocked' : 'pass', `request 403 ${code}`);
+  }
+  assert.equal(answerKind(401, { code: 'account_blocked' }), 'refresh', 'a 401 is always a refresh');
+  // no code: the words of the older server, exactly as before
+  assert.equal(answerKind(403, { error: 'Access to system blocked. Contact administrator.' }), 'blocked');
+  assert.equal(answerKind(403, { error: 'Access denied. Office staff only' }), 'pass');
+  assert.equal(refreshOutcome(401, { error: 'Account is deactivated' }), 'blocked');
+  assert.equal(refreshOutcome(401, { error: 'Invalid refresh token' }), 'expired');
+  assert.equal(refreshOutcome(401, { error: 'Refresh token expired' }), 'expired');
+  assert.equal(refreshOutcome(400, { error: 'Refresh token required' }), 'expired');
+  assert.equal(refreshOutcome(429, { error: 'Too many token refresh requests, please try again later' }), 'later');
+  assert.equal(refreshOutcome(500, { error: 'Server error' }), 'later');
+  assert.equal(refreshOutcome(0, null), 'later');
 });

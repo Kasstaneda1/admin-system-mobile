@@ -12,10 +12,11 @@
 //   now   — the clock (ms); sleep(ms) — a pause (both stand-ins in the tests)
 // attach(axiosInstance) puts the session into the API client (api.js).
 //
-// A refresh whose answer is lost on the way (no network: status 0) is sent again with the same
-// old token, at most twice and within 60 seconds of the first: a server with the repeat window
-// gives the same new pair again; a server without it says refresh_invalid, and the session
-// ends as it would anyway.
+// A refresh whose answer is lost on the way (no answer or a timeout: status 0) is sent again
+// with the same old token inside the same shared refresh, after about 2 s and 10 s, never
+// later than 45 s after the first send; still no answer: 'later', the session stays. A server
+// with the repeat window (backend #134) gives the same new pair again; one without it says
+// refresh_invalid, and the session ends as it would anyway. A 5xx or 429 is not repeated.
 //
 // A request the end of the session cuts off (or one made while signed out) never answers: the
 // screen that asked is gone already, and an answer would only show its error alert on top of
