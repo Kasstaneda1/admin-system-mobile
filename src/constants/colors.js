@@ -1,4 +1,21 @@
 export const colors = {
+  // Tokens of the colour system (COLOR_SYSTEM_2026-11-05.md, frontend tokens.css): new screens
+  // use these names; the older names below stay for the screens not redrawn yet
+  brand: '#00685F',          // --brand
+  brandPressed: '#134E4A',   // --brand-pressed
+  brandSoft: '#E0F2F1',      // --brand-soft
+  brandSoftFg: '#134E4A',    // --brand-soft-fg: text on brandSoft, 8.18:1
+  headerFgMuted: '#D1E4E2',  // --header-fg-muted
+  fgOnFill: '#FFFFFF',       // --fg-on-fill
+  fgSecondary: '#3D4947',    // --fg-secondary
+  fgDefault: '#151C27',      // --fg-default
+  fgMutedField: '#525252',   // --fg-muted-field
+  borderControl: '#6D7A77',  // --border-control
+  bgCard: '#FFFFFF',         // --bg-card
+  warningSolid: '#F59E0B',   // --warning-solid (accent)
+  warningOnSolid: '#431407', // --warning-on-solid (on-accent), 7.29:1 on warningSolid
+  shadow: '#000000',
+
   // Primary
   primary: '#14B8A6',
   primaryDark: '#0D9488',
