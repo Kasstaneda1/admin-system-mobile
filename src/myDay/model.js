@@ -174,11 +174,19 @@ export function stateOf(visit) {
 }
 const isCurrentState = (state) => state === 'onway' || state === 'onsite';
 
+// 'Repair', 'Diagnostics' … ('Visit' for a kind the app does not know)
+export const kindWord = (visit) => KINDS[visit && visit.visit_kind] || 'Visit';
 // 'Repair 2/2'; an old task (legacy) has no kind and no number (its tag says «Old task»)
 export function kindText(visit) {
   if (visit.legacy) return '';
-  const kind = KINDS[visit.visit_kind] || 'Visit';
+  const kind = kindWord(visit);
   return visit.visit_number && visit.visit_count ? `${kind} ${visit.visit_number}/${visit.visit_count}` : kind;
+}
+// When a closed visit was closed, as New York wall clock { date, minutes }, or null:
+// closed_at (backend #138), null when the server does not know it (then no time); only a
+// server without the field (or a week kept from one) gives the last change instead.
+export function closedMoment(visit) {
+  return 'closed_at' in visit ? momentWall(visit.closed_at) : momentWall(visit.updated_at);
 }
 // Where, in a few words: the city; an old task has its address in one line
 export function areaOf(visit) {
@@ -241,9 +249,7 @@ export function buildDay(visits, date, now) {
     const onDay = (w, fallback) => (!w ? fallback : w.date < date ? 0 : w.date > date ? 1440 : w.minutes);
     let timeText = `plan ${clock(plan.start.minutes)}`;
     if (state === 'closed') {
-      // closed_at (backend #138): the moment it was closed, null when the server does not know
-      // it (then no time); only a server without the field (or a week kept from one): the last change
-      const at = 'closed_at' in v ? momentWall(v.closed_at) : momentWall(v.updated_at);
+      const at = closedMoment(v);
       timeText = at && at.date === date ? `done ${clock(at.minutes)}` : 'done';
     }
     if (state === 'moved') timeText = 'moved';
@@ -403,7 +409,9 @@ export function keepWeek(cache, userId, sunday, visits, savedAt) {
   const same = cache && cache.v === 1 && cache.userId === userId ? cache.weeks : {};
   const weeks = { ...same, [sunday]: { visits, savedAt } };
   const kept = Object.keys(weeks).sort((a, b) => weeks[b].savedAt - weeks[a].savedAt).slice(0, MAX_WEEKS_KEPT);
-  return { v: 1, userId, weeks: Object.fromEntries(kept.map((k) => [k, weeks[k]])) };
+  // the visit cards kept (visit.js keepCard) stay with the weeks
+  const cards = cache && cache.v === 1 && cache.userId === userId && cache.cards ? { cards: cache.cards } : {};
+  return { v: 1, userId, weeks: Object.fromEntries(kept.map((k) => [k, weeks[k]])), ...cards };
 }
 export function keptWeek(cache, userId, sunday) {
   if (!cache || cache.v !== 1 || cache.userId !== userId || !cache.weeks) return null;

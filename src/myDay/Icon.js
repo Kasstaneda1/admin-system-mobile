@@ -4,6 +4,7 @@ import React from 'react';
 import { Image } from 'react-native';
 
 const ICONS = {
+  back: require('../../assets/icons/back.png'),
   box: require('../../assets/icons/box.png'),
   cal: require('../../assets/icons/cal.png'),
   car: require('../../assets/icons/car.png'),
@@ -12,6 +13,8 @@ const ICONS = {
   door: require('../../assets/icons/door.png'),
   history: require('../../assets/icons/history.png'),
   install: require('../../assets/icons/install.png'),
+  key: require('../../assets/icons/key.png'),
+  message: require('../../assets/icons/message.png'),
   money: require('../../assets/icons/money.png'),
   more: require('../../assets/icons/more.png'),
   moved: require('../../assets/icons/moved.png'),
@@ -24,6 +27,7 @@ const ICONS = {
   search: require('../../assets/icons/search.png'),
   sun: require('../../assets/icons/sun.png'),
   wifioff: require('../../assets/icons/wifioff.png'),
+  wrench: require('../../assets/icons/wrench.png'),
 };
 
 export default function Icon({ name, size = 18, color, style }) {
