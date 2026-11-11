@@ -26,10 +26,14 @@ function choose(title, message, options) {
   }
 }
 
-// Nothing to go by on the visit: the words say to call the office, and a button does it
-// (userId: the technician signed in; without it, the words only)
+// Nothing to go by on the visit: the words say what is missing and the «Call the office» button
+// is the way out (userId: the technician signed in; without it no button, so the words say it)
 function askOffice(title, message, userId) {
-  Alert.alert(title, message, userId == null ? undefined : [
+  if (userId == null) {
+    Alert.alert(title, `${message} Call the office.`);
+    return;
+  }
+  Alert.alert(title, message, [
     { text: 'OK', style: 'cancel' },
     { text: 'Call the office', onPress: () => callOffice(userId) },
   ]);
@@ -39,7 +43,7 @@ function askOffice(title, message, userId) {
 export function openDirections(visit, userId) {
   const links = directionsLinks(visit);
   if (!links) {
-    askOffice('No address', 'This visit has no address. Call the office.', userId);
+    askOffice('No address', 'This visit has no address.', userId);
     return;
   }
   choose('Open directions in', addressLine(visit), [
@@ -62,7 +66,7 @@ export function phonesOf(visit) {
 export function callCustomer(visit, userId) {
   const phones = phonesOf(visit);
   if (!phones.length) {
-    askOffice('No phone number', 'This visit has no phone number. Call the office.', userId);
+    askOffice('No phone number', 'This visit has no phone number.', userId);
     return;
   }
   const call = (number) => open(telLink(number), 'Calls are not available on this device');
