@@ -178,8 +178,10 @@ admin-system-mobile/
 ## API Configuration
 
 The server comes from the build, not from the code: `EXPO_PUBLIC_API_URL`.
-`app.config.js` checks it (without it no Expo command runs; plain `http` only for a local
-stand), Metro writes it into the JS, `src/services/api.js` reads it.
+`app.config.js` checks it with `config/apiUrl.js` (without it no Expo command runs; plain
+`http` only for a local stand; inside an EAS build `development` must name a local stand,
+`preview` and `production` the live server over `https`), Metro writes it into the JS,
+`src/services/api.js` reads it.
 
 ```bash
 # a local backend stand on this Mac (the iOS Simulator reaches it as 127.0.0.1)
@@ -192,10 +194,51 @@ The Android emulator reaches this Mac as `10.0.2.2`, not `127.0.0.1`.
 
 ## Authentication
 
-- Technicians log in with their existing credentials
-- JWT tokens are stored in AsyncStorage
-- Automatic token refresh on API requests
-- Only users with `role: 'technician'` can access the app
+- Only technicians: anyone else is told so, and the session the server opened is given back.
+- `src/session/`: the session. Login gives an access token (15 minutes) and a refresh token
+  (7 days). Both live in the secure store (`expo-secure-store`: iOS keychain, Android
+  keystore, this device only); the profile the screens read stays in AsyncStorage (`user`).
+- Every request goes through it (`session.attach` in `src/services/api.js`): an access token
+  about to end, or a 401, means **one** refresh that all waiting requests share, then each
+  refused request is sent once more.
+- The session ends by the server's word: refresh refused, or 403 `account_blocked`. The
+  machine `code` of the answer decides whenever there is one (backend #132:
+  `account_blocked`, `account_deactivated` → turned off; `refresh_invalid`,
+  `refresh_expired`, `refresh_required` → ended; `refresh_rate_limited` → try later; an
+  unknown code on a refused refresh → ended). The server's words are read only when there is
+  no code, so an older server works too. Everything kept is wiped and the sign-in screen says why («Your account was turned off.
+  Please contact the office.» / «Your session has ended. Please sign in again.»). No network,
+  a server failure or 429 never sign anyone out. A request the end cuts off never answers:
+  the screen that asked is gone, so its error alert does not cover the sign-in screen.
+- Start: a refresh token younger than 7 days and the profile open the technician's screens
+  at once, without the network; `GET /api/me` then checks the session in the background,
+  and again on return to the app (at most once per 5 minutes).
+- A refresh whose answer is lost on the way (no answer or a timeout) is sent again with the
+  same old token inside the same shared refresh, after about 2 s and 10 s, never later than
+  45 seconds after the first send; still nothing: the session stays and tries later. A 5xx
+  or a 429 is not repeated. A server with the repeat window gives the same new pair again;
+  one without it answers
+  `refresh_invalid`, and the technician signs in again, as before (both checked against a
+  stand: backend `aeb8f19` without the window, main `3bb532c` with it).
+- Logout wipes everything kept at once and asks the server to revoke the refresh token.
+- `npm test` runs the session's tests on node (`src/session/*.test.mjs`) and the server
+  address rule (`config/apiUrl.test.js`).
+
+### Known limitations
+
+- The repeat window for a lost refresh answer (backend #134: the old token gives the same
+  pair for 60 seconds) lives in the server's memory: if the server restarts within that
+  minute, a lost answer still means signing in again.
+- Refreshes are limited to 30 an hour per user, both phones together (backend #132; before
+  it, per IP). Over the limit (`refresh_rate_limited`) the session stays and requests fail
+  until the hour moves on.
+
+### Notes for development
+
+- Hermes (the app's JS engine) has no `atob` / `btoa`: the access token's times are read
+  by `model.js` itself. Node has them, so a test runs without `atob` on purpose.
+- Metro may miss file changes on an external volume (no watchman): after an edit, restart
+  it with `npx expo start -c`, or the app keeps the old code.
 
 ## Builds
 
@@ -229,7 +272,9 @@ npx expo start                          # Metro; the app loads the JS from it
 Expo SDK 54 does not have it yet. `plugins/withIos27Scene.js` adds it on every prebuild (a `SceneDelegate` in
 `AppDelegate.swift`, the scene manifest in `Info.plist`) and lifts pods to iOS 15.1. Take
 it out with the SDK upgrade that brings scenes. Because of it there is no `expo-dev-client`
-for now: its SDK 54 launcher needs the window before the scene makes it.
+for now: its SDK 54 launcher needs the window before the scene makes it. The development
+profile is a Debug build with Metro instead; the dev client comes back with the SDK upgrade
+(APP-4).
 
 ## Troubleshooting
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,27 +7,11 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI } from '../services/api';
 import { colors } from '../constants/colors';
+import { useAuth } from '../session/AuthContext';
 
 export default function HomeScreen({ navigation }) {
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    loadUser();
-  }, []);
-
-  const loadUser = async () => {
-    try {
-      const userData = await AsyncStorage.getItem('user');
-      if (userData) {
-        setUser(JSON.parse(userData));
-      }
-    } catch (error) {
-      console.error('Failed to load user:', error);
-    }
-  };
+  const { user, signOut } = useAuth();
 
   const handleLogout = () => {
     Alert.alert(
@@ -38,13 +22,8 @@ export default function HomeScreen({ navigation }) {
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: async () => {
-            await authAPI.logout();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Login' }],
-            });
-          },
+          // The session ends here and on the server; the app shows sign in by itself
+          onPress: () => signOut(),
         },
       ]
     );
@@ -94,7 +73,7 @@ export default function HomeScreen({ navigation }) {
       <ScrollView style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.welcome}>Welcome,</Text>
-          <Text style={styles.name}>{user?.full_name || 'Technician'}</Text>
+          <Text style={styles.name}>{user?.fullName || 'Technician'}</Text>
         </View>
 
         <View style={styles.menu}>
