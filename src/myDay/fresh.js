@@ -30,6 +30,12 @@
 //           week's first read for a day not shown yet). Such a row cannot be opened and says
 //           all there is, so its NEW goes when the day is shown the next time: while the day
 //           stays on the screen the screen keeps the moment it had when the showing began.
+// NOTE    — a live row with office messages this technician has not seen yet
+//           (unseen_office_messages, backend #152: per technician, 0 on grey rows). The server
+//           counts it, so NOTE goes when the messages are seen (the card marks those really on
+//           the screen, officeSeen.js) and the list is read again. It needs nothing the phone
+//           keeps: a week read for the first time shows it too. One mark a row: NEW, then
+//           UPDATED, then NOTE.
 // Today and later only; a closed visit gets none.
 import { isLogged, rowKey, stateOf, visitDay } from './model.js';
 
@@ -111,20 +117,25 @@ export function shownAt(state, userId, sunday, date) {
 
 const momentOf = (iso) => (typeof iso === 'string' ? Date.parse(iso) : NaN);
 
-// The marks of a week's list: { [rowKey]: 'new' | 'updated' } (rowKey: model.js, the list's
-// key: a visit moved within the week has a grey row and a live row). Today and later only. A
-// week this phone has not read yet (its first answer is on the way) has none.
+// The marks of a week's list: { [rowKey]: 'new' | 'updated' | 'note' } (rowKey: model.js, the
+// list's key: a visit moved within the week has a grey row and a live row). Today and later
+// only. A week this phone has not read yet (its first answer is on the way) has only NOTE.
 // visits: the server's list of the week (GET /api/my/visits); now: New York { date, minutes };
 // showing: { day, before } of the day on the screen — the moment it had when the showing
 // began (null: the week was not read yet then), so the day's grey rows keep their NEW while
 // it stays there.
 export function freshMarks(state, userId, sunday, visits, now, showing = null) {
   const marks = {};
-  if (!isMine(state, userId) || !state.weeks[sunday]) return marks;
+  const known = isMine(state, userId) && !!state.weeks[sunday];
   for (const v of visits || []) {
     if (!v || !validId(v.id)) continue;
     const day = visitDay(v);
     if (!day || day < now.date) continue;
+    const unseen = !isLogged(v) && LIVE.has(stateOf(v)) && Number(v.unseen_office_messages) > 0;
+    if (!known) {
+      if (unseen) marks[rowKey(v)] = 'note';
+      continue;
+    }
     if (isLogged(v)) {
       // a showing that began before the week's first read has no moment: the first read is it
       const before = showing && showing.day === day ? (Number.isFinite(showing.before) ? showing.before : state.weeks[sunday]) : shownAt(state, userId, sunday, day);
@@ -140,6 +151,7 @@ export function freshMarks(state, userId, sunday, visits, now, showing = null) {
     }
     const changed = momentOf(v.content_changed_at);
     if (Number.isFinite(changed) && changed > entry.at) marks[rowKey(v)] = 'updated';
+    else if (unseen) marks[rowKey(v)] = 'note';
   }
   return marks;
 }
@@ -163,8 +175,12 @@ export function freshCounts(marks, visits) {
 }
 
 // The words: the row's pill (in capitals there, as the design's) and VoiceOver, the tab's count
-export const FRESH_TEXT = { new: 'New', updated: 'Updated' };
+export const FRESH_TEXT = { new: 'New', updated: 'Updated', note: 'Note' };
 export const badgeText = (total) => (total > 9 ? '9+' : String(total));
 export function tabLabel(total) {
   return total > 0 ? `My day, ${total} new or changed` : 'My day';
+}
+// VoiceOver of a mark: NOTE says what it is
+export function markLabel(kind) {
+  return kind === 'note' ? 'New office note' : FRESH_TEXT[kind] || '';
 }
