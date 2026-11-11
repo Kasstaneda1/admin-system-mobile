@@ -10,19 +10,20 @@ import { NOTE_MAX } from './notesPhotos';
 
 // A stop's number, coloured as in the day's list: closed grey, now amber, helper violet,
 // planned dark; a stop of a back-and-forth gets an orange ring. Home (the day's start,
-// backend #157): the house instead of a number, white on the brand's dark.
+// backend #157): the other way round — a white circle, the house and a 2 pt ring in the
+// brand's colour, so it never reads as a stop.
 const DOT = {
   closed: [colors.stateDone, colors.stateDoneFg, colors.stateDoneBorder],
   current: [colors.accent, colors.onAccent, null],
   helper: [colors.violetBorder, colors.fgOnFill, null],
   sched: [colors.brandPressed, colors.fgOnFill, null],
-  home: [colors.brand, colors.fgOnFill, null],
+  home: [colors.bgCard, colors.brand, colors.brand],
 };
 export function StopDot({ stop, size = 28, onMap = false }) {
   const [bg, fg, border] = DOT[stop.state] || DOT.sched;
   const dot = (
     <View style={[s.dot, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg },
-      border && { borderWidth: 1, borderColor: border }, onMap && s.dotOnMap]}>
+      border && { borderWidth: stop.home ? 2 : 1, borderColor: border }, onMap && !stop.home && s.dotOnMap]}>
       {stop.home
         ? <Icon name="home" size={Math.round(size * 0.6)} color={fg} />
         : <Text style={[s.dotText, { color: fg, fontSize: size >= 30 ? 15 : 14 }]}>{stop.n}</Text>}
