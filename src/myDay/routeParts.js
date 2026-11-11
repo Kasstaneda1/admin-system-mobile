@@ -9,19 +9,23 @@ import { Sheet } from './visitBar';
 import { NOTE_MAX } from './notesPhotos';
 
 // A stop's number, coloured as in the day's list: closed grey, now amber, helper violet,
-// planned dark; a stop of a back-and-forth gets an orange ring
+// planned dark; a stop of a back-and-forth gets an orange ring. Home (the day's start,
+// backend #157): the house instead of a number, white on the brand's dark.
 const DOT = {
   closed: [colors.stateDone, colors.stateDoneFg, colors.stateDoneBorder],
   current: [colors.accent, colors.onAccent, null],
   helper: [colors.violetBorder, colors.fgOnFill, null],
   sched: [colors.brandPressed, colors.fgOnFill, null],
+  home: [colors.brand, colors.fgOnFill, null],
 };
 export function StopDot({ stop, size = 28, onMap = false }) {
   const [bg, fg, border] = DOT[stop.state] || DOT.sched;
   const dot = (
     <View style={[s.dot, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg },
       border && { borderWidth: 1, borderColor: border }, onMap && s.dotOnMap]}>
-      <Text style={[s.dotText, { color: fg, fontSize: size >= 30 ? 15 : 14 }]}>{stop.n}</Text>
+      {stop.home
+        ? <Icon name="home" size={Math.round(size * 0.6)} color={fg} />
+        : <Text style={[s.dotText, { color: fg, fontSize: size >= 30 ? 15 : 14 }]}>{stop.n}</Text>}
     </View>
   );
   if (!stop.flagged) return dot;
@@ -56,6 +60,28 @@ export function HintBox({ hint, onTell, onOk }) {
           </View>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+// The top of the list: the day starts at home (no number, no visit to open; the leg under it
+// is the first stop's); or, with no point of home, a quiet line and the route from the first stop
+const HOME_DOT = { home: true, state: 'home' };
+export function HomeRow() {
+  return (
+    <View style={s.stop} accessible accessibilityLabel="Home, the start of the day">
+      <View style={s.dotBox}><StopDot stop={HOME_DOT} /></View>
+      <View style={s.stopBody}>
+        <Text style={s.stopTitle}>Home</Text>
+      </View>
+    </View>
+  );
+}
+export function HomeMissing() {
+  return (
+    <View style={s.stop} accessible accessibilityLabel="Home address not set, ask the office">
+      <View style={s.dotBox}><Icon name="home" size={20} color={colors.fgMutedField} /></View>
+      <Text style={s.homeMissing}>Home address not set · ask the office</Text>
     </View>
   );
 }
@@ -143,6 +169,7 @@ const s = StyleSheet.create({
   stopTitle: { fontSize: 16, fontWeight: '700', color: colors.fgDefault },
   stopLineRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   stopLine: { flexShrink: 1, fontSize: 13, color: colors.fgMutedField },
+  homeMissing: { flex: 1, fontSize: 15, color: colors.fgSecondary },
 
   sheetTitle: { fontSize: 24, fontWeight: '800', color: colors.fgDefault },
   sheetSub: { marginTop: 4, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },

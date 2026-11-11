@@ -77,6 +77,94 @@ test('the route view: stops in the server\'s order, the words and miles as it co
   assert.equal(v.noPoint, 0);
 });
 
+// The same day from the technician's home (backend #157): stop 0, no customer; the first
+// leg is from home and in the total
+const HOME = { n: 0, kind: 'home', visit_id: null, client_name: null, status: null, lat: 40.7310, lng: -73.8100, has_map_point: true, planned_start: null, window: null, leg_miles: null };
+const FROM_HOME = (patch = {}) => {
+  const r = ROUTE();
+  r.stops = [HOME, ...r.stops.map((s) => ({ ...s, kind: 'visit' }))];
+  r.stops[1].leg_miles = 4.3;
+  r.total_miles = 39.2;
+  r.home_missing = false;
+  return { ...r, ...patch };
+};
+
+test('from home: home is no visit — no number, no customer, the first leg starts there', () => {
+  const v = routeView(FROM_HOME(), { visits: VISITS });
+  assert.deepEqual(v.home, { key: 'home', home: true, n: 0, state: 'home', lat: 40.7310, lng: -73.8100 });
+  assert.equal(v.homeMissing, false);
+  assert.deepEqual(v.stops.map((s) => s.n), [1, 2, 3, 4, 5, 6]);
+  assert.equal(v.summary, '≈ 39.2 mi · 6 stops');
+  assert.deepEqual(v.stops.map((s) => s.leg && s.leg.text), ['≈ 4.3 mi', '≈ 1.2 mi', '≈ 9.4 mi', '≈ 10.6 mi', '≈ 10.8 mi', '≈ 2.9 mi']);
+  // home → 1: driven (1 is closed); the rest as without home
+  assert.deepEqual(v.legs.map((l) => [l.key, l.bad, l.done]), [['0-1', false, true], ['1-2', false, true], ['2-3', false, false], ['3-4', true, false], ['4-5', true, false], ['5-6', true, false]]);
+  assert.deepEqual(v.legs[0].from, { latitude: 40.7310, longitude: -73.8100 });
+  assert.deepEqual(v.mapPoints.map((p) => p.key), ['home', 's1-1', 's2-2', 's3-3', 's4-4', 's5-5', 's6-6']);
+  assert.equal(v.points.length, 6, 'the stops alone');
+  assert.equal(v.noPoint, 0);
+  // Open in Maps goes from where the phone is, as before: not to home
+  assert.ok(!routeLinks(v).apple.includes('40.731,-73.81'));
+  // home and a close stop share one mark like two close stops
+  const groups = markerGroups(v.mapPoints, regionOf(v.mapPoints), { width: 390, height: 280 });
+  assert.ok(groups.some((g) => g.stops[0].home));
+});
+
+test('from home: a hint between 1 and 2 makes home → 1 orange; one stop has its miles too', () => {
+  const r = FROM_HOME({ flags: [{ between: [1, 2], visit_ids: [1, 2], saves_miles: 8, past: false, text: 'Visit 2 could go before 1: about 8 mi shorter' }] });
+  r.stops[1].status = 'scheduled';
+  r.stops[2].status = 'scheduled';
+  const v = routeView(r, { visits: [] });
+  assert.deepEqual(v.legs.slice(0, 3).map((l) => [l.key, l.bad, l.done]), [['0-1', true, false], ['1-2', true, false], ['2-3', true, false]]);
+  assert.deepEqual(v.stops.slice(0, 3).map((s) => s.leg.bad), [true, true, true]);
+  assert.deepEqual(v.stops.slice(0, 2).map((s) => s.flagged), [true, true]);
+  assert.deepEqual(v.hints.map((h) => [h.between, h.noteVisitId]), [[[1, 2], 2]]);
+  const one = FROM_HOME();
+  one.stops = one.stops.slice(0, 2);
+  one.total_miles = 4.3;
+  assert.equal(routeView(one).summary, '≈ 4.3 mi · 1 stop');
+});
+
+test('from home: the first visit without a point — the leg from home goes to the first with one', () => {
+  const r = FROM_HOME();
+  Object.assign(r.stops[1], { lat: null, lng: null, has_map_point: false, leg_miles: null });
+  r.stops[2].leg_miles = 3.8;
+  const v = routeView(r, { visits: VISITS });
+  assert.deepEqual(v.stops.slice(0, 3).map((s) => s.leg && s.leg.text), ['distance unknown', '≈ 3.8 mi', '≈ 9.4 mi']);
+  assert.deepEqual(v.legs[0].key, '0-2');
+  assert.equal(v.noPoint, 1);
+  // no visit on the map at all: home stays at the top of the list, no map, no miles
+  const none = FROM_HOME();
+  none.stops = none.stops.map((s) => (s.kind === 'home' ? s : { ...s, lat: null, lng: null, has_map_point: false, leg_miles: null }));
+  const nv = routeView(none, { visits: VISITS });
+  assert.ok(nv.home);
+  assert.deepEqual(nv.points, []);
+  assert.deepEqual(nv.mapPoints, []);
+  assert.deepEqual(nv.legs, []);
+  assert.ok(nv.stops.every((s) => s.leg === null));
+  assert.equal(nv.summary, '6 stops');
+});
+
+test('home not set (home_missing): the route starts at the first stop, as before; an older server the same', () => {
+  const r = ROUTE();
+  r.stops = r.stops.map((s) => ({ ...s, kind: 'visit' }));
+  r.home_missing = true;
+  const v = routeView(r, { visits: VISITS });
+  const old = routeView(ROUTE(), { visits: VISITS });
+  assert.equal(v.home, null);
+  assert.equal(v.homeMissing, true);
+  assert.equal(old.home, null);
+  assert.equal(old.homeMissing, false, 'a server before #157 says nothing of home');
+  for (const key of ['summary', 'stops', 'legs', 'points', 'hints']) assert.deepEqual(v[key], old[key], key);
+  assert.deepEqual(v.mapPoints, v.points);
+  // a home stop without a point is not drawn, and never as a visit
+  const broken = FROM_HOME();
+  broken.stops[0] = { ...HOME, lat: null, lng: NaN };
+  const bv = routeView(broken, { visits: VISITS });
+  assert.equal(bv.home, null);
+  assert.deepEqual(bv.stops.map((s) => s.n), [1, 2, 3, 4, 5, 6]);
+  assert.equal(bv.stops[0].leg, null);
+});
+
 test('a stop without a map point: its own line, no miles, not on the map', () => {
   const r = ROUTE();
   r.stops[4] = { ...r.stops[4], lat: null, lng: null, has_map_point: false, leg_miles: null };
