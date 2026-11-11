@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  newRequestId, finishChoices, defaultOutcome, finishSubtitle, noAccessWords, barOf, actionBody, actionError, keepActed, UNDO_MINUTES,
+  newRequestId, finishChoices, defaultOutcome, finishSubtitle, outcomesText, noAccessWords, barOf, actionBody, actionError, keepActed, UNDO_MINUTES,
 } from './actions.js';
 import { keepWeek, keptWeek } from './model.js';
 import { keepCard, keptCard } from './visit.js';
@@ -31,19 +31,54 @@ test('a request id per press, in the server\'s format', () => {
   assert.equal(newRequestId(0, () => 0), 'app-0-000000000000');
 });
 
-test('Finish: four outcomes, «Recall checked» only on a recall; the booked kind is marked', () => {
-  assert.deepEqual(finishChoices(visit()).map((c) => c.outcome), ['done', 'diagnostics_only', 'deposit', 'installation']);
-  assert.deepEqual(finishChoices(visit({ visit_kind: 'recall' })).map((c) => c.outcome), ['done', 'diagnostics_only', 'deposit', 'installation', 'recall']);
-  // an installation visit: «Installation done» only, marked (the owner, 2026-11-11)
-  const installation = visit({ visit_kind: 'installation' });
+test('Finish: the outcomes the server allows for the kind, in its order, the first marked', () => {
+  // backend #145: finish_outcomes, the default first (the owner's table lives in the server)
+  const repair = visit({ finish_outcomes: ['done', 'deposit', 'diagnostics_only'] });
+  assert.deepEqual(finishChoices(repair).map((c) => c.outcome), ['done', 'deposit', 'diagnostics_only']);
+  assert.deepEqual(finishChoices(repair)[0], { outcome: 'done', title: 'Repaired', hint: 'The problem is fixed', icon: 'checkc', kind: 'done' });
+  assert.equal(defaultOutcome(repair), 'done');
+  const diagnostics = visit({ visit_kind: 'diagnostics', finish_outcomes: ['diagnostics_only', 'done', 'deposit'] });
+  assert.deepEqual(finishChoices(diagnostics).map((c) => c.outcome), ['diagnostics_only', 'done', 'deposit']);
+  assert.equal(defaultOutcome(diagnostics), 'diagnostics_only');
+  const installation = visit({ visit_kind: 'installation', finish_outcomes: ['installation'] });
   assert.deepEqual(finishChoices(installation), [{ outcome: 'installation', title: 'Installation done', hint: 'New unit is in and working', icon: 'install', kind: 'installation' }]);
   assert.equal(defaultOutcome(installation), 'installation');
-  assert.deepEqual(['diagnostics', 'other'].map((k) => finishChoices(visit({ visit_kind: k })).length), [4, 4]);
-  assert.deepEqual(finishChoices(visit())[0], { outcome: 'done', title: 'Repaired', hint: 'The problem is fixed', icon: 'checkc', kind: 'done' });
+  const recall = visit({ visit_kind: 'recall', finish_outcomes: ['recall', 'done', 'diagnostics_only', 'deposit'] });
+  assert.deepEqual(finishChoices(recall).map((c) => c.outcome), ['recall', 'done', 'diagnostics_only', 'deposit']);
+  // the server's list decides, not the kind: the app has no rule of its own any more
+  assert.deepEqual(finishChoices(visit({ visit_kind: 'installation', finish_outcomes: ['done'] })).map((c) => c.outcome), ['done']);
+  // an outcome the app has no words for is left out; a repeat once
+  assert.deepEqual(finishChoices(visit({ finish_outcomes: ['teleport', 'deposit', 'deposit', 'done'] })).map((c) => c.outcome), ['deposit', 'done']);
+  assert.equal(defaultOutcome(visit({ finish_outcomes: ['teleport', 'deposit'] })), 'deposit');
+  // no list (a visit kept before the server had it), empty, or only unknown words: every
+  // outcome, the kind's own marked; the server checks the press
+  for (const list of [undefined, null, [], ['teleport']]) {
+    const v = visit({ visit_kind: 'diagnostics', finish_outcomes: list });
+    assert.deepEqual(finishChoices(v).map((c) => c.outcome), ['done', 'diagnostics_only', 'deposit', 'installation', 'recall']);
+    assert.equal(defaultOutcome(v), 'diagnostics_only');
+  }
   assert.deepEqual(['repair', 'diagnostics', 'installation', 'recall', 'other'].map((k) => defaultOutcome(visit({ visit_kind: k }))),
     ['done', 'diagnostics_only', 'installation', 'recall', 'done']);
   assert.equal(finishSubtitle(visit(), 3), 'Stop 3 · Patel S. · Repair 2/2');
   assert.equal(finishSubtitle(visit()), 'Patel S. · Repair 2/2');
+});
+
+test('Finish refused for its outcome: the app\'s words, the fresh visit, the outcomes allowed', () => {
+  const fresh = visit({ visit_kind: 'installation', finish_outcomes: ['installation'], actions: ['finish', 'no_access'] });
+  const error = { response: { status: 400, data: {
+    error: 'A installation visit can be finished only as: installation', code: 'outcome_not_allowed', finish_outcomes: ['installation'], visit: fresh,
+  } } };
+  assert.deepEqual(actionError(error), {
+    kind: 'outcome', text: 'This visit can be finished as: Installation done.', visit: fresh, outcomes: ['installation'], retry: false,
+  });
+  assert.equal(outcomesText(['done', 'deposit', 'diagnostics_only']), 'This visit can be finished as: Repaired, Deposit taken or Diagnostics only.');
+  assert.equal(outcomesText(['recall', 'done']), 'This visit can be finished as: Recall checked or Repaired.');
+  assert.equal(outcomesText(['teleport']), 'The office changed this visit. Pull down to refresh.');
+  // without the visit or the list in the answer
+  assert.deepEqual(actionError({ response: { status: 400, data: { code: 'outcome_not_allowed' } } }),
+    { kind: 'outcome', text: 'The office changed this visit. Pull down to refresh.', visit: null, outcomes: [], retry: false });
+  // another 400 stays a refusal in the server's words
+  assert.equal(actionError({ response: { status: 400, data: { error: 'outcome is sent only with finish' } } }).kind, 'refused');
 });
 
 test('No access: two steps in words', () => {

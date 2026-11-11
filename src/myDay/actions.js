@@ -26,18 +26,32 @@ const CHOICES = {
   installation: { title: 'Installation done', hint: 'New unit is in and working', icon: 'install', kind: 'installation' },
   recall: { title: 'Recall checked', hint: 'The earlier work was checked', icon: 'replay', kind: 'recall' },
 };
-// «How did it end?»: four outcomes; «Recall checked» only on a recall visit (the server refuses it elsewhere).
-// An installation visit ends one way only: «Installation done» (the owner, 2026-11-11). Until
-// the server names the outcomes allowed for each kind of visit, the app keeps this rule itself.
-export function finishChoices(visit) {
-  if (visit.visit_kind === 'installation') return [{ outcome: 'installation', ...CHOICES.installation }];
-  const outcomes = ['done', 'diagnostics_only', 'deposit', 'installation'];
-  if (visit.visit_kind === 'recall') outcomes.push('recall');
-  return outcomes.map((outcome) => ({ outcome, ...CHOICES[outcome] }));
+// «How did it end?»: the outcomes the server allows for this kind of visit, in its order, the
+// first one marked (backend #145: visit.finish_outcomes; the owner's table is in the server's
+// visitActions.js, not here). An outcome the app has no words for is left out. A visit without
+// the list (kept on the phone before the server had it) offers every outcome, the kind's own
+// marked, and the server checks the press: a refused outcome comes back with the list
+// (actionError kind 'outcome') and the sheet opens again with it.
+const ALL_OUTCOMES = ['done', 'diagnostics_only', 'deposit', 'installation', 'recall'];
+const KIND_OUTCOME = { repair: 'done', diagnostics: 'diagnostics_only', installation: 'installation', recall: 'recall' };
+function allowedOutcomes(list) {
+  return (Array.isArray(list) ? list : []).filter((o, i, all) => Object.prototype.hasOwnProperty.call(CHOICES, o) && all.indexOf(o) === i);
 }
-// The choice marked when the sheet opens: what the visit was booked for
+export function finishChoices(visit) {
+  const allowed = allowedOutcomes(visit.finish_outcomes);
+  return (allowed.length ? allowed : ALL_OUTCOMES).map((outcome) => ({ outcome, ...CHOICES[outcome] }));
+}
+// The choice marked when the sheet opens: the server's first, else what the visit was booked for
 export function defaultOutcome(visit) {
-  return { repair: 'done', diagnostics: 'diagnostics_only', installation: 'installation', recall: 'recall' }[visit.visit_kind] || 'done';
+  const allowed = allowedOutcomes(visit.finish_outcomes);
+  return allowed.length ? allowed[0] : KIND_OUTCOME[visit.visit_kind] || 'done';
+}
+// The words of a refused outcome: 'This visit can be finished as: Repaired, Deposit taken or Diagnostics only.'
+export function outcomesText(list) {
+  const titles = allowedOutcomes(list).map((o) => CHOICES[o].title);
+  if (!titles.length) return 'The office changed this visit. Pull down to refresh.';
+  const words = titles.length === 1 ? titles[0] : `${titles.slice(0, -1).join(', ')} or ${titles[titles.length - 1]}`;
+  return `This visit can be finished as: ${words}.`;
 }
 // 'Stop 3 · Patel S. · Repair 2/2'
 export function finishSubtitle(visit, n = null) {
@@ -129,6 +143,9 @@ export function actionBody(action, outcome, requestId) {
 // A failed press, as the screen handles it: { kind, text, visit, retry }
 //   offline — no answer: «No connection. Try again.», the same request again;
 //   gone — 404, not the technician's visit any more: back to the day;
+//   outcome — 400 outcome_not_allowed (backend #145): the outcome is not one for this kind of
+//             visit (the office changed it meanwhile); the app's words, the fresh visit and the
+//             outcomes it allows (outcomes), the sheet opens again with them;
 //   refused — 409/403 (the server's words and the fresh visit) or 400 (its words);
 //   failed — the server broke (5xx and the rest): try again later, the same request.
 export function actionError(error) {
@@ -137,6 +154,10 @@ export function actionError(error) {
   const data = (response && response.data) || {};
   if (!status) return { kind: 'offline', text: 'No connection. Try again.', visit: null, retry: true };
   if (status === 404) return { kind: 'gone', text: 'This visit was changed by the office', visit: null, retry: false };
+  if (status === 400 && data.code === 'outcome_not_allowed') {
+    const outcomes = allowedOutcomes(data.finish_outcomes);
+    return { kind: 'outcome', text: outcomesText(outcomes), visit: data.visit || null, outcomes, retry: false };
+  }
   if (status === 409 || status === 403 || status === 400) {
     return { kind: 'refused', text: typeof data.error === 'string' && data.error ? data.error : 'The visit could not be changed', visit: data.visit || null, retry: false };
   }
