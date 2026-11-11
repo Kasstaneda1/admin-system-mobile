@@ -40,7 +40,15 @@
           "backgroundColor": "#00685F"
         }
       ],
-      "./plugins/withIos27Scene"
+      "./plugins/withIos27Scene",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SEMIX adds the photos you choose to the visit, so the office sees the job.",
+          "cameraPermission": "SEMIX takes photos of the job for the visit, so the office sees them.",
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }

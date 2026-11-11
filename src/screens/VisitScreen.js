@@ -5,28 +5,34 @@
 // The bar at the bottom (APP-3a): On my way, Finish with its outcome, No access, Undo for
 // 15 minutes; the server says what may be pressed (actions.js barOf). A press waits for the
 // answer; with none, «No connection. Try again» sends the same request (same client_request_id).
+// Notes and photos (APP-3b): «Add note» writes a note (POST /api/my/visits/:id/notes, the same
+// id again on Try again), «Photo» takes or chooses one and sends it (POST …/tasks/:id/photos);
+// the visit's photos show as thumbnails (notesPhotos.js, visitExtras.js).
 // No map at the top (no map key yet, and no fake one).
 //
 // Fresh: on opening, on coming back to the screen or to the app, on pulling down, after each
 // press (§4). The office took the visit away (404): «This visit was changed by the office»,
 // back to the day.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
-import { myDayAPI } from '../services/api';
+import { myDayAPI, photosAPI, session } from '../services/api';
 import { logError } from '../utils/logError';
 import { useAuth } from '../session/AuthContext';
 import { failedText, nowWall, offlineText, skewOf } from '../myDay/model';
 import { dropCard, keepCard, keptCard, visitCard } from '../myDay/visit';
 import { actionBody, actionError, barOf, defaultOutcome, finishChoices, finishSubtitle, keepActed, newRequestId, noAccessWords } from '../myDay/actions';
-import { readMyDay, updateMyDay } from '../myDay/storage';
+import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import { ActionBar, FinishSheet, NoAccessSheet } from '../myDay/visitBar';
+import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
+import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
 
 export default function VisitScreen({ route, navigation }) {
   const { id, visit: fromList = null, n = null, savedAt: listSavedAt = null, skew: skewIn = 0 } = route.params || {};
@@ -44,17 +50,38 @@ export default function VisitScreen({ route, navigation }) {
   const gone = useRef(false);
   const insets = useSafeAreaInsets();
 
-  // reassigned or no longer there (404): the card goes from the phone too, back to the day
-  const leaveGone = useCallback(async () => {
+  // reassigned or no longer there (404): the card goes from the phone too, back to the day.
+  // mark: myDayMark() taken before the request that got the 404
+  const leaveGone = useCallback(async (mark) => {
     if (gone.current) return;
     gone.current = true;
-    await updateMyDay((cache) => dropCard(cache, userId, id));
+    await updateMyDay((cache) => dropCard(cache, userId, id), mark);
     Alert.alert('This visit was changed by the office', 'It is no longer on your day.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
   }, [id, userId, navigation]);
+
+  // The visit's photos: the server's rows (null until the first answer) and the header the
+  // phone loads them with. Not kept for offline: a photo needs the connection anyway.
+  const [photoRows, setPhotoRows] = useState(null);
+  const [photoHeader, setPhotoHeader] = useState(null);
+  const photoSeq = useRef(0);
+  const sameHeader = (h) => (prev) => (prev && h && prev.Authorization === h.Authorization ? prev : h);
+  const loadPhotos = useCallback(async () => {
+    const seq = ++photoSeq.current;
+    try {
+      const [rows, header] = await Promise.all([photosAPI.list(id), session.authHeader()]);
+      if (seq !== photoSeq.current) return;
+      setPhotoRows(Array.isArray(rows) ? rows : []);
+      setPhotoHeader(sameHeader(header));
+    } catch (error) {
+      if (seq !== photoSeq.current) return;
+      if (error.response?.status >= 500) logError('Error loading visit photos:', error);
+    }
+  }, [id]);
 
   const load = useCallback(async ({ pull = false } = {}) => {
     if (gone.current) return;
     const seq = ++loadSeq.current;
+    const mark = myDayMark();                           // an answer after sign out is not kept
     if (pull) setRefreshing(true);
     const kept = await readMyDay();
     const keptOne = keptCard(kept, userId, id);
@@ -71,12 +98,13 @@ export default function VisitScreen({ route, navigation }) {
       setShown({ visit: data.visit, savedAt, source: 'server' });
       setProblem(null);
       setTick(Date.now());
-      await updateMyDay((cache) => keepCard(cache, userId, data.visit, savedAt));
+      if (!data.visit.legacy) loadPhotos();
+      await updateMyDay((cache) => keepCard(cache, userId, data.visit, savedAt), mark);
     } catch (error) {
       if (seq !== loadSeq.current || gone.current) return;
       const status = error.response?.status;
       if (status === 404) {
-        await leaveGone();
+        await leaveGone(mark);
         return;
       }
       if (status >= 500) logError('Error loading a visit:', error);
@@ -84,7 +112,7 @@ export default function VisitScreen({ route, navigation }) {
     } finally {
       if (seq === loadSeq.current) setRefreshing(false);
     }
-  }, [id, userId, fromList, leaveGone]);
+  }, [id, userId, fromList, leaveGone, loadPhotos]);
 
   // on opening and every time the screen comes back
   useFocusEffect(useCallback(() => { setTick(Date.now()); load(); }, [load]));
@@ -112,18 +140,23 @@ export default function VisitScreen({ route, navigation }) {
   const [finishOpen, setFinishOpen] = useState(false);
   const [noAccessStep, setNoAccessStep] = useState(null); // null | 'call' | 'close'
 
+  // The visit as the server answered a press or a note: shown, and kept on the phone (the card
+  // and its row in the kept week) unless the answer came after sign out (mark)
+  const keepFresh = useCallback(async (fresh, mark) => {
+    const savedAt = Date.now() + skew.current;
+    setShown({ visit: fresh, savedAt, source: 'server' });
+    setProblem(null);
+    setTick(Date.now());
+    await updateMyDay((cache) => keepActed(cache, userId, fresh, savedAt), mark);
+  }, [userId]);
+
   const send = useCallback(async ({ action, outcome = null, requestId }) => {
     if (busy.current || gone.current) return;
     busy.current = true;
+    const mark = myDayMark();
     setPending({ action, outcome, requestId });
     setFailure(null);
-    const keep = async (fresh) => {
-      const savedAt = Date.now() + skew.current;
-      setShown({ visit: fresh, savedAt, source: 'server' });
-      setProblem(null);
-      setTick(Date.now());
-      await updateMyDay((cache) => keepActed(cache, userId, fresh, savedAt));
-    };
+    const keep = (fresh) => keepFresh(fresh, mark);
     try {
       const data = await myDayAPI.act(id, actionBody(action, outcome, requestId));
       setPending(null);
@@ -132,7 +165,7 @@ export default function VisitScreen({ route, navigation }) {
       const failed = actionError(error);
       if (failed.kind === 'gone') {
         setPending(null);
-        await leaveGone();
+        await leaveGone(mark);
       } else if (failed.kind === 'refused') {
         // the server's words, and the visit as it is now (another phone, the office, 15 minutes)
         setPending(null);
@@ -145,7 +178,7 @@ export default function VisitScreen({ route, navigation }) {
     } finally {
       busy.current = false;
     }
-  }, [id, userId, leaveGone]);
+  }, [id, keepFresh, leaveGone]);
 
   // a new press: a new request id; Finish and No access ask first
   const press = useCallback((action) => {
@@ -166,6 +199,137 @@ export default function VisitScreen({ route, navigation }) {
   }, [undoShown]);
   // nothing to press on what the phone kept: the server may have changed it since
   const blocked = problem === 'offline' ? 'Needs connection' : problem === 'failed' ? 'Pull down to refresh' : null;
+
+  // ---------- notes ----------
+  // The draft stays while the screen is open (a sheet closed by mistake loses nothing);
+  // noteSend: { text, requestId, sending, failed } of the latest save (Try again: the same id)
+  const extras = !!(shown && canAddExtras(shown.visit));
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [noteSend, setNoteSend] = useState(null);
+  const savingNote = useRef(false);
+
+  const saveNote = useCallback(async () => {
+    if (savingNote.current || gone.current || !noteReady(noteText)) return;
+    savingNote.current = true;
+    const mark = myDayMark();
+    const request = noteRequest(noteSend, noteText, Date.now() + skew.current);
+    setNoteSend({ ...request, sending: true, failed: null });
+    try {
+      // 201 created, or 200 created: false for the same id again: both mean it is saved
+      const data = await myDayAPI.note(id, noteBody(request));
+      setNoteSend(null);
+      setNoteText('');
+      setNoteOpen(false);
+      if (data && data.visit) await keepFresh(data.visit, mark);
+    } catch (error) {
+      const failed = noteError(error);
+      if (failed.kind === 'gone') {
+        setNoteSend(null);
+        setNoteOpen(false);
+        await leaveGone(mark);
+      } else if (failed.kind === 'refused') {
+        // 409: the visit as it is now (cancelled, an old task); 400: the text, the sheet stays
+        setNoteSend(null);
+        if (failed.visit) {
+          setNoteOpen(false);
+          await keepFresh(failed.visit, mark);
+        }
+        Alert.alert(failed.text);
+      } else {
+        if (failed.kind === 'failed') logError('Error saving a visit note:', error);
+        setNoteSend({ ...request, sending: false, failed: failed.text });
+      }
+    } finally {
+      savingNote.current = false;
+    }
+  }, [id, noteText, noteSend, keepFresh, leaveGone]);
+
+  // ---------- photos ----------
+  // upload: { file, sending, failed } of the photo being sent; Try again sends the same file
+  const photos = useMemo(() => (photoRows ? photosOf(photoRows, id, now) : null), [photoRows, id, now]);
+  const [upload, setUpload] = useState(null);
+  const uploading = useRef(false);
+  const [photoSheet, setPhotoSheet] = useState(false);
+  const pickNext = useRef(null);                          // 'camera' | 'library', once the sheet has gone
+  const [viewer, setViewer] = useState(null);             // the photo open full screen
+
+  const sendPhoto = useCallback(async (file) => {
+    if (uploading.current || gone.current) return;
+    uploading.current = true;
+    const mark = myDayMark();
+    setUpload({ file, sending: true, failed: null });
+    try {
+      await photosAPI.upload(id, file);
+      setUpload(null);
+      await loadPhotos();
+    } catch (error) {
+      const failed = photoError(error);
+      if (failed.kind === 'gone') {
+        setUpload(null);
+        await leaveGone(mark);
+      } else if (failed.kind === 'refused') {
+        setUpload(null);
+        Alert.alert(failed.text);
+      } else {
+        if (failed.kind === 'failed') logError('Error sending a visit photo:', error);
+        setUpload({ file, sending: false, failed: failed.text });
+      }
+    } finally {
+      uploading.current = false;
+    }
+  }, [id, leaveGone, loadPhotos]);
+
+  // JPEG from the camera; from the library the compatible JPEG, not HEIC (the server takes
+  // JPEG, PNG, GIF, WebP and makes them 1200 px); no location in the file
+  const pickPhoto = useCallback(async (source) => {
+    const options = {
+      mediaTypes: ['images'],
+      quality: 0.7,
+      exif: false,
+      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+    };
+    try {
+      if (source === 'camera') {
+        const allowed = await ImagePicker.requestCameraPermissionsAsync();
+        if (!allowed.granted) {
+          Alert.alert('The camera is off for SEMIX', 'Allow the camera in Settings to take photos.', [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]);
+          return;
+        }
+      }
+      const result = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+      if (result.canceled || !Array.isArray(result.assets) || !result.assets.length) return;
+      const file = photoFile(result.assets[0]);
+      if (!file) {
+        Alert.alert('This photo cannot be sent', 'Choose a JPEG or PNG photo, or take a new one.');
+        return;
+      }
+      sendPhoto(file);
+    } catch (error) {
+      Alert.alert(source === 'camera' ? 'The camera did not open' : 'Your photos did not open', 'Try again.');
+    }
+  }, [sendPhoto]);
+
+  // The camera or the library opens only once the sheet has gone (iOS cannot show it over a
+  // closing sheet): on the sheet's onDismiss, or a moment later if that does not come
+  const runPick = useCallback(() => {
+    const source = pickNext.current;
+    pickNext.current = null;
+    if (source) pickPhoto(source);
+  }, [pickPhoto]);
+  const choosePhoto = (source) => {
+    pickNext.current = source;
+    setPhotoSheet(false);
+    setTimeout(runPick, Platform.OS === 'ios' ? 900 : 300);
+  };
+  const openViewer = (index) => {
+    setViewer(index);
+    // the token may have run out since the thumbnails came: the same one, or a fresh one
+    session.authHeader().then((h) => { if (h) setPhotoHeader(sameHeader(h)); }).catch(() => {});
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -296,7 +460,17 @@ export default function VisitScreen({ route, navigation }) {
                 <Text style={styles.noteText}>{note.text}</Text>
               </View>
             ))}
+            {extras ? <ExtrasRow blocked={blocked} onNote={() => setNoteOpen(true)} onPhoto={() => setPhotoSheet(true)} /> : null}
           </Section>
+
+          {!shown.visit.legacy ? (
+            <Section label={photos ? photosTitle(photos.length) : 'Photos'}>
+              <PhotoGrid photos={photos} header={photoHeader} upload={upload} waiting={waiting}
+                onOpen={openViewer}
+                onRetry={() => upload && sendPhoto(upload.file)}
+                onCancel={() => setUpload(null)} />
+            </Section>
+          ) : null}
         </ScrollView>
       )}
 
@@ -304,7 +478,8 @@ export default function VisitScreen({ route, navigation }) {
         <ActionBar bar={bar} pending={pending} failure={failure} blocked={blocked} bottom={insets.bottom}
           onPress={press}
           onRetry={() => pending && send(pending)}
-          onCancel={() => { setPending(null); setFailure(null); }} />
+          onCancel={() => { setPending(null); setFailure(null); }}
+          onNote={extras ? () => setNoteOpen(true) : null} />
       ) : null}
       {shown ? (
         <>
@@ -317,6 +492,11 @@ export default function VisitScreen({ route, navigation }) {
             onCall={() => { callCustomer(shown.visit); setNoAccessStep('close'); }}
             onNext={() => setNoAccessStep('close')}
             onConfirm={() => { setNoAccessStep(null); send({ action: 'no_access', requestId: newRequestId(Date.now() + skew.current) }); }} />
+          <NoteSheet visible={noteOpen && extras} text={noteText} sending={!!(noteSend && noteSend.sending)} failure={noteSend ? noteSend.failed : null}
+            bottom={insets.bottom} onChangeText={setNoteText} onSave={saveNote} onClose={() => setNoteOpen(false)} />
+          <PhotoSheet visible={photoSheet} bottom={insets.bottom} onCamera={() => choosePhoto('camera')} onLibrary={() => choosePhoto('library')}
+            onClose={() => setPhotoSheet(false)} onDismiss={runPick} />
+          <PhotoViewer photos={photos} index={viewer} header={photoHeader} onClose={() => setViewer(null)} />
         </>
       ) : null}
     </SafeAreaView>

@@ -11,6 +11,9 @@
 //           (no network: status 0): refresh(refreshToken), logout(refreshToken)
 //   now   — the clock (ms); sleep(ms) — a pause (both stand-ins in the tests)
 // attach(axiosInstance) puts the session into the API client (api.js).
+// authHeader() → { Authorization } for a request the API client does not make (a photo the
+// screen shows from the server), the token refreshed first if it has run out; null when
+// signed out or the refresh did not come through.
 //
 // A refresh whose answer is lost on the way (no answer or a timeout: status 0) is sent again
 // with the same old token inside the same shared refresh, after about 2 s and 10 s, never
@@ -175,12 +178,26 @@ export function createSession({ store, http, now = () => Date.now(), sleep = pau
     });
   }
 
+  // A photo on the screen is loaded by the phone itself, not by the API client: it gets the
+  // same token, refreshed first if it has run out (the one shared refresh)
+  async function authHeader() {
+    if (ended) return null;
+    let access = tokens.access;
+    if (!accessUsable(access, now())) {
+      const result = await refreshOnce();
+      if (result.outcome !== 'ok') return null;
+      access = result.access;
+    }
+    return access && !ended ? { Authorization: `Bearer ${access}` } : null;
+  }
+
   return {
     load,
     signIn,
     signOut,
     updateUser,
     attach,
+    authHeader,
     onEnd(listener) { endListeners.add(listener); return () => endListeners.delete(listener); },
     get user() { return user; },
     get signedIn() { return !ended; },

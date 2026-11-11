@@ -1,10 +1,9 @@
 // Where the phone keeps the session (session.js `store`), without React Native: store.js
-// passes in expo-secure-store and AsyncStorage, deviceStore.test.mjs passes stand-ins.
+// passes in expo-secure-store, AsyncStorage and My day's clearMyDay, deviceStore.test.mjs
+// passes stand-ins.
 // Both tokens and their save time in the secure store (iOS keychain, Android keystore), only
 // on this device; the profile in AsyncStorage under 'user', the shape /api/login gives,
 // which the screens read.
-import { MY_DAY_KEY } from '../myDay/keys.js';
-
 const KEYS = { access: 'semix.session.access', refresh: 'semix.session.refresh', savedAt: 'semix.session.savedAt' };
 const PROFILE = 'user';
 const OLD_TOKEN = 'token'; // the app before APP-1 kept its token here, in the clear
@@ -13,7 +12,7 @@ function parse(json) {
   try { return json ? JSON.parse(json) : null; } catch { return null; }
 }
 
-export function makeDeviceStore({ SecureStore, AsyncStorage }) {
+export function makeDeviceStore({ SecureStore, AsyncStorage, clearMyDay }) {
   const OPTIONS = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
   return {
     async read() {
@@ -44,8 +43,10 @@ export function makeDeviceStore({ SecureStore, AsyncStorage }) {
         SecureStore.deleteItemAsync(KEYS.refresh, OPTIONS),
         SecureStore.deleteItemAsync(KEYS.access, OPTIONS),
         SecureStore.deleteItemAsync(KEYS.savedAt, OPTIONS),
-        // My day kept for offline (customers' names, phones, addresses) goes with the session
-        AsyncStorage.multiRemove([PROFILE, OLD_TOKEN, MY_DAY_KEY]),
+        AsyncStorage.multiRemove([PROFILE, OLD_TOKEN]),
+        // My day kept for offline (customers' names, phones, addresses) goes with the session,
+        // in My day's own queue: an answer still on its way is not written back after it
+        clearMyDay(),
       ]);
     },
   };

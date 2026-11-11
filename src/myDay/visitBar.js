@@ -2,15 +2,16 @@
 // (final-finish, final-noaccess). What shows comes from actions.js barOf; nothing here
 // decides what may be pressed. Sizes in pt, colours only tokens.
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from './Icon';
 import { TAG_FAMILIES } from './parts';
 
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
 // when it got no answer (Try again sends the same request); blocked: why nothing can be
-// pressed now ('Needs connection'), or null
-export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel }) {
+// pressed now ('Needs connection'), or null; onNote: «Add a note for the office» under a
+// closed visit (design final-visit-closed), when notes may be added
+export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null }) {
   if (bar.empty && !failure) return null;
   const waiting = !!pending && !failure;
   const off = waiting || !!failure || !!blocked;
@@ -77,6 +78,14 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
           </Text>
         </View>
       ) : null}
+      {bar.closed && onNote ? (
+        <TouchableOpacity style={[styles.noteBtn, !!blocked && styles.off]} disabled={!!blocked} onPress={onNote} accessibilityRole="button"
+          accessibilityState={{ disabled: !!blocked }}>
+          <Icon name="note" size={20} color={colors.brandPressed} />
+          <Text style={styles.ghostText}>Add a note for the office</Text>
+        </TouchableOpacity>
+      ) : null}
+      {bar.closed && onNote && blocked ? <Text style={styles.blocked}>{blocked}</Text> : null}
 
       {blocked && (bar.primary || bar.noAccess || bar.undo) ? <Text style={styles.blocked}>{blocked}</Text> : null}
       {bar.line ? <Text style={styles.line}>{bar.line}</Text> : null}
@@ -85,17 +94,20 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
 }
 
 // A sheet from the bottom over a dimmed screen (the dim under the sheet too, so its round
-// corners show)
-function Sheet({ visible, onClose, children, bottom }) {
+// corners show). keyboard: the sheet rises above the keyboard (a field in it); onDismiss: after
+// it has gone (iOS), e.g. to open the camera, which cannot open over a closing sheet
+export function Sheet({ visible, onClose, children, bottom, keyboard = false, onDismiss }) {
+  const Wrap = keyboard ? KeyboardAvoidingView : View;
+  const wrapProps = keyboard && Platform.OS === 'ios' ? { behavior: 'padding' } : {};
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.sheetWrap}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss} statusBarTranslucent>
+      <Wrap style={styles.sheetWrap} {...wrapProps}>
         <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel="Close" />
         <View style={[styles.sheet, { paddingBottom: Math.max(bottom, 16) }]} accessibilityViewIsModal>
           <View style={styles.grab} />
           {children}
         </View>
-      </View>
+      </Wrap>
     </Modal>
   );
 }
@@ -210,6 +222,7 @@ const styles = StyleSheet.create({
   radioOn: { borderColor: colors.brandPressed, backgroundColor: colors.brandPressed },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.fgOnFill },
   ghost: { height: 56, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, alignItems: 'center', justifyContent: 'center' },
+  noteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
   ghostText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
   plain: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   plainText: { fontSize: 17, fontWeight: '600', color: colors.fgDefault, textDecorationLine: 'underline' },

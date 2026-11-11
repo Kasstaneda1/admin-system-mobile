@@ -156,7 +156,7 @@ export const warehouseAPI = {
   },
 };
 
-// My day (backend routes/scheduler/my.js): the technician's own visits, read only.
+// My day (backend routes/scheduler/my.js): the technician's own visits, their actions and notes.
 // visits(from, to): New York days 'YYYY-MM-DD', both included, at most 7.
 // Answers { success, server_time, today, from, to, visits }.
 // visit(id): one visit with its job's other visits, the notes and the office's notes:
@@ -177,6 +177,36 @@ export const myDayAPI = {
     const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/actions`, body, { timeout: 15000 });
     return response.data;
   },
+  // A note: body { text, client_request_id } (notesPhotos.js noteBody).
+  // 201 { success, created: true, note, visit }; 200 created: false for the same id again
+  // (also a success); 400 { error }; 404 { error }; 409 { error, visit }.
+  note: async (id, body) => {
+    const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/notes`, body, { timeout: 15000 });
+    return response.data;
+  },
 };
+
+// The visit's photos (backend routes/scheduler/photos.js; a technician only on their own
+// visit). list: the server's rows, the newest first. upload(file { uri, name, type }): the
+// field 'photo', JPEG/PNG/GIF/WebP up to 10 MB; 201 { photo }. A photo itself is
+// GET …/photos/:photoId/file with the token: photoUri(path) gives the full address for the
+// screen's Image, session.authHeader() its header.
+export const photosAPI = {
+  list: async (id) => {
+    const response = await api.get(`/api/scheduler/tasks/${encodeURIComponent(id)}/photos`, { timeout: 15000 });
+    return response.data;
+  },
+  upload: async (id, file) => {
+    const form = new FormData();
+    form.append('photo', { uri: file.uri, name: file.name, type: file.type });
+    // multipart, not the client's JSON: React Native writes the boundary itself
+    const response = await api.post(`/api/scheduler/tasks/${encodeURIComponent(id)}/photos`, form, {
+      timeout: 60000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+};
+export const photoUri = (path) => `${API_URL}${path}`;
 
 export default api;
