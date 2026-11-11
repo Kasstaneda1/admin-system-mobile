@@ -5,6 +5,12 @@
 //
 // Fresh: on opening, on coming back to the screen or to the app, on pulling down, and every
 // 60 seconds while the screen is open (§4 «Свежесть»).
+// NEW and UPDATED (fresh.js, N3-APP): each read of the week is noted in what the phone keeps
+// of the visits seen (seenStore.js); a row the technician has not had on that day is NEW, one
+// the office changed since he opened it is UPDATED; opening the visit clears it (VisitScreen).
+// A grey row of the day log the office made since the day was last shown is NEW for this
+// showing of the day: a showing begins when a day is picked, when the screen or the app comes
+// back. Their count is on the My day tab, a dot on the other days of the week that have one.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +25,8 @@ import {
   offlineText, skewOf, stripOf, weekCounts, weekOf,
 } from '../myDay/model';
 import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
+import { freshCounts, freshMarks, noteShown, noteWeek, shownAt } from '../myDay/fresh';
+import { seenMark, updateSeen } from '../myDay/seenStore';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { DayRow, EmptyDay, GapRow, NoticeBar, Strip, TabBar, WeekRow } from '../myDay/parts';
 import { hasIssue } from '../myDay/route';
@@ -44,6 +52,17 @@ export default function MyDayScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const loadSeq = useRef(0);
+  // what the phone keeps of the visits seen (fresh.js): undefined until read, read in the
+  // queue after any change
+  const [seen, setSeen] = useState(undefined);
+  const readSeenNow = useCallback(() => { updateSeen((s) => s, seenMark()).then(setSeen); }, []);
+  const seenRef = useRef(seen);
+  seenRef.current = seen;
+  // the showings of the day (fresh.js noteShown): their number, and whether this screen is the
+  // one on top — a read while a visit is open over it is not a showing
+  const [showingN, setShowingN] = useState(0);
+  const nextShowing = useCallback(() => setShowingN((n) => n + 1), []);
+  const [focused, setFocused] = useState(false);
 
   const load = useCallback(async (target, { pull = false } = {}) => {
     const seq = ++loadSeq.current;
@@ -64,6 +83,7 @@ export default function MyDayScreen({ navigation }) {
       setWeek({ sunday: target, visits, savedAt, source: 'server' });
       setProblem(null);
       setTick(Date.now());
+      updateSeen((s) => noteWeek(s, userId, target, visits, savedAt), seenMark()).then(setSeen);
       await updateMyDay((cache) => keepWeek(cache, userId, target, visits, savedAt), mark);
     } catch (error) {
       if (seq !== loadSeq.current) return;
@@ -94,20 +114,42 @@ export default function MyDayScreen({ navigation }) {
   }, [load]));
   const firstFocus = useRef(true);
   useFocusEffect(useCallback(() => {
-    if (firstFocus.current) { firstFocus.current = false; return; }
+    // back from a visit: its mark may be gone; the day is shown again
+    setFocused(true);
+    readSeenNow();
+    nextShowing();
+    if (firstFocus.current) { firstFocus.current = false; return () => setFocused(false); }
     load(sundayRef.current);
-  }, [load]));
+    return () => setFocused(false);
+  }, [load, readSeenNow, nextShowing]));
 
   // back to the app
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') { setTick(Date.now()); load(sundayRef.current); }
+      if (state === 'active') { setTick(Date.now()); nextShowing(); load(sundayRef.current); }
     });
     return () => sub.remove();
-  }, [load]);
+  }, [load, nextShowing]);
 
   const visits = week && week.sunday === sunday ? week.visits : null;
   const day = useMemo(() => (visits ? buildDay(visits, selected, now) : null), [visits, selected, now]);
+  // A showing of the day keeps the moment the day had when it began: its grey rows made since
+  // stay NEW while it is on the screen. The day on the screen is noted with the moment of its
+  // data, so at the next showing they are seen.
+  const [showing, setShowing] = useState(null);         // { n, day, before }
+  const seenLoaded = seen !== undefined;
+  useEffect(() => {
+    if (!seenLoaded) return;
+    setShowing({ n: showingN, day: selected, before: shownAt(seenRef.current, userId, sunday, selected) });
+  }, [showingN, selected, sunday, seenLoaded, userId]);
+  const current = showing && showing.n === showingN && showing.day === selected ? showing : null;
+  const dataAt = week && week.sunday === sunday ? week.savedAt : null;
+  useEffect(() => {
+    if (!current || !focused || !Number.isFinite(dataAt)) return;
+    updateSeen((s) => noteShown(s, userId, selected, dataAt), seenMark()).then(setSeen);
+  }, [current, focused, dataAt, selected, userId]);
+  const marks = useMemo(() => (visits ? freshMarks(seen, userId, sunday, visits, now, current) : {}), [seen, userId, sunday, visits, now, current]);
+  const fresh = useMemo(() => freshCounts(marks, visits), [marks, visits]);
 
   // The Route button (APP-2b): on a day with visits; its amber dot when the server's route of
   // the day has a back-and-forth not answered on this phone yet (route.js hasIssue). The
@@ -141,7 +183,7 @@ export default function MyDayScreen({ navigation }) {
   const list = day ? listItems(day).map((item) => (item.type === 'gap'
     ? <GapRow key={`gap-${item.gap.from}`} gap={item.gap} />
     // a row of the day log is not opened: the office took the visit off this day
-    : <DayRow key={item.row.key} row={item.row}
+    : <DayRow key={item.row.key} row={item.row} fresh={marks[item.row.key] || null}
         onPress={item.row.logged ? undefined : () => navigation.navigate('Visit', { id: item.row.id, visit: item.row.visit, n: item.row.n, savedAt: week ? week.savedAt : null, skew: skew.current })}
         onDirections={() => openDirections(item.row.visit)}
         onCall={() => callCustomer(item.row.visit)} />)) : [];
@@ -168,7 +210,7 @@ export default function MyDayScreen({ navigation }) {
           ) : null}
         </View>
         {notice ? <NoticeBar text={notice} kind={problem === 'offline' ? 'offline' : 'failed'} /> : null}
-        <WeekRow week={dates} counts={counts} selected={selected} today={now.date}
+        <WeekRow week={dates} counts={counts} marked={fresh.byDay} selected={selected} today={now.date}
           onSelect={setSelected} onWeek={(dir) => setSelected((d) => addDays(d, dir * 7))} />
       </View>
 
@@ -197,7 +239,7 @@ export default function MyDayScreen({ navigation }) {
         ) : null}
       </ScrollView>
 
-      <TabBar navigation={navigation} bottom={insets.bottom} />
+      <TabBar navigation={navigation} bottom={insets.bottom} fresh={fresh.total} />
     </SafeAreaView>
   );
 }
