@@ -74,28 +74,33 @@ export default function MyDayScreen({ navigation }) {
     }
   }, [userId]);
 
-  // the week of the selected day, again when it changes
+  // the week of the selected day: loaded when the week changes, not when another day of the
+  // same week is picked (the week is one request)
   useEffect(() => { load(sunday); }, [sunday, load]);
+  // the refreshes below read the week shown through a ref, so picking a day neither asks
+  // again nor restarts the minute
+  const sundayRef = useRef(sunday);
+  sundayRef.current = sunday;
 
   // back on the screen: fresh, then every minute while it stays open
   useFocusEffect(useCallback(() => {
     setTick(Date.now());
-    const timer = setInterval(() => { setTick(Date.now()); load(weekOf(selected)[0]); }, REFRESH_MS);
+    const timer = setInterval(() => { setTick(Date.now()); load(sundayRef.current); }, REFRESH_MS);
     return () => clearInterval(timer);
-  }, [load, selected]));
+  }, [load]));
   const firstFocus = useRef(true);
   useFocusEffect(useCallback(() => {
     if (firstFocus.current) { firstFocus.current = false; return; }
-    load(weekOf(selected)[0]);
-  }, [load, selected]));
+    load(sundayRef.current);
+  }, [load]));
 
   // back to the app
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') { setTick(Date.now()); load(weekOf(selected)[0]); }
+      if (state === 'active') { setTick(Date.now()); load(sundayRef.current); }
     });
     return () => sub.remove();
-  }, [load, selected]);
+  }, [load]);
 
   const visits = week && week.sunday === sunday ? week.visits : null;
   const day = useMemo(() => (visits ? buildDay(visits, selected, now) : null), [visits, selected, now]);
