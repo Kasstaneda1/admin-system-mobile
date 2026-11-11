@@ -21,6 +21,9 @@ import {
 import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { DayRow, EmptyDay, GapRow, NoticeBar, Strip, TabBar, WeekRow } from '../myDay/parts';
+import { hasIssue } from '../myDay/route';
+import { keepRoute, keptRoute, marksOf } from '../myDay/routeMarks';
+import Icon from '../myDay/Icon';
 
 const REFRESH_MS = 60 * 1000;
 
@@ -105,6 +108,25 @@ export default function MyDayScreen({ navigation }) {
 
   const visits = week && week.sunday === sunday ? week.visits : null;
   const day = useMemo(() => (visits ? buildDay(visits, selected, now) : null), [visits, selected, now]);
+
+  // The Route button (APP-2b): on a day with visits; its amber dot when the server's route of
+  // the day has a back-and-forth not answered on this phone yet (route.js hasIssue). The
+  // route is asked with the day: when another day is picked and when the week comes fresh.
+  const hasStops = !!(day && day.live.length);
+  const weekSavedAt = week && week.sunday === sunday ? week.savedAt : null;
+  const [dayRoute, setDayRoute] = useState(null);       // { date, route }
+  const routeSeq = useRef(0);
+  useEffect(() => {
+    if (!hasStops) return;
+    const mine = ++routeSeq.current;
+    myDayAPI.route(selected).then((answer) => {
+      if (mine !== routeSeq.current) return;
+      keepRoute(userId, selected, answer, Date.now() + skew.current);
+      setDayRoute({ date: selected, route: answer });
+    }).catch(() => {});                                  // no dot without it; the screen asks again
+  }, [selected, weekSavedAt, hasStops, userId]);
+  const shownRoute = dayRoute && dayRoute.date === selected ? dayRoute.route : (keptRoute(userId, selected) || {}).route;
+  const routeDot = hasStops && hasIssue(shownRoute, marksOf(userId, selected));
   const strip = useMemo(() => (day && day.live.length ? stripOf(day, now) : null), [day, now]);
   const dates = weekOf(selected);
   const counts = useMemo(() => (visits ? weekCounts(visits, dates, now) : null), [visits, sunday, now]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -128,11 +150,23 @@ export default function MyDayScreen({ navigation }) {
     <SafeAreaView edges={['top']} style={styles.screen}>
       <StatusBar style="dark" />
       <View style={styles.top}>
-        <Text style={styles.hello} numberOfLines={1}>{headerLine(selected, now, user?.fullName)}</Text>
-        <Text style={styles.sum} numberOfLines={1}>
-          <Text style={styles.sumBig}>{day ? day.summary.big : ' '}</Text>
-          {small ? ` · ${small}` : ''}
-        </Text>
+        <View style={styles.topRow}>
+          <View style={styles.greet}>
+            <Text style={styles.hello} numberOfLines={1}>{headerLine(selected, now, user?.fullName)}</Text>
+            <Text style={styles.sum} numberOfLines={1}>
+              <Text style={styles.sumBig}>{day ? day.summary.big : ' '}</Text>
+              {small ? ` · ${small}` : ''}
+            </Text>
+          </View>
+          {hasStops ? (
+            <TouchableOpacity style={styles.routeBtn} accessibilityRole="button" accessibilityLabel={routeDot ? 'Route, a back-and-forth found' : 'Route'}
+              onPress={() => navigation.navigate('Route', { date: selected, visits: visits || [], skew: skew.current })}>
+              <Icon name="route" size={18} color={colors.fgOnFill} />
+              <Text style={styles.routeText}>Route</Text>
+              {routeDot ? <View style={styles.routeDot} /> : null}
+            </TouchableOpacity>
+          ) : null}
+        </View>
         {notice ? <NoticeBar text={notice} kind={problem === 'offline' ? 'offline' : 'failed'} /> : null}
         <WeekRow week={dates} counts={counts} selected={selected} today={now.date}
           onSelect={setSelected} onWeek={(dir) => setSelected((d) => addDays(d, dir * 7))} />
@@ -171,6 +205,11 @@ export default function MyDayScreen({ navigation }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgCard },
   top: { paddingTop: 2, paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  greet: { flex: 1, minWidth: 0 },
+  routeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.brandPressed },
+  routeText: { fontSize: 15, fontWeight: '800', color: colors.fgOnFill },
+  routeDot: { position: 'absolute', top: -2, right: -2, width: 14, height: 14, borderRadius: 7, backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.bgCard },
   hello: { fontSize: 14, fontWeight: '600', color: colors.fgMutedField },
   sum: { fontSize: 16, lineHeight: 26, color: colors.fgSecondary },
   sumBig: { fontSize: 21, fontWeight: '800', color: colors.fgDefault },
