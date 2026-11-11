@@ -1,8 +1,8 @@
 // The sign-in screen, design B (design-mockups/app-icon/README.md, «Итог: B»; picture
 // design-mockups/app-icon/shots/login-b.png): the background picture with the brand gradient
 // and the pale B mark, the app icon, «Your day, stop by stop.», and a white card with the form.
-// Colours are tokens (src/constants/colors.js), the line icons are tinted PNGs. Only the look
-// changed: signing in is as before.
+// Colours are tokens (src/constants/colors.js), the line icons are tinted PNGs. Why sign in
+// failed, or why the session ended, is one line at the top of the card, not a system alert.
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   Pressable,
   StyleSheet,
-  Alert,
+  AccessibilityInfo,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -44,6 +44,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(null); // 'username' | 'password'
   const [showPassword, setShowPassword] = useState(false);
+  const [failure, setFailure] = useState(null);
   const passwordRef = useRef(null);
   const scrollRef = useRef(null);
 
@@ -53,12 +54,21 @@ export default function LoginScreen() {
     return () => shown.remove();
   }, []);
 
+  // Why the last try failed: a line in the card where the session notice stands, not a system
+  // alert. The keyboard goes down so the line is in sight; VoiceOver reads it out.
+  const fail = (text) => {
+    setFailure(text);
+    Keyboard.dismiss();
+    AccessibilityInfo.announceForAccessibility(text);
+  };
+
   const handleLogin = async () => {
     if (!username || !password) {
-      Alert.alert('Error', 'Please enter username and password');
+      fail('Please enter username and password');
       return;
     }
 
+    setFailure(null);
     setLoading(true);
     try {
       const data = await authAPI.login(username, password);
@@ -66,21 +76,26 @@ export default function LoginScreen() {
       if (data.user.role !== 'technician') {
         // The server opened a session the app does not keep: give it back
         authAPI.revoke(data.refreshToken);
-        Alert.alert('Access Denied', 'This app is only for technicians');
+        fail('This app is only for technicians');
         return;
       }
 
       // The session keeps the tokens; the app then shows the technician's screens by itself
       await signIn(data);
     } catch (error) {
-      // The message and the status only: the error object carries the request with the password
-      logError('Login error:', error);
+      // Only what is not the user's doing goes to the log (no answer, a server failure), and only
+      // its message and status: the error object carries the request with the password. A refused
+      // password is not an app error and must not raise the development build's error banner.
+      const status = error.response?.status;
+      if (!status || status >= 500) logError('Login error:', error);
       // A turned-off technician gets the app's phrase, any other refusal the server's words
-      Alert.alert('Login Failed', loginFailureText(error.response?.status, error.response?.data));
+      fail(loginFailureText(status, error.response?.data));
     } finally {
       setLoading(false);
     }
   };
+
+  const message = failure || notice;
 
   return (
     <ImageBackground source={BACKGROUND} resizeMode="cover" style={styles.background}>
@@ -108,9 +123,9 @@ export default function LoginScreen() {
             </View>
 
             <SafeAreaView edges={['bottom']} style={styles.card}>
-              {notice ? (
+              {message ? (
                 <Text style={styles.notice} accessibilityRole="alert" accessibilityLiveRegion="polite">
-                  {notice}
+                  {message}
                 </Text>
               ) : null}
 
