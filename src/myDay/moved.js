@@ -14,7 +14,7 @@ import { addressLines, appliancesOf, kindLine, money, monthDay, techName } from 
 const TAGS = {
   moved: ['moved', 'Moved by the office'],
   reassigned: ['people', 'Reassigned by the office'],
-  cancelled: ['moved', 'Cancelled by the office'],
+  cancelled: ['xcal', 'Cancelled by the office'],
   client_rescheduled: ['moved', 'Customer rescheduled'],
 };
 export function movedTag(change) {

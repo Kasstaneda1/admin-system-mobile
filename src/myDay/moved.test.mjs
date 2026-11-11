@@ -78,7 +78,7 @@ test('given to another technician: nothing of the new one', () => {
 
 test('cancelled, the customer moved it, and a kind the app does not know', () => {
   const cancelled = movedCard(row({ kind: 'cancelled', changed_at: changedAt, to_date: null, to_window: null }, { status: 'cancelled' }), now);
-  assert.deepEqual(cancelled.tag, { kind: 'logged', icon: 'moved', text: 'Cancelled by the office' });
+  assert.deepEqual(cancelled.tag, { kind: 'logged', icon: 'xcal', text: 'Cancelled by the office' });
   assert.deepEqual(cancelled.box, { title: 'This visit is cancelled', text: 'The office cancelled it at 10:40 AM.' });
   const client = movedCard(row({ kind: 'client_rescheduled', changed_at: changedAt, to_date: null, to_window: null }, { status: 'completed' }), now);
   assert.deepEqual(client.tag, { kind: 'logged', icon: 'moved', text: 'Customer rescheduled' });
