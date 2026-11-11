@@ -34,6 +34,11 @@ test('a request id per press, in the server\'s format', () => {
 test('Finish: four outcomes, «Recall checked» only on a recall; the booked kind is marked', () => {
   assert.deepEqual(finishChoices(visit()).map((c) => c.outcome), ['done', 'diagnostics_only', 'deposit', 'installation']);
   assert.deepEqual(finishChoices(visit({ visit_kind: 'recall' })).map((c) => c.outcome), ['done', 'diagnostics_only', 'deposit', 'installation', 'recall']);
+  // an installation visit: «Installation done» only, marked (the owner, 2026-11-11)
+  const installation = visit({ visit_kind: 'installation' });
+  assert.deepEqual(finishChoices(installation), [{ outcome: 'installation', title: 'Installation done', hint: 'New unit is in and working', icon: 'install', kind: 'installation' }]);
+  assert.equal(defaultOutcome(installation), 'installation');
+  assert.deepEqual(['diagnostics', 'other'].map((k) => finishChoices(visit({ visit_kind: k })).length), [4, 4]);
   assert.deepEqual(finishChoices(visit())[0], { outcome: 'done', title: 'Repaired', hint: 'The problem is fixed', icon: 'checkc', kind: 'done' });
   assert.deepEqual(['repair', 'diagnostics', 'installation', 'recall', 'other'].map((k) => defaultOutcome(visit({ visit_kind: k }))),
     ['done', 'diagnostics_only', 'installation', 'recall', 'done']);
