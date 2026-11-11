@@ -3,6 +3,7 @@
 import { ActionSheetIOS, Alert, Linking, Platform } from 'react-native';
 import { addressLine, directionsLinks, telLink } from './model';
 import { MAPS_STOPS_MAX } from './route';
+import { callOffice } from './officeStore';
 
 async function open(url, failText) {
   try {
@@ -25,11 +26,20 @@ function choose(title, message, options) {
   }
 }
 
+// Nothing to go by on the visit: the words say to call the office, and a button does it
+// (userId: the technician signed in; without it, the words only)
+function askOffice(title, message, userId) {
+  Alert.alert(title, message, userId == null ? undefined : [
+    { text: 'OK', style: 'cancel' },
+    { text: 'Call the office', onPress: () => callOffice(userId) },
+  ]);
+}
+
 // Directions: Apple Maps or Google Maps (design: the «Open directions in» sheet)
-export function openDirections(visit) {
+export function openDirections(visit, userId) {
   const links = directionsLinks(visit);
   if (!links) {
-    Alert.alert('No address', 'This visit has no address. Call the office.');
+    askOffice('No address', 'This visit has no address. Call the office.', userId);
     return;
   }
   choose('Open directions in', addressLine(visit), [
@@ -49,10 +59,10 @@ export function phonesOf(visit) {
 }
 
 // Call: straight to the one phone; a choice when the customer has several
-export function callCustomer(visit) {
+export function callCustomer(visit, userId) {
   const phones = phonesOf(visit);
   if (!phones.length) {
-    Alert.alert('No phone number', 'This visit has no phone number. Call the office.');
+    askOffice('No phone number', 'This visit has no phone number. Call the office.', userId);
     return;
   }
   const call = (number) => open(telLink(number), 'Calls are not available on this device');

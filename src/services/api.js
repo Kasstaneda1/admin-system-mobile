@@ -197,6 +197,12 @@ export const myDayAPI = {
     const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/office-messages/seen`, { ids }, { timeout: 15000 });
     return response.data;
   },
+  // «Call the office» (office.js): { success, phone, company_name }; phone null until the
+  // office fills it in its invoice settings. A short wait: the technician is on the button.
+  office: async () => {
+    const response = await api.get('/api/my/office', { timeout: 8000 });
+    return response.data;
+  },
 };
 
 // The visit's photos (backend routes/scheduler/photos.js; a technician only on their own

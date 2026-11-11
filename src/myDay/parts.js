@@ -211,7 +211,7 @@ export function NoticeBar({ text, kind = 'offline' }) {
 }
 
 // ---------- the empty day ----------
-export function EmptyDay({ title, offer, onOffer }) {
+export function EmptyDay({ title, offer, onOffer, onCallOffice }) {
   return (
     <View style={styles.empty}>
       <View style={styles.emptyArt}><Icon name="sun" size={52} color={colors.warningFg} /></View>
@@ -220,6 +220,12 @@ export function EmptyDay({ title, offer, onOffer }) {
       {offer ? (
         <TouchableOpacity style={styles.btnPrimary} onPress={onOffer} accessibilityRole="button">
           <Text style={styles.btnPrimaryText}>{offer}</Text>
+        </TouchableOpacity>
+      ) : null}
+      {onCallOffice ? (
+        <TouchableOpacity style={styles.btnGhost} onPress={onCallOffice} accessibilityRole="button">
+          <Icon name="phone" size={18} color={colors.brandPressed} />
+          <Text style={styles.btnGhostText}>Call the office</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -322,6 +328,8 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 16, lineHeight: 22, color: colors.fgSecondary, textAlign: 'center', marginBottom: 6 },
   btnPrimary: { alignSelf: 'stretch', minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, backgroundColor: colors.brandPressed },
   btnPrimaryText: { fontSize: 17, fontWeight: '700', color: colors.fgOnFill },
+  btnGhost: { alignSelf: 'stretch', flexDirection: 'row', gap: 8, minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderWidth: 2, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
+  btnGhostText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
 
   tabbar: { flexDirection: 'row', paddingTop: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: colors.borderDefault, backgroundColor: colors.bgCard },
   tb: { flex: 1, alignItems: 'center', gap: 2, minHeight: 48 },
