@@ -6,7 +6,7 @@ import {
   nyOffsetMinutes, nyWall, momentWall, parseWall, addDays, weekOf, dayLabel, weekdayLetter, dayOfMonth,
   clock, clockAmPm, windowText, durationText, greeting, firstName, shortName, planOf, visitDay, stateOf, kindText, areaOf, tagOf,
   buildDay, listItems, stripOf, headerLine, weekCounts, nextBusyDay, offerText, emptyText, keepWeek, keptWeek, offlineText, failedText,
-  skewOf, nowWall, addressLine, directionsLinks, telLink, MAX_WEEKS_KEPT, DAY_START, DAY_END,
+  skewOf, nowWall, addressLine, directionsLinks, telLink, MAX_WEEKS_KEPT, DAY_START, DAY_END, isLogged, movedToText, loggedTag,
 } from './model.js';
 
 const TUE = '2026-11-10';
@@ -326,16 +326,126 @@ test('the customer in the list: the surname and the first initial, as in the des
   assert.deepEqual([row.client, row.clientFull], ['Rodriguez-Villanueva M.', 'Maximiliana Rodriguez-Villanueva']);
 });
 
-test('a visit the office took off the day is left out for now; a row is keyed by id and window', () => {
+// The day log (backend #139): office_change of a visit the office took off a day
+const moved = (o = {}) => ({ kind: 'moved', changed_at: '2026-11-10T15:40:00.000Z', to_date: '2026-11-12', to_window: { start: '2026-11-12 09:00:00', end: '2026-11-12 12:00:00' }, ...o });
+const change = (kind) => ({ kind, changed_at: '2026-11-10T15:40:00.000Z', to_date: null, to_window: null });
+
+test('the day log: a visit the office moved stays a grey row in its place, not counted', () => {
   const vs = [
-    visit({ id: 91, w0: '09:00', w1: '12:00', p: '09:30', office_change: { kind: 'moved', changed_at: '2026-11-10T15:40:00Z', to_date: '2026-11-12', to_window: '09:00-12:00' } }),
-    visit({ id: 92, w0: '13:00', w1: '16:00', p: '13:30', office_change: null }),
+    visit({ id: 91, w0: '08:00', w1: '10:00', p: '08:30', status: 'completed', outcome: 'done', closed_at: '2026-11-10T14:00:00Z' }),
+    visit({ id: 92, client: 'Lina Haddad', city: 'Little Neck', kind: 'diagnostics', w0: '09:00', w1: '12:00', p: '09:30', office_change: moved() }),
+    visit({ id: 93, w0: '13:00', w1: '16:00', p: '13:30', office_change: null }),
   ];
   const day = buildDay(vs, TUE, NOW);
-  assert.deepEqual(day.rows.map((r) => r.id), [92]);
-  assert.equal(day.count, 1);
-  assert.equal(day.rows[0].key, '92@2026-11-10 13:00:00');
-  assert.equal(stripOf(day, NOW).items[0].key, '92@2026-11-10 13:00:00');
+  assert.deepEqual(day.rows.map((r) => [r.id, r.n, r.state, r.logged]), [[91, 1, 'closed', false], [92, null, 'moved', true], [93, 2, 'sched', false]]);
+  const row = day.rows[1];
+  assert.equal(row.key, '92@2026-11-10 09:00:00');
+  assert.equal(row.window, '9–12');                 // the window it had on this day
+  assert.equal(row.timeText, 'was today');
+  assert.deepEqual(row.tag, { kind: 'logged', icon: 'moved', text: 'Moved · Thu 9–12' });
+  assert.equal(row.duration, null);
+  assert.equal(row.label, 'Lina Haddad, Diagnostics 1/1, 9–12 was today, Moved to Thu, Nov 12 · 9–12');
+  assert.equal(day.rows[0].label, null);
+  // not counted, not done, not next, not in the strip, no free time of its own
+  assert.equal(day.count, 2);
+  assert.equal(day.done, 1);
+  assert.deepEqual(day.summary, { big: '2 visits', small: '1 done · next 1:30 PM' });
+  assert.equal(day.next.id, 93);
+  assert.deepEqual(day.live.map((r) => r.id), [91, 93]);
+  assert.deepEqual(stripOf(day, NOW).items.map((i) => [i.id, i.n]), [[91, 1], [93, 2]]);
+  assert.equal(weekCounts(vs, weekOf(TUE), NOW)[TUE], 2);
+  assert.deepEqual(listItems(day).filter((i) => i.type === 'row').map((i) => i.row.id), [91, 92, 93]);
+});
+
+test('the day log: grey whatever the status now; reassigned, cancelled, customer rescheduled', () => {
+  const vs = [
+    // moved to Thursday and closed there: on Tuesday still the grey row, not «Repaired»
+    visit({ id: 101, w0: '08:00', w1: '10:00', p: '08:30', status: 'completed', outcome: 'done', closed_at: '2026-11-12T15:00:00Z', office_change: moved() }),
+    // given to another while this technician was on the way: not NOW
+    visit({ id: 102, w0: '10:00', w1: '13:00', p: '11:00', status: 'omw', omw_at: null, office_change: change('reassigned') }),
+    visit({ id: 103, w0: '11:00', w1: '14:00', p: '12:00', status: 'cancelled', office_change: change('cancelled') }),
+    visit({ id: 104, w0: '12:00', w1: '15:00', p: '13:00', status: 'completed', outcome: 'client_rescheduled', office_change: change('client_rescheduled') }),
+    visit({ id: 105, w0: '13:00', w1: '16:00', p: '14:00', role: 'helper', office_change: change('reassigned') }),
+    visit({ id: 106, w0: '14:00', w1: '17:00', p: '15:00', office_change: change('something_new') }),
+    visit({ id: 107, w0: '15:00', w1: '18:00', p: '16:00' }),
+    // cancelled, not of the day log: still left out
+    visit({ id: 108, w0: '15:00', w1: '18:00', p: '16:30', status: 'cancelled' }),
+  ];
+  const day = buildDay(vs, TUE, NOW);
+  assert.deepEqual(day.rows.map((r) => r.id), [101, 102, 103, 104, 105, 106, 107]);
+  assert.deepEqual(day.rows.map((r) => r.state), ['moved', 'moved', 'moved', 'moved', 'moved', 'moved', 'sched']);
+  assert.deepEqual(day.rows.map((r) => r.n), [null, null, null, null, null, null, 1]);
+  assert.deepEqual(day.rows.map((r) => r.tag && [r.tag.kind, r.tag.icon, r.tag.text]), [
+    ['logged', 'moved', 'Moved · Thu 9–12'],
+    ['logged', 'people', 'Reassigned by office'],
+    ['logged', 'moved', 'Cancelled by office'],
+    ['logged', 'moved', 'Customer rescheduled'],
+    ['logged', 'people', 'Reassigned by office'],
+    ['logged', 'moved', 'Changed by office'],
+    null,
+  ]);
+  assert.deepEqual(day.rows.map((r) => r.timeText), ['was today', 'was today', 'was today', 'was today', 'was today', 'was today', 'plan 4:00']);
+  assert.equal(day.current, null);
+  assert.equal(day.next.id, 107);
+  assert.equal(day.rows[1].current, false);
+  assert.deepEqual([day.count, day.done], [1, 0]);
+  assert.deepEqual(day.summary, { big: '1 visit', small: 'next 4:00 PM' });
+});
+
+test('the day log on a past day, and the same visit twice in a week', () => {
+  const MON = '2026-11-09';
+  const THU = '2026-11-12';
+  // moved from Monday to Thursday: the grey row on Monday, the visit itself on Thursday
+  const vs = [
+    visit({ id: 111, date: MON, w0: '09:00', w1: '12:00', p: '10:00', office_change: moved() }),
+    visit({ id: 111, date: THU, w0: '09:00', w1: '12:00', p: '09:30', office_change: null }),
+    visit({ id: 112, date: MON, w0: '13:00', w1: '15:00', p: '13:00', status: 'completed', outcome: 'done', closed_at: '2026-11-09T19:00:00Z' }),
+  ];
+  const mon = buildDay(vs, MON, NOW);
+  assert.equal(mon.isPast, true);
+  assert.deepEqual(mon.rows.map((r) => [r.id, r.state, r.timeText]), [[111, 'moved', 'was Mon'], [112, 'closed', 'done 2:00']]);
+  assert.equal(mon.rows[0].tag.text, 'Moved · Thu 9–12');
+  assert.deepEqual(mon.summary, { big: '1 visit', small: '1 done' });
+  const thu = buildDay(vs, THU, NOW);
+  assert.deepEqual(thu.rows.map((r) => [r.id, r.n, r.state, r.logged]), [[111, 1, 'sched', false]]);
+  assert.notEqual(mon.rows[0].key, thu.rows[0].key);
+  assert.deepEqual(weekCounts(vs, weekOf(TUE), NOW), { '2026-11-08': 0, '2026-11-09': 1, '2026-11-10': 0, '2026-11-11': 0, '2026-11-12': 1, '2026-11-13': 0, '2026-11-14': 0 });
+});
+
+test('the day log only: grey rows, «No visits», no free time, the offer of the next busy day', () => {
+  const vs = [
+    visit({ id: 121, w0: '09:00', w1: '12:00', p: '09:30', office_change: moved() }),
+    visit({ id: 122, date: '2026-11-12', w0: '09:00', w1: '12:00', p: '09:30' }),
+  ];
+  const day = buildDay(vs, TUE, NOW);
+  assert.deepEqual(day.rows.map((r) => r.id), [121]);
+  assert.deepEqual(day.live, []);
+  assert.deepEqual(day.summary, { big: 'No visits', small: '' });
+  assert.deepEqual(day.gaps, []);
+  assert.deepEqual(listItems(day).map((i) => i.type), ['row']);
+  assert.deepEqual(nextBusyDay(weekCounts(vs, weekOf(TUE), NOW), TUE), { date: '2026-11-12', count: 1 });
+  // the same on a day ahead: no free time without a live visit
+  assert.deepEqual(buildDay([visit({ id: 123, date: '2026-11-11', w0: '09:00', w1: '12:00', office_change: change('cancelled') })], '2026-11-11', NOW).gaps, []);
+});
+
+test('where a moved visit is now, in words', () => {
+  assert.equal(movedToText(moved(), TUE), 'Thu 9–12');
+  assert.equal(movedToText(moved(), TUE, { long: true }), 'Thu, Nov 12 · 9–12');
+  // six days away still the weekday; a week and more the date
+  assert.equal(movedToText(moved({ to_date: '2026-11-16', to_window: { start: '2026-11-16 13:30:00', end: '2026-11-16 16:00:00' } }), TUE), 'Mon 1:30–4');
+  assert.equal(movedToText(moved({ to_date: '2026-11-17', to_window: { start: '2026-11-17 09:00:00', end: '2026-11-17 12:00:00' } }), TUE), 'Nov 17 9–12');
+  assert.equal(movedToText(moved({ to_date: '2026-12-03', to_window: { start: '2026-12-03 08:00:00', end: '2026-12-03 20:00:00' } }), TUE), 'Dec 3 8 AM–8 PM');
+  // back to an earlier day
+  assert.equal(movedToText(moved({ to_date: '2026-11-09', to_window: { start: '2026-11-09 09:00:00', end: '2026-11-09 12:00:00' } }), TUE), 'Mon 9–12');
+  // what the server may leave out
+  assert.equal(movedToText(moved({ to_window: null }), TUE), 'Thu');
+  assert.equal(movedToText(moved({ to_date: null }), TUE), 'Thu 9–12');
+  assert.equal(movedToText(moved({ to_date: null, to_window: null }), TUE), '');
+  assert.equal(movedToText(null, TUE), '');
+  assert.deepEqual(loggedTag(moved({ to_date: null, to_window: null }), TUE), { kind: 'logged', icon: 'moved', text: 'Moved by office' });
+  assert.equal(loggedTag(moved({ to_window: null }), TUE, { long: true }).text, 'Moved to Thu, Nov 12');
+  assert.equal(isLogged(visit({ w0: '09:00', w1: '12:00', office_change: null })), false);
+  assert.equal(isLogged(visit({ w0: '09:00', w1: '12:00' })), false);
 });
 
 test('the strip: windows on two tracks, plans, now, ticks', () => {

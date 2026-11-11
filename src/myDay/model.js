@@ -7,7 +7,8 @@
 //   windows and plans (scheduled_start, scheduled_end, planned_start) are New York wall clock
 //   «as written», strings 'YYYY-MM-DD HH:MM:SS'; moments (omw_at, updated_at, server_time)
 //   are UTC with Z. Statuses: scheduled, omw, in_progress, completed (with an outcome),
-//   cancelled. The list leaves out cancelled visits and those the customer moved.
+//   cancelled. The list leaves out cancelled visits and those the customer moved, except the
+//   day log (office_change, backend #139): those stay as grey rows on the days they left.
 
 export const DEFAULT_DURATION = 60;   // the server's default when a visit has no duration
 export const DAY_START = 8 * 60;      // the strip and the free time: 8 AM ...
@@ -219,6 +220,46 @@ export function tagOf(visit, { long = false } = {}) {
   return null;
 }
 
+// ---------- the day log (backend #139) ----------
+// A visit that was this technician's on a day and that the office then took off that day
+// (moved to another day, gave to another technician, cancelled, or closed as «the customer
+// moved it») stays in the list of that day for good, past days too, as it was there:
+// office_change { kind, changed_at, to_date, to_window: { start, end } } (to_* only when
+// moved and still theirs: where it is now). Its status is the visit's now (a moved one may be
+// closed on its new day), so the row is grey whatever the status says: no number, no
+// actions, not counted, not in the strip, not opened.
+export const isLogged = (visit) => !!(visit && visit.office_change);
+
+// Where a moved visit is now, from the day `date`: 'Thu 9–12' (a day more than six days
+// away says its date: 'Dec 3 9–12'); long: 'Thu, Nov 12 · 9–12'. '' when unknown.
+export function movedToText(change, date, { long = false } = {}) {
+  const win = change && change.to_window;
+  const start = parseWall(win && win.start);
+  const end = parseWall(win && win.end);
+  const to = typeof change?.to_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(change.to_date) ? change.to_date : start?.date;
+  if (!to) return '';
+  const near = Math.abs(daysBetween(date, to)) <= 6;
+  const day = long ? dayLabel(to) : near ? WEEKDAYS[weekdayOf(to)] : `${MONTHS[Number(to.slice(5, 7)) - 1]} ${dayOfMonth(to)}`;
+  const window = start && end ? windowText(start, end) : '';
+  return window ? `${day}${long ? ' · ' : ' '}${window}` : day;
+}
+
+// What the office did, as the row's tag (one dashed grey tag, as the design's «Moved · Thu
+// 9–12»): { kind: 'logged', icon, text }; long for VoiceOver: 'Moved to Thu, Nov 12 · 9–12'
+const LOGGED = {
+  reassigned: ['people', 'Reassigned by office'],
+  cancelled: ['moved', 'Cancelled by office'],
+  client_rescheduled: ['moved', 'Customer rescheduled'],
+};
+export function loggedTag(change, date, { long = false } = {}) {
+  if (change && change.kind === 'moved') {
+    const to = movedToText(change, date, { long });
+    return { kind: 'logged', icon: 'moved', text: to ? (long ? `Moved to ${to}` : `Moved · ${to}`) : 'Moved by office' };
+  }
+  const [icon, text] = LOGGED[change && change.kind] || ['moved', 'Changed by office'];
+  return { kind: 'logged', icon, text };
+}
+
 // ---------- the day ----------
 // The day as the screen draws it. visits: the server's list (any days); date: the day
 // shown; now: New York wall clock { date, minutes } of this moment.
@@ -226,24 +267,24 @@ export function tagOf(visit, { long = false } = {}) {
 //   date, isToday, isPast, rows: [row], current: row|null, next: row|null,
 //   summary: { big, small }, gaps: [{ afterId, from, to, text }], count, done
 // }
-// row: { id, key, n, visit, state, current, next, helper, legacy, client (short), clientFull, area, kind, window,
-//        timeText, tag, start, end (minutes of the plan), winStart, winEnd (minutes on this
-//        day, clamped to it) }
+// row: { id, key, n, visit, state, logged, current, next, helper, legacy, client (short), clientFull, area,
+//        kind, window, timeText, tag, label (VoiceOver, logged rows), start, end (minutes of the
+//        plan), winStart, winEnd (minutes on this day, clamped to it) }
 // Numbers go by planned time, 1..n, the same in the strip and in the list; only live visits
 // get one (a moved one shows «–», is not counted and is not in the strip, as in the design).
+// A row of the day log (office_change) is such a moved row, in its place by its old time.
 export function buildDay(visits, date, now) {
   const isToday = date === now.date;
   const isPast = date < now.date;
-  // A visit the office took off this technician's day (office_change, coming from the server)
-  // will be a grey row of its own; until the screen draws it, it is left out as before.
   const day = (visits || [])
-    .filter((v) => v && !v.office_change && stateOf(v) !== 'cancelled' && visitDay(v) === date)
+    .filter((v) => v && (isLogged(v) || stateOf(v) !== 'cancelled') && visitDay(v) === date)
     .map((v) => ({ v, plan: planOf(v) }))
     .sort((a, b) => a.plan.start.minutes - b.plan.start.minutes || a.v.id - b.v.id);
 
   let number = 0;
   const all = day.map(({ v, plan }) => {
-    const state = stateOf(v);
+    const logged = isLogged(v);
+    const state = logged ? 'moved' : stateOf(v);
     const ws = parseWall(v.scheduled_start);
     const we = parseWall(v.scheduled_end);
     const onDay = (w, fallback) => (!w ? fallback : w.date < date ? 0 : w.date > date ? 1440 : w.minutes);
@@ -252,7 +293,12 @@ export function buildDay(visits, date, now) {
       const at = closedMoment(v);
       timeText = at && at.date === date ? `done ${clock(at.minutes)}` : 'done';
     }
-    if (state === 'moved') timeText = 'moved';
+    // the design's «was today»; another day: 'was Mon'
+    if (logged) timeText = isToday ? 'was today' : `was ${WEEKDAYS[weekdayOf(date)]}`;
+    else if (state === 'moved') timeText = 'moved';
+    const tag = logged ? loggedTag(v.office_change, date) : tagOf(v);
+    const window = windowText(ws, we);
+    const clientFull = (typeof v.client_name === 'string' && v.client_name.trim()) || 'Customer';
     return {
       id: v.id,
       // the list's key: one visit may come twice in a range (moved by the office: a grey row on
@@ -261,18 +307,22 @@ export function buildDay(visits, date, now) {
       n: state === 'moved' ? null : ++number,
       visit: v,
       state,
+      logged,
       current: false,
       next: false,
       helper: v.role === 'helper',
       legacy: !!v.legacy,
       client: shortName(v.client_name),
-      clientFull: (typeof v.client_name === 'string' && v.client_name.trim()) || 'Customer',
+      clientFull,
       area: areaOf(v),
       kind: kindText(v),
       duration: state === 'sched' && v.role !== 'helper' ? durationText(plan.duration) : null,
-      window: windowText(ws, we),
+      window,
       timeText,
-      tag: tagOf(v),
+      tag,
+      label: logged
+        ? [clientFull, kindText(v), `${window} ${timeText}`.trim(), loggedTag(v.office_change, date, { long: true }).text].filter(Boolean).join(', ')
+        : null,
       start: plan.start.minutes,
       end: plan.endMinutes,
       winStart: onDay(ws, plan.start.minutes),
