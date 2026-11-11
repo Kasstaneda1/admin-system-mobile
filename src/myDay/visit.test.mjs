@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   techName, monthDay, dayWord, money, unitText, addressLines, cardTag, kindLine, tilesOf, appliancesOf,
   teamOf, historyOf, notesOf, noteWhen, officeNotesOf, visitCard, keepCard, keptCard, dropCard, MAX_CARDS_KEPT,
+  updatedOf,
 } from './visit.js';
 import { keepWeek, keptWeek } from './model.js';
 
@@ -234,4 +235,43 @@ test('appliances: type, make and model, serial', () => {
   assert.deepEqual(appliancesOf({ appliances: [{ appliance_type: 'Dryer', brand: 'Whirlpool', model: null, serial_number: 'XY12' }, { appliance_type: null, brand: null, model: null, serial_number: null }] }),
     [{ key: '0', type: 'Dryer', model: 'Whirlpool', serial: 'S/N XY12' }, { key: '1', type: 'Appliance', model: '', serial: '' }]);
   assert.deepEqual(appliancesOf({}), []);
+});
+
+test('«Updated by the office»: when, what changed and what it was — only from a copy older than the change', () => {
+  const before = { id: 7, address_line: '88-12 Queens Blvd', address_unit: '5A', city: 'Rego Park', state: 'NY', zip: '11374',
+    access_notes: 'Ring 5A.', description: 'Install the new dishwasher.', scheduled_start: '2026-11-10 13:00:00', scheduled_end: '2026-11-10 16:00:00', planned_start: '2026-11-10 13:30:00' };
+  const changedAt = '2026-11-10T16:02:00Z';                       // 11:02 AM in New York
+  const oldAt = Date.parse('2026-11-10T13:00:00Z');
+  const now = (patch) => ({ ...before, content_changed_at: changedAt, ...patch });
+  // the address only
+  assert.deepEqual(updatedOf(now({ address_unit: '5B' }), before, oldAt),
+    { title: 'Updated by the office · 11:02 AM', line: 'The address changed. Check it before you go.', was: { address: 'was 88-12 Queens Blvd, Apt 5A' } });
+  // the city and the street: both lines
+  assert.equal(updatedOf(now({ address_line: '1 Main St', address_unit: null, city: 'Bayside', zip: '11361' }), before, oldAt).was.address, 'was 88-12 Queens Blvd, Apt 5A, Rego Park, NY 11374');
+  // the city only: the second line
+  assert.equal(updatedOf(now({ city: 'Forest Hills' }), before, oldAt).was.address, 'was Rego Park, NY 11374');
+  // how to get in, the problem and the time
+  assert.deepEqual(updatedOf(now({ access_notes: 'Ring 5B. Elevator to the 5th floor.', description: 'Install it. Take the old one away.', planned_start: '2026-11-10 14:15:00' }), before, oldAt),
+    { title: 'Updated by the office · 11:02 AM', line: 'How to get in, the problem and the time changed. Check them before you go.',
+      was: { access: 'was Ring 5A.', problem: 'was Install the new dishwasher.', plan: 'was 1:30' } });
+  // nothing before: «new»
+  assert.deepEqual(updatedOf(now({ access_notes: 'Gate code 12.' }), { ...before, access_notes: null }, oldAt).was, { access: 'new' });
+  // the window only: the Window tile says what it was (the plan stays 1:30)
+  assert.deepEqual(updatedOf(now({ scheduled_start: '2026-11-10 14:00:00', scheduled_end: '2026-11-10 17:00:00' }), before, oldAt),
+    { title: 'Updated by the office · 11:02 AM', line: 'The time changed. Check it before you go.', was: { window: 'was 1–4' } });
+  // without a plan the plan follows the window: both tiles
+  const noPlan = { ...before, planned_start: null };
+  assert.deepEqual(updatedOf({ ...noPlan, content_changed_at: changedAt, scheduled_start: '2026-11-10 09:00:00', scheduled_end: '2026-11-10 12:00:00' }, noPlan, oldAt).was,
+    { window: 'was 1–4', plan: 'was 1:00' });
+  // a window where there was none: new
+  assert.deepEqual(updatedOf(now({}), { ...before, scheduled_start: null, scheduled_end: null }, oldAt).was.window, 'new');
+  // no copy, a copy from after the change, or nothing the app compares changed: check it all
+  const check = { title: 'Updated by the office · 11:02 AM', line: 'Check the address, problem and notes.', was: {} };
+  assert.deepEqual(updatedOf(now({ address_unit: '5B' }), null, null), check);
+  assert.deepEqual(updatedOf(now({ address_unit: '5B' }), before, Date.parse('2026-11-10T16:05:00Z')), check);
+  assert.deepEqual(updatedOf(now({ address_unit: '5B' }), before, Date.parse(changedAt)), check);
+  assert.deepEqual(updatedOf(now({ client_name: 'Someone else' }), before, oldAt), check);
+  // no moment from the server: no time in the title, the copy still compares
+  assert.deepEqual(updatedOf({ ...before, address_unit: '5B' }, before, oldAt).title, 'Updated by the office');
+  assert.equal(updatedOf({ ...before, address_unit: '5B' }, before, oldAt).line, 'The address changed. Check it before you go.');
 });
