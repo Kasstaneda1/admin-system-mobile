@@ -1,15 +1,19 @@
-// A visit, read only (TECH_APP_MY_DAY_SPEC.md §3 «Visit», §4; design A3:
+// A visit (TECH_APP_MY_DAY_SPEC.md §3 «Visit», §4; design A3:
 // design-mockups/tech-app/shots/final-visit-*.png). Opens from a row of My day with the
 // list's visit, so it shows at once; the card kept on the phone fills in history and notes;
 // GET /api/my/visits/:id replaces both. What it shows is visit.js.
-// No map at the top (no map key yet, and no fake one), no actions bar: APP-3.
+// The bar at the bottom (APP-3a): On my way, Finish with its outcome, No access, Undo for
+// 15 minutes; the server says what may be pressed (actions.js barOf). A press waits for the
+// answer; with none, «No connection. Try again» sends the same request (same client_request_id).
+// No map at the top (no map key yet, and no fake one).
 //
-// Fresh: on opening, on coming back to the screen or to the app, on pulling down (§4).
-// The office took the visit away (404): «This visit was changed by the office», back to the day.
+// Fresh: on opening, on coming back to the screen or to the app, on pulling down, after each
+// press (§4). The office took the visit away (404): «This visit was changed by the office»,
+// back to the day.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { myDayAPI } from '../services/api';
@@ -17,10 +21,12 @@ import { logError } from '../utils/logError';
 import { useAuth } from '../session/AuthContext';
 import { failedText, nowWall, offlineText, skewOf } from '../myDay/model';
 import { dropCard, keepCard, keptCard, visitCard } from '../myDay/visit';
-import { readMyDay, writeMyDay } from '../myDay/storage';
+import { actionBody, actionError, barOf, defaultOutcome, finishChoices, finishSubtitle, keepActed, newRequestId, noAccessWords } from '../myDay/actions';
+import { readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
+import { ActionBar, FinishSheet, NoAccessSheet } from '../myDay/visitBar';
 
 export default function VisitScreen({ route, navigation }) {
   const { id, visit: fromList = null, n = null, savedAt: listSavedAt = null, skew: skewIn = 0 } = route.params || {};
@@ -36,6 +42,15 @@ export default function VisitScreen({ route, navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const loadSeq = useRef(0);
   const gone = useRef(false);
+  const insets = useSafeAreaInsets();
+
+  // reassigned or no longer there (404): the card goes from the phone too, back to the day
+  const leaveGone = useCallback(async () => {
+    if (gone.current) return;
+    gone.current = true;
+    await updateMyDay((cache) => dropCard(cache, userId, id));
+    Alert.alert('This visit was changed by the office', 'It is no longer on your day.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+  }, [id, userId, navigation]);
 
   const load = useCallback(async ({ pull = false } = {}) => {
     if (gone.current) return;
@@ -56,15 +71,12 @@ export default function VisitScreen({ route, navigation }) {
       setShown({ visit: data.visit, savedAt, source: 'server' });
       setProblem(null);
       setTick(Date.now());
-      await writeMyDay(keepCard(kept, userId, data.visit, savedAt));
+      await updateMyDay((cache) => keepCard(cache, userId, data.visit, savedAt));
     } catch (error) {
       if (seq !== loadSeq.current || gone.current) return;
       const status = error.response?.status;
       if (status === 404) {
-        // reassigned or no longer there: the card goes from the phone too
-        gone.current = true;
-        await writeMyDay(dropCard(kept, userId, id));
-        Alert.alert('This visit was changed by the office', 'It is no longer on your day.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+        await leaveGone();
         return;
       }
       if (status >= 500) logError('Error loading a visit:', error);
@@ -72,7 +84,7 @@ export default function VisitScreen({ route, navigation }) {
     } finally {
       if (seq === loadSeq.current) setRefreshing(false);
     }
-  }, [id, userId, fromList, navigation]);
+  }, [id, userId, fromList, leaveGone]);
 
   // on opening and every time the screen comes back
   useFocusEffect(useCallback(() => { setTick(Date.now()); load(); }, [load]));
@@ -90,6 +102,70 @@ export default function VisitScreen({ route, navigation }) {
   const notice = problem && shown ? (problem === 'offline' ? offlineText(shown.savedAt, now) : failedText(shown.savedAt, now)) : null;
   // history and notes come only with the card itself
   const waiting = problem ? 'Needs connection' : 'Loading…';
+
+  // ---------- the presses ----------
+  // pending: { action, outcome, requestId } from the press until the server answers (kept
+  // after no answer: Try again sends it as it was); failure: { text } of that no answer
+  const [pending, setPending] = useState(null);
+  const [failure, setFailure] = useState(null);
+  const busy = useRef(false);                            // two quick taps send one request
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [noAccessStep, setNoAccessStep] = useState(null); // null | 'call' | 'close'
+
+  const send = useCallback(async ({ action, outcome = null, requestId }) => {
+    if (busy.current || gone.current) return;
+    busy.current = true;
+    setPending({ action, outcome, requestId });
+    setFailure(null);
+    const keep = async (fresh) => {
+      const savedAt = Date.now() + skew.current;
+      setShown({ visit: fresh, savedAt, source: 'server' });
+      setProblem(null);
+      setTick(Date.now());
+      await updateMyDay((cache) => keepActed(cache, userId, fresh, savedAt));
+    };
+    try {
+      const data = await myDayAPI.act(id, actionBody(action, outcome, requestId));
+      setPending(null);
+      if (data && data.visit) await keep(data.visit);
+    } catch (error) {
+      const failed = actionError(error);
+      if (failed.kind === 'gone') {
+        setPending(null);
+        await leaveGone();
+      } else if (failed.kind === 'refused') {
+        // the server's words, and the visit as it is now (another phone, the office, 15 minutes)
+        setPending(null);
+        if (failed.visit) await keep(failed.visit);
+        Alert.alert(failed.text);
+      } else {
+        if (failed.kind === 'failed') logError('Error sending a visit action:', error);
+        setFailure({ text: failed.text });
+      }
+    } finally {
+      busy.current = false;
+    }
+  }, [id, userId, leaveGone]);
+
+  // a new press: a new request id; Finish and No access ask first
+  const press = useCallback((action) => {
+    if (busy.current || pending) return;
+    if (action === 'finish') { setFinishOpen(true); return; }
+    if (action === 'no_access') { setNoAccessStep('call'); return; }
+    send({ action, requestId: newRequestId(Date.now() + skew.current) });
+  }, [pending, send]);
+
+  // the undo counts down by the minute
+  const nowMs = tick + skew.current;
+  const bar = useMemo(() => (shown ? barOf(shown.visit, nowMs) : null), [shown, nowMs]);
+  const undoShown = !!(bar && bar.undo);
+  useEffect(() => {
+    if (!undoShown) return undefined;
+    const timer = setInterval(() => setTick(Date.now()), 15000);
+    return () => clearInterval(timer);
+  }, [undoShown]);
+  // nothing to press on what the phone kept: the server may have changed it since
+  const blocked = problem === 'offline' ? 'Needs connection' : problem === 'failed' ? 'Pull down to refresh' : null;
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -223,6 +299,26 @@ export default function VisitScreen({ route, navigation }) {
           </Section>
         </ScrollView>
       )}
+
+      {card && bar ? (
+        <ActionBar bar={bar} pending={pending} failure={failure} blocked={blocked} bottom={insets.bottom}
+          onPress={press}
+          onRetry={() => pending && send(pending)}
+          onCancel={() => { setPending(null); setFailure(null); }} />
+      ) : null}
+      {shown ? (
+        <>
+          <FinishSheet visible={finishOpen} choices={finishChoices(shown.visit)} initial={defaultOutcome(shown.visit)}
+            subtitle={finishSubtitle(shown.visit, n)} bottom={insets.bottom}
+            onClose={() => setFinishOpen(false)}
+            onFinish={(outcome) => { setFinishOpen(false); send({ action: 'finish', outcome, requestId: newRequestId(Date.now() + skew.current) }); }} />
+          <NoAccessSheet step={noAccessStep} words={noAccessWords(shown.visit)} bottom={insets.bottom}
+            onClose={() => setNoAccessStep(null)}
+            onCall={() => { callCustomer(shown.visit); setNoAccessStep('close'); }}
+            onNext={() => setNoAccessStep('close')}
+            onConfirm={() => { setNoAccessStep(null); send({ action: 'no_access', requestId: newRequestId(Date.now() + skew.current) }); }} />
+        </>
+      ) : null}
     </SafeAreaView>
   );
 }

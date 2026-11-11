@@ -171,6 +171,12 @@ export const myDayAPI = {
     const response = await api.get(`/api/my/visits/${encodeURIComponent(id)}`, { timeout: 15000 });
     return response.data;
   },
+  // A press on the visit: body { action, outcome?, client_request_id } (actions.js actionBody).
+  // 200 { success, changed, visit }; 409/403 { error, visit }; 404 { error }; 400 { error }.
+  act: async (id, body) => {
+    const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/actions`, body, { timeout: 15000 });
+    return response.data;
+  },
 };
 
 export default api;

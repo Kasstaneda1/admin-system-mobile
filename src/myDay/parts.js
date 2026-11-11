@@ -8,7 +8,7 @@ import Icon from './Icon';
 import { dayOfMonth, weekdayLetter, weekdayOf } from './model';
 
 // ---------- tags ----------
-const TAG_COLORS = {
+export const TAG_FAMILIES = {
   done: [colors.successFg, colors.successBg, colors.successBorder],
   diagnostics: [colors.warningFg, colors.warningBg, colors.warningBorder],
   deposit: [colors.indigoFg, colors.indigoBg, colors.indigoBorder],
@@ -21,7 +21,7 @@ const TAG_COLORS = {
 
 export function Tag({ tag, big = false }) {
   if (!tag) return null;
-  const [fg, bg, border] = TAG_COLORS[tag.kind] || TAG_COLORS.neutral;
+  const [fg, bg, border] = TAG_FAMILIES[tag.kind] || TAG_FAMILIES.neutral;
   return (
     <View style={[styles.tag, big && styles.tagBig, { backgroundColor: bg, borderColor: border }]}>
       <Icon name={tag.icon} size={14} color={fg} />

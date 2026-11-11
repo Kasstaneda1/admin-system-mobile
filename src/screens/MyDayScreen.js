@@ -18,7 +18,7 @@ import {
   addDays, buildDay, emptyText, failedText, headerLine, keepWeek, keptWeek, listItems, nextBusyDay, nowWall, offerText,
   offlineText, skewOf, stripOf, weekCounts, weekOf,
 } from '../myDay/model';
-import { readMyDay, writeMyDay } from '../myDay/storage';
+import { readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { DayRow, EmptyDay, GapRow, NoticeBar, Strip, TabBar, WeekRow } from '../myDay/parts';
 
@@ -60,7 +60,7 @@ export default function MyDayScreen({ navigation }) {
       setWeek({ sunday: target, visits, savedAt, source: 'server' });
       setProblem(null);
       setTick(Date.now());
-      await writeMyDay(keepWeek(kept, userId, target, visits, savedAt));
+      await updateMyDay((cache) => keepWeek(cache, userId, target, visits, savedAt));
     } catch (error) {
       if (seq !== loadSeq.current) return;
       const status = error.response?.status;

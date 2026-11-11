@@ -8,6 +8,7 @@ const ICONS = {
   box: require('../../assets/icons/box.png'),
   cal: require('../../assets/icons/cal.png'),
   car: require('../../assets/icons/car.png'),
+  check: require('../../assets/icons/check.png'),
   checkc: require('../../assets/icons/checkc.png'),
   chev: require('../../assets/icons/chev.png'),
   door: require('../../assets/icons/door.png'),
@@ -26,6 +27,7 @@ const ICONS = {
   replay: require('../../assets/icons/replay.png'),
   search: require('../../assets/icons/search.png'),
   sun: require('../../assets/icons/sun.png'),
+  undo: require('../../assets/icons/undo.png'),
   wifioff: require('../../assets/icons/wifioff.png'),
   wrench: require('../../assets/icons/wrench.png'),
 };
