@@ -2,14 +2,15 @@
 // from the Route button of My day with the day's date and visits. The server counts the route
 // (GET /api/my/route?date); route.js turns it into what is drawn here, nothing is counted again.
 // The map is Apple Maps (react-native-maps, no key) on iOS: numbered stops, straight lines
-// between them, the legs of a back-and-forth in orange. On Android the map needs a Google key
+// between them, the legs of a back-and-forth in orange. The library is loaded here only, by
+// mapsModule.js, and only when this build of the app has the native map: an app built before
+// it shows the list and «Update the app to see the map». On Android the map needs a Google key
 // (not yet): the list only. A day without map points (production today: the geocoding key is
 // broken) shows no map, the stops with «No map point yet».
 // Tell the office: a ready note on the hint's second visit (POST /api/my/visits/:id/notes, the
 // same id again on Try again) with the technician's own words if they add some.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,7 +19,8 @@ import { myDayAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { useAuth } from '../session/AuthContext';
 import { nowWall, skewOf } from '../myDay/model';
-import { regionOf, routeLinks, routeNoteText, routeNoticeText, routeView } from '../myDay/route';
+import { markerGroups, regionOf, routeLinks, routeNoteText, routeNoticeText, routeView } from '../myDay/route';
+import { loadMaps } from '../myDay/mapsModule';
 import { keepRoute, keptRoute, markHint, marksOf } from '../myDay/routeMarks';
 import { noteBody, noteError, noteRequest } from '../myDay/notesPhotos';
 import { openRoute } from '../myDay/phoneLinks';
@@ -27,7 +29,13 @@ import { HintBox, StopDot, StopRow, TellSheet } from '../myDay/routeParts';
 import Icon from '../myDay/Icon';
 
 const MAP_HEIGHT = 280;
-const MAP_PADDING = { top: 56, right: 44, bottom: 56, left: 44 };
+// the stops keep clear of Open in Maps (top right) and of the line about straight lines
+const MAP_PADDING = { top: 76, right: 44, bottom: 44, left: 44 };
+// the map's own marks (the Apple Maps logo, Legal) sit above that line, never under it
+const MAP_INSETS = { top: 0, right: 0, bottom: 28, left: 0 };
+// on top: the stop of now, then those of a back-and-forth
+const markerZ = (stop) => (stop.state === 'current' ? 3 : stop.flagged ? 2 : 1);
+const listOf = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 
 export default function RouteScreen({ route: nav, navigation }) {
   const { date, visits = [], skew: skewIn = 0 } = nav.params || {};
@@ -76,7 +84,17 @@ export default function RouteScreen({ route: nav, navigation }) {
 
   const view = useMemo(() => (data ? routeView(data.route, { visits, marks }) : null), [data, visits, marks]);
   const links = useMemo(() => routeLinks(view), [view]);
-  const showMap = Platform.OS === 'ios' && view && view.points.length > 0;
+  const Maps = loadMaps();                              // null: no map in this build (or Android)
+  const MapView = Maps ? Maps.default : null;
+  const hasPoints = !!view && view.points.length > 0;
+  const showMap = !!Maps && hasPoints;
+  const needsUpdate = Platform.OS === 'ios' && !Maps && hasPoints;
+
+  // stops that would overlap at this zoom share one marker: every number reads
+  const [mapSize, setMapSize] = useState(null);
+  const [mapRegion, setMapRegion] = useState(null);
+  const groups = useMemo(() => (hasPoints ? markerGroups(view.points, mapRegion || regionOf(view.points), mapSize) : []),
+    [hasPoints, view, mapRegion, mapSize]);
 
   // the map shows all its stops
   const mapRef = useRef(null);
@@ -148,27 +166,37 @@ export default function RouteScreen({ route: nav, navigation }) {
       {notice ? <View style={styles.noticeWrap}><NoticeBar text={notice} kind={problem === 'offline' ? 'offline' : 'failed'} /></View> : null}
 
       {showMap ? (
-        <View style={styles.map}>
+        <View style={styles.map} onLayout={(e) => setMapSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
           <MapView ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={regionOf(view.points)} onMapReady={fit}
+            onRegionChangeComplete={setMapRegion} mapPadding={MAP_INSETS}
             showsPointsOfInterest={false} showsBuildings={false} pitchEnabled={false} rotateEnabled={false} toolbarEnabled={false}
             accessibilityLabel="Map of the day's stops">
             {view.legs.map((leg) => (
-              <Polyline key={leg.key} coordinates={[leg.from, leg.to]}
+              <Maps.Polyline key={leg.key} coordinates={[leg.from, leg.to]}
                 strokeColor={leg.bad ? colors.stateLate : leg.done ? colors.borderStrong : colors.brandPressed}
                 strokeWidth={leg.bad ? 4.5 : 3} lineDashPattern={leg.bad ? undefined : [7, 5]} lineCap="round" />
             ))}
-            {view.points.map((stop) => (
-              // close stops overlap: the current one on top, then those of a back-and-forth
-              <Marker key={stop.key} coordinate={{ latitude: stop.lat, longitude: stop.lng }} anchor={{ x: 0.5, y: 0.5 }}
-                zIndex={stop.state === 'current' ? 3 : stop.flagged ? 2 : 1}
-                tracksViewChanges={false} accessibilityLabel={`Stop ${stop.n}, ${stop.client}`}>
-                <StopDot stop={stop} size={30} onMap />
-              </Marker>
+            {groups.map((group) => (
+              <Maps.Marker key={group.key} coordinate={{ latitude: group.latitude, longitude: group.longitude }} anchor={{ x: 0.5, y: 0.5 }}
+                zIndex={Math.max(...group.stops.map(markerZ))} tracksViewChanges={false}
+                accessibilityLabel={`${group.stops.length > 1 ? 'Stops' : 'Stop'} ${listOf(group.stops.map((st) => st.n))}, ${listOf(group.stops.map((st) => st.client))}`}>
+                {group.stops.length === 1 ? <StopDot stop={group.stops[0]} size={30} onMap /> : (
+                  <View style={styles.group}>
+                    {group.stops.map((stop) => <StopDot key={stop.key} stop={stop} size={28} onMap />)}
+                  </View>
+                )}
+              </Maps.Marker>
             ))}
           </MapView>
           <View style={styles.mapNote} pointerEvents="none">
             <Text style={styles.mapNoteText}>Straight lines between stops · not the road</Text>
           </View>
+          {links ? (
+            <TouchableOpacity style={styles.openOnMap} onPress={() => openRoute(links)} accessibilityRole="button" accessibilityLabel="Open the route in Maps">
+              <Icon name="nav" size={18} color={colors.brandPressed} />
+              <Text style={styles.openOnMapText}>Open in Maps</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
 
@@ -184,11 +212,14 @@ export default function RouteScreen({ route: nav, navigation }) {
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={[styles.bodyContent, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={colors.brand} />}>
-          {links ? (
-            <TouchableOpacity style={styles.open} onPress={() => openRoute(links)} accessibilityRole="button">
-              <Icon name="nav" size={20} color={colors.brandPressed} />
-              <Text style={styles.openText}>Open in Maps</Text>
-            </TouchableOpacity>
+          {needsUpdate ? (
+            <View style={styles.noPoints}>
+              <Icon name="mapoff" size={20} color={colors.fgSecondary} />
+              <View style={styles.noPointsBody}>
+                <Text style={styles.noPointsTitle}>Update the app to see the map</Text>
+                <Text style={styles.noPointsText}>This version of the app has no map. The stops and miles are below.</Text>
+              </View>
+            </View>
           ) : null}
           {view.hints.filter((h) => h.mark !== 'ok').map((hint) => (
             <HintBox key={hint.key} hint={hint} onTell={() => openTell(hint)} onOk={() => mark(hint, 'ok')} />
@@ -205,6 +236,12 @@ export default function RouteScreen({ route: nav, navigation }) {
           {view.stops.length ? view.stops.map((stop) => <StopRow key={stop.key} stop={stop} />) : (
             <Text style={styles.quiet}>No visits on this day.</Text>
           )}
+          {links && !showMap ? (
+            <TouchableOpacity style={styles.open} onPress={() => openRoute(links)} accessibilityRole="button">
+              <Icon name="nav" size={20} color={colors.brandPressed} />
+              <Text style={styles.openText}>Open in Maps</Text>
+            </TouchableOpacity>
+          ) : null}
           {view.points.length > 1 ? (
             <Text style={styles.foot}>Order = planned time. Miles are straight lines between stops, a rough guide; real roads come later.</Text>
           ) : null}
@@ -230,9 +267,12 @@ const styles = StyleSheet.create({
   map: { height: MAP_HEIGHT, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgSubtle },
   mapNote: { position: 'absolute', left: 8, bottom: 6, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: colors.bgCard },
   mapNoteText: { fontSize: 11, fontWeight: '700', color: colors.fgSecondary },
+  group: { flexDirection: 'row', alignItems: 'center', gap: 2, padding: 2, borderRadius: 18, backgroundColor: colors.bgCard },
+  openOnMap: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 12, borderRadius: 22, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
+  openOnMapText: { fontSize: 15, fontWeight: '700', color: colors.brandPressed },
   body: { flex: 1 },
   bodyContent: { paddingHorizontal: 16, paddingTop: 10 },
-  open: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, marginBottom: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed },
+  open: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, marginTop: 14, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed },
   openText: { fontSize: 16, fontWeight: '700', color: colors.brandPressed },
   noPoints: { flexDirection: 'row', gap: 10, marginBottom: 6, padding: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.borderStrong, backgroundColor: colors.bgSubtle },
   noPointsBody: { flex: 1, gap: 2 },

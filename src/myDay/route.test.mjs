@@ -3,7 +3,7 @@
 // as the helper, Chen and Haddad back in Bayside and Little Neck.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { milesText, flagKey, pickFlags, routeNoteText, routeView, hasIssue, routeLinks, regionOf, routeNoticeText, MAPS_STOPS_MAX } from './route.js';
+import { milesText, flagKey, pickFlags, routeNoteText, routeView, hasIssue, routeLinks, regionOf, routeNoticeText, markerGroups, hasNativeMap, MAPS_STOPS_MAX } from './route.js';
 
 const stop = (n, id, client, lat, lng, plan, w0, w1, leg, status = 'scheduled') => ({
   n, visit_id: id, client_name: client, status, lat, lng, has_map_point: lat !== null,
@@ -160,4 +160,65 @@ test('the line over a route kept from before: offline or a failure, with its tim
   assert.equal(routeNoticeText('offline', Date.parse('2026-11-10T14:41:00Z'), now), 'Offline · stops and distances from 9:41 AM');
   assert.equal(routeNoticeText('failed', Date.parse('2026-11-09T14:41:00Z'), now), 'Could not update · stops and distances from Mon, Nov 9 9:41 AM');
   assert.equal(routeNoticeText('offline', null, now), 'Offline');
+});
+
+test('the map\'s markers: stops closer than 30 points at this zoom share one, each number shown', () => {
+  const v = routeView(ROUTE(), { visits: VISITS });
+  const size = { width: 390, height: 280 };
+  // the whole day in view: Patel (3) and Chen (5) a few points apart in Bayside, Rossi (1) and
+  // Kowalski (2) in Forest Hills too
+  const day = regionOf(v.points);
+  const groups = markerGroups(v.points, day, size);
+  assert.deepEqual(groups.map((g) => g.stops.map((st) => st.n)), [[1, 2], [3, 5], [4], [6]]);
+  assert.equal(groups[1].key, 's3-3+s5-5');
+  assert.ok(Math.abs(groups[1].latitude - (40.7637 + 40.766) / 2) < 1e-9 && Math.abs(groups[1].longitude - (-73.771 - 73.77) / 2) < 1e-9, 'between the two');
+  // zoomed in on Bayside: 3 and 5 apart
+  const close = { latitude: 40.765, longitude: -73.7705, latitudeDelta: 0.004, longitudeDelta: 0.004 };
+  assert.deepEqual(markerGroups(v.points, close, size).map((g) => g.stops.map((st) => st.n)), [[1], [2], [3], [4], [5], [6]]);
+  // not laid out yet: each stop its own marker
+  assert.equal(markerGroups(v.points, null, size).length, 6);
+  assert.equal(markerGroups(v.points, day, { width: 0, height: 0 }).length, 6);
+  assert.deepEqual(markerGroups([], day, size), []);
+});
+
+test('the native map: in a new build it is there, in an old one not, and a lookup that throws is a no', () => {
+  const ui = (names) => ({ hasViewManagerConfig: (name) => names.includes(name) });
+  assert.equal(hasNativeMap({ UIManager: ui(['AIRMap']), NativeModules: { AirMapModule: {} } }), true);
+  // a build from before the map: neither the view nor the module
+  assert.equal(hasNativeMap({ UIManager: ui([]), NativeModules: {} }), false);
+  // the view's record decides, a module alone does not make a map
+  assert.equal(hasNativeMap({ UIManager: ui([]), NativeModules: { AirMapModule: {} } }), false);
+  // the phone cannot answer about the view: the module does
+  const broken = { hasViewManagerConfig: () => { throw new Error('Global function is not registered'); } };
+  assert.equal(hasNativeMap({ UIManager: broken, NativeModules: { AirMapModule: {} } }), true);
+  assert.equal(hasNativeMap({ UIManager: broken, NativeModules: {} }), false);
+  assert.equal(hasNativeMap({ UIManager: {}, NativeModules: { AirMapModule: {} } }), true);
+  const throwing = { get AirMapModule() { throw new Error('no'); } };
+  assert.equal(hasNativeMap({ UIManager: {}, NativeModules: throwing }), false);
+  assert.equal(hasNativeMap(null), false);
+  assert.equal(hasNativeMap({}), false);
+});
+
+test('the map library is loaded only by mapsModule.js, never at the app\'s start', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const root = new URL('../../', import.meta.url).pathname;
+  const files = ['App.js'];
+  const walk = async (dir) => {
+    for (const entry of await readdir(join(root, dir), { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else if (/\.(m?js|jsx|tsx?)$/.test(entry.name)) files.push(path);
+    }
+  };
+  await walk('src');
+  const using = [];
+  for (const file of files) {
+    const code = (await readFile(join(root, file), 'utf8')).split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
+    if (/from\s+['"]react-native-maps['"]|import\(\s*['"]react-native-maps['"]|require\(\s*['"]react-native-maps['"]/.test(code)) using.push(file);
+  }
+  assert.deepEqual(using, ['src/myDay/mapsModule.js']);
+  const loader = await readFile(join(root, 'src/myDay/mapsModule.js'), 'utf8');
+  assert.doesNotMatch(loader, /^import .*react-native-maps/m);
+  assert.match(loader, /hasNativeMap\(\{ UIManager, NativeModules \}\)[^\n]*return maps;\n\s*try \{\n\s*maps = require\('react-native-maps'\);/);
 });

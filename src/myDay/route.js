@@ -179,3 +179,55 @@ export function routeNoticeText(kind, savedAt, now) {
   const head = kind === 'offline' ? 'Offline' : 'Could not update';
   return when ? `${head} · stops and distances from ${when}` : head;
 }
+
+// Stops whose numbers would overlap on the map — closer than minGap points on the screen at
+// the map's zoom — share one marker that shows each number side by side, so every number
+// reads (design: labels never hide one another). Zoomed in far enough, they part again.
+// points: routeView().points; region: the map's { latitude, longitude, latitudeDelta,
+// longitudeDelta }; size: the map's { width, height } in points. Without region or size every
+// stop is its own marker. → [{ key, latitude, longitude, stops }]
+export const MARKER_GAP = 30;
+export function markerGroups(points, region, size, minGap = MARKER_GAP) {
+  if (!points || !points.length) return [];
+  const ok = !!(region && size && size.width > 0 && size.height > 0 && region.latitudeDelta > 0 && region.longitudeDelta > 0);
+  const at = (p) => ({
+    x: ((p.lng - region.longitude) / region.longitudeDelta) * size.width,
+    y: ((region.latitude - p.lat) / region.latitudeDelta) * size.height,
+  });
+  const groups = [];
+  for (const p of points) {
+    const xy = ok ? at(p) : null;
+    const near = xy && groups.find((g) => g.xy.some((q) => Math.hypot(q.x - xy.x, q.y - xy.y) < minGap));
+    if (near) {
+      near.stops.push(p);
+      near.xy.push(xy);
+    } else {
+      groups.push({ stops: [p], xy: xy ? [xy] : [] });
+    }
+  }
+  return groups.map((g) => ({
+    key: g.stops.map((st) => st.key).join('+'),
+    latitude: g.stops.reduce((sum, st) => sum + st.lat, 0) / g.stops.length,
+    longitude: g.stops.reduce((sum, st) => sum + st.lng, 0) / g.stops.length,
+    stops: g.stops,
+  }));
+}
+
+// Is the native map (react-native-maps: its view AIRMap) in this build of the app? An app built
+// before the map came has the new screens but no native map, and loading the library there
+// breaks the app, so mapsModule.js asks this first. rn: react-native's { UIManager,
+// NativeModules }. The view's own record decides; where the phone cannot answer that, the
+// map's module (AirMapModule) does. A lookup that throws counts as no.
+export function hasNativeMap(rn) {
+  const ui = rn && rn.UIManager;
+  try {
+    if (ui && typeof ui.hasViewManagerConfig === 'function') return !!ui.hasViewManagerConfig('AIRMap');
+  } catch {
+    // the phone cannot tell about the view: ask about the module
+  }
+  try {
+    return !!(rn && rn.NativeModules && rn.NativeModules.AirMapModule);
+  } catch {
+    return false;
+  }
+}

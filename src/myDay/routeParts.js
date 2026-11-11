@@ -30,13 +30,13 @@ export function StopDot({ stop, size = 28, onMap = false }) {
 
 // A back-and-forth the server found: its words, then Tell the office and It's OK (not on a
 // past one: both visits are closed, it was driven). Answered on this phone: «Sent to the office».
+// The title names no stops: the server's words under it do («Visit 4 could go before 3…»).
 export function HintBox({ hint, onTell, onOk }) {
-  const [a, b] = hint.between;
   return (
     <View style={s.hint} accessibilityRole="alert">
       <Icon name="warn" size={20} color={colors.lateFg} style={s.hintIcon} />
       <View style={s.hintBody}>
-        <Text style={s.hintTitle}>{`Back and forth at stops ${a} and ${b}`}</Text>
+        <Text style={s.hintTitle}>Back and forth</Text>
         <Text style={s.hintText}>{hint.text}</Text>
         {hint.mark === 'sent' ? (
           <View style={s.sent}>
