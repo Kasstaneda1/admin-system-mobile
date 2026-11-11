@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './src/session/AuthContext';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
+import MyDayScreen from './src/screens/MyDayScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
 import PartsScreen from './src/screens/PartsScreen';
@@ -29,8 +30,10 @@ export default function App() {
   );
 }
 
-// Signed out: only the sign-in screen. Signed in: the technician's screens, Home first, so
-// there is no way back to sign in but Logout; the end of a session swaps the set by itself.
+// Signed out: only the sign-in screen. Signed in: the technician's screens, My day first
+// (TECH_APP_MY_DAY_SPEC.md §3), so there is no way back to sign in but Logout; the end of a
+// session swaps the set by itself. The older screens open from My day's bar: Salary, Parts,
+// and More (the old menu, Home, with Warehouse, Payments, Receipts, Unpaid and Logout).
 function Screens() {
   const { status } = useAuth();
 
@@ -64,9 +67,14 @@ function Screens() {
         ) : (
           <>
             <Stack.Screen
+              name="MyDay"
+              component={MyDayScreen}
+              options={{ headerShown: false, title: 'My day' }}
+            />
+            <Stack.Screen
               name="Home"
               component={HomeScreen}
-              options={{ title: 'SEMIX Technician' }}
+              options={{ title: 'More' }}
             />
             <Stack.Screen
               name="Salary"

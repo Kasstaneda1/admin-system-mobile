@@ -156,4 +156,14 @@ export const warehouseAPI = {
   },
 };
 
+// My day (backend routes/scheduler/my.js): the technician's own visits, read only.
+// visits(from, to): New York days 'YYYY-MM-DD', both included, at most 7.
+// Answers { success, server_time, today, from, to, visits }.
+export const myDayAPI = {
+  visits: async (from, to) => {
+    const response = await api.get('/api/my/visits', { params: { from, to }, timeout: 15000 });
+    return response.data;
+  },
+};
+
 export default api;
