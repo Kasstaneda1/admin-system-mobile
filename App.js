@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from './src/constants/colors';
+import { AuthProvider, useAuth } from './src/session/AuthContext';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -17,25 +17,19 @@ import UnpaidScreen from './src/screens/UnpaidScreen';
 const Stack = createNativeStackNavigator();
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  return (
+    <AuthProvider>
+      <Screens />
+    </AuthProvider>
+  );
+}
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+// Signed out: only the sign-in screen. Signed in: the technician's screens, Home first, so
+// there is no way back to sign in but Logout; the end of a session swaps the set by itself.
+function Screens() {
+  const { status } = useAuth();
 
-  const checkAuth = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      setIsAuthenticated(!!token);
-    } catch (error) {
-      console.error('Auth check failed:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (isLoading) {
+  if (status === 'loading') {
     return null;
   }
 
@@ -52,47 +46,51 @@ export default function App() {
           },
         }}
       >
-        <Stack.Screen
-          name="Login"
-          options={{ headerShown: false }}
-        >
-          {(props) => <LoginScreen {...props} onLoginSuccess={() => setIsAuthenticated(true)} />}
-        </Stack.Screen>
-        <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{ title: 'SEMIX Technician' }}
-        />
-        <Stack.Screen
-          name="Salary"
-          component={SalaryScreen}
-          options={{ title: 'Salary' }}
-        />
-        <Stack.Screen
-          name="Parts"
-          component={PartsScreen}
-          options={{ title: 'Parts' }}
-        />
-        <Stack.Screen
-          name="Warehouse"
-          component={WarehouseScreen}
-          options={{ title: 'Warehouse' }}
-        />
-        <Stack.Screen
-          name="Payments"
-          component={PaymentsScreen}
-          options={{ title: 'Payments' }}
-        />
-        <Stack.Screen
-          name="Receipts"
-          component={ReceiptsScreen}
-          options={{ title: 'Receipts' }}
-        />
-        <Stack.Screen
-          name="Unpaid"
-          component={UnpaidScreen}
-          options={{ title: 'Unpaid Records' }}
-        />
+        {status !== 'signedIn' ? (
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+        ) : (
+          <>
+            <Stack.Screen
+              name="Home"
+              component={HomeScreen}
+              options={{ title: 'SEMIX Technician' }}
+            />
+            <Stack.Screen
+              name="Salary"
+              component={SalaryScreen}
+              options={{ title: 'Salary' }}
+            />
+            <Stack.Screen
+              name="Parts"
+              component={PartsScreen}
+              options={{ title: 'Parts' }}
+            />
+            <Stack.Screen
+              name="Warehouse"
+              component={WarehouseScreen}
+              options={{ title: 'Warehouse' }}
+            />
+            <Stack.Screen
+              name="Payments"
+              component={PaymentsScreen}
+              options={{ title: 'Payments' }}
+            />
+            <Stack.Screen
+              name="Receipts"
+              component={ReceiptsScreen}
+              options={{ title: 'Receipts' }}
+            />
+            <Stack.Screen
+              name="Unpaid"
+              component={UnpaidScreen}
+              options={{ title: 'Unpaid Records' }}
+            />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );

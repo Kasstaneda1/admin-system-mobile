@@ -27,6 +27,12 @@
     "plugins": [
       "expo-asset",
       "expo-font",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "./plugins/withIos27Scene"
     ]
   }

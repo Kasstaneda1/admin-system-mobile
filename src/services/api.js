@@ -1,5 +1,6 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createSession } from '../session/session';
+import { deviceStore } from '../session/store';
 
 // The server comes from the build: EXPO_PUBLIC_API_URL, checked by app.config.js and set per
 // profile in eas.json (a local stand for development, the live server for preview and
@@ -15,33 +16,27 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests
-api.interceptors.request.use(
-  async (config) => {
-    const token = await AsyncStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
+// Refresh and sign out go past the session (it calls them itself); answered, never thrown
+const authCalls = axios.create({
+  baseURL: API_URL,
+  timeout: 15000,
+  headers: { 'Content-Type': 'application/json' },
+});
+const answer = (request) => request.then(
+  (response) => ({ status: response.status, data: response.data }),
+  (error) => ({ status: error.response?.status || 0, data: error.response?.data || null }),
 );
 
-// Handle response errors
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
-      // Navigate to login (handle in component)
-    }
-    return Promise.reject(error);
-  }
-);
+// The technician's session (src/session): tokens in the secure store, one refresh for every
+// request that needs it, one repeat of a refused request, sign in again when the server says so
+export const session = createSession({
+  store: deviceStore,
+  http: {
+    refresh: (refreshToken) => answer(authCalls.post('/api/auth/refresh', { refreshToken })),
+    logout: (refreshToken) => answer(authCalls.post('/api/auth/logout', { refreshToken })),
+  },
+});
+session.attach(api);
 
 // Auth API
 export const authAPI = {
@@ -50,9 +45,13 @@ export const authAPI = {
     return response.data;
   },
 
-  logout: async () => {
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('user');
+  // Gives up a refresh token the app does not keep (someone who is not a technician signed in)
+  revoke: (refreshToken) => answer(authCalls.post('/api/auth/logout', { refreshToken })),
+
+  // Who is signed in; also checks that the session still holds (AuthContext)
+  me: async () => {
+    const response = await api.get('/api/me');
+    return response.data;
   },
 };
 

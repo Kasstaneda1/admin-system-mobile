@@ -10,11 +10,12 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../services/api';
 import { colors } from '../constants/colors';
+import { useAuth } from '../session/AuthContext';
 
-export default function LoginScreen({ navigation, onLoginSuccess }) {
+export default function LoginScreen() {
+  const { signIn, notice } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,19 +31,14 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
       const data = await authAPI.login(username, password);
 
       if (data.user.role !== 'technician') {
+        // The server opened a session the app does not keep: give it back
+        authAPI.revoke(data.refreshToken);
         Alert.alert('Access Denied', 'This app is only for technicians');
-        setLoading(false);
         return;
       }
 
-      await AsyncStorage.setItem('token', data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
-
-      if (onLoginSuccess) {
-        onLoginSuccess();
-      }
-
-      navigation.navigate('Home');
+      // The session keeps the tokens; the app then shows the technician's screens by itself
+      await signIn(data);
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert(
@@ -62,6 +58,12 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
       <View style={styles.content}>
         <Text style={styles.title}>SEMIX CORP</Text>
         <Text style={styles.subtitle}>Technician Portal</Text>
+
+        {notice ? (
+          <Text style={styles.notice} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            {notice}
+          </Text>
+        ) : null}
 
         <View style={styles.form}>
           <TextInput
@@ -121,6 +123,19 @@ const styles = StyleSheet.create({
     color: colors.white,
     marginBottom: 40,
     opacity: 0.9,
+  },
+  notice: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primaryBorder,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+    color: colors.textDarkGray,
+    fontSize: 15,
+    textAlign: 'center',
   },
   form: {
     width: '100%',

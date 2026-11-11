@@ -178,8 +178,10 @@ admin-system-mobile/
 ## API Configuration
 
 The server comes from the build, not from the code: `EXPO_PUBLIC_API_URL`.
-`app.config.js` checks it (without it no Expo command runs; plain `http` only for a local
-stand), Metro writes it into the JS, `src/services/api.js` reads it.
+`app.config.js` checks it with `config/apiUrl.js` (without it no Expo command runs; plain
+`http` only for a local stand; inside an EAS build `development` must name a local stand,
+`preview` and `production` the live server over `https`), Metro writes it into the JS,
+`src/services/api.js` reads it.
 
 ```bash
 # a local backend stand on this Mac (the iOS Simulator reaches it as 127.0.0.1)
@@ -192,10 +194,33 @@ The Android emulator reaches this Mac as `10.0.2.2`, not `127.0.0.1`.
 
 ## Authentication
 
-- Technicians log in with their existing credentials
-- JWT tokens are stored in AsyncStorage
-- Automatic token refresh on API requests
-- Only users with `role: 'technician'` can access the app
+- Only technicians: anyone else is told so, and the session the server opened is given back.
+- `src/session/`: the session. Login gives an access token (15 minutes) and a refresh token
+  (7 days). Both live in the secure store (`expo-secure-store`: iOS keychain, Android
+  keystore, this device only); the profile the screens read stays in AsyncStorage (`user`).
+- Every request goes through it (`session.attach` in `src/services/api.js`): an access token
+  about to end, or a 401, means **one** refresh that all waiting requests share, then each
+  refused request is sent once more.
+- The session ends by the server's word: refresh refused, or 403 «Access to system blocked».
+  Everything kept is wiped and the sign-in screen says why («Your account was turned off.
+  Please contact the office.» / «Your session has ended. Please sign in again.»). No network,
+  a server failure or 429 never sign anyone out.
+- Start: a refresh token younger than 7 days and the profile open the technician's screens
+  at once, without the network; `GET /api/me` then checks the session in the background,
+  and again on return to the app (at most once per 5 minutes).
+- Logout wipes everything kept at once and asks the server to revoke the refresh token.
+- `npm test` runs the session's tests on node (`src/session/*.test.mjs`) and the server
+  address rule (`config/apiUrl.test.js`).
+
+### Known limitations (to fix on the server later)
+
+- The server limits refreshes per IP (30 an hour), not per user: several technicians behind
+  one carrier IP can run into it (429). The session survives it, the requests fail until then.
+- If the answer to a refresh is lost on the way, the server has already revoked the old
+  refresh token: the next refresh is refused and the technician signs in again. A short
+  window in which the old token still works would fix it.
+- A turned-off technician is recognised by the server's words in the 403 («Access to
+  system blocked»), not by an error code.
 
 ## Builds
 
@@ -229,7 +254,9 @@ npx expo start                          # Metro; the app loads the JS from it
 Expo SDK 54 does not have it yet. `plugins/withIos27Scene.js` adds it on every prebuild (a `SceneDelegate` in
 `AppDelegate.swift`, the scene manifest in `Info.plist`) and lifts pods to iOS 15.1. Take
 it out with the SDK upgrade that brings scenes. Because of it there is no `expo-dev-client`
-for now: its SDK 54 launcher needs the window before the scene makes it.
+for now: its SDK 54 launcher needs the window before the scene makes it. The development
+profile is a Debug build with Metro instead; the dev client comes back with the SDK upgrade
+(APP-4).
 
 ## Troubleshooting
 
