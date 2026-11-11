@@ -9,6 +9,7 @@ import YearSelector from '../components/YearSelector';
 import StatusBadge from '../components/StatusBadge';
 import EmptyState from '../components/EmptyState';
 import { parseLocalDate } from '../utils/dateUtils';
+import { logError } from '../utils/logError';
 
 export default function PaymentsScreen() {
   const currentYear = new Date().getFullYear();
@@ -58,7 +59,7 @@ export default function PaymentsScreen() {
       const data = await salaryAPI.getPayments(technicianName);
       setAllPayments(data.payments || []);
     } catch (err) {
-      console.error('Error loading payments:', err);
+      logError('Error loading payments:', err);
       const message = err.response?.data?.error || 'Failed to load payments. Please check your connection.';
       setError(message);
       Alert.alert('Error', message);

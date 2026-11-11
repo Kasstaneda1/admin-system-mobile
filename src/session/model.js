@@ -131,6 +131,19 @@ export function refreshOutcome(status, body) {
   return 'later';
 }
 
+// What a failed sign in (POST /api/login) says on the screen. A turned-off user hears the app's
+// own phrase, the same as when the session ends that way: 403 account_blocked (an older server
+// without codes: its words). Any other refusal: the server's text; none (no answer): the default.
+export const LOGIN_FAILED_DEFAULT = 'Invalid username or password';
+export function loginFailureText(status, body) {
+  const code = codeOf(body);
+  const blocked = code
+    ? CODE_OUTCOME[code] === 'blocked'
+    : startsWith(body, BLOCKED_WORDS) || startsWith(body, DEACTIVATED_WORDS);
+  if (blocked) return NOTICE.blocked;
+  return typeof body?.error === 'string' && body.error ? body.error : LOGIN_FAILED_DEFAULT;
+}
+
 // How the app starts from what the phone keeps. Signed in without the network when there is a
 // refresh token, the profile, and the refresh token is younger than the server's 7 days.
 // `wipe`: what is kept is of no use (a token without a profile: the iOS keychain outlives a

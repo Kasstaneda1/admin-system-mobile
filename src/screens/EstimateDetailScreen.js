@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { estimatesAPI } from '../services/api';
 import { parseLocalDate } from '../utils/dateUtils';
+import { logError } from '../utils/logError';
 
 export default function EstimateDetailScreen({ route, navigation }) {
   const { estimateId } = route.params;
@@ -24,7 +25,7 @@ export default function EstimateDetailScreen({ route, navigation }) {
       const data = await estimatesAPI.getEstimateById(estimateId);
       setEstimate(data);
     } catch (error) {
-      console.error('Failed to load estimate:', error);
+      logError('Failed to load estimate:', error);
       Alert.alert('Error', 'Failed to load estimate details');
       navigation.goBack();
     } finally {

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   NOTICE, ACCESS_MARGIN_MS, REFRESH_LIFE_MS, CHECK_GAP_MS, REFRESH_RETRY_DELAYS_MS, REFRESH_RETRY_WINDOW_MS,
   accessExpiresAt, accessUsable, answerKind, refreshOutcome, startState, checkDue, profileFromMe, isAuthPath,
+  loginFailureText, LOGIN_FAILED_DEFAULT,
 } from './model.js';
 
 const NOW = Date.parse('2026-11-10T17:00:00Z');
@@ -204,4 +205,22 @@ test('every code, on refresh and on a request; and the words without a code, as 
   assert.equal(refreshOutcome(429, { error: 'Too many token refresh requests, please try again later' }), 'later');
   assert.equal(refreshOutcome(500, { error: 'Server error' }), 'later');
   assert.equal(refreshOutcome(0, null), 'later');
+});
+
+test('a failed sign in: a turned-off user gets the app phrase, any other refusal the server text', () => {
+  // the server today (routes/auth.js): 403 with the code, its words beside it
+  const blocked = { error: 'Access to system blocked. Contact administrator.', code: 'account_blocked' };
+  assert.equal(loginFailureText(403, blocked), NOTICE.blocked);
+  assert.equal(loginFailureText(403, blocked), 'Your account was turned off. Please contact the office.');
+  assert.equal(loginFailureText(401, { error: 'Account is deactivated', code: 'account_deactivated' }), NOTICE.blocked);
+  // the code decides, not the words: other codes keep the server's text
+  assert.equal(loginFailureText(403, { error: 'Access to system blocked', code: 'something_new' }), 'Access to system blocked');
+  // an older server without codes: its words
+  assert.equal(loginFailureText(403, { error: 'Access to system blocked. Contact administrator.' }), NOTICE.blocked);
+  // everything else as before: the server's text, else the default
+  assert.equal(loginFailureText(401, { error: 'Invalid username or password' }), 'Invalid username or password');
+  assert.equal(loginFailureText(429, { error: 'Too many login attempts, please try again later' }), 'Too many login attempts, please try again later');
+  assert.equal(loginFailureText(500, {}), LOGIN_FAILED_DEFAULT);
+  assert.equal(loginFailureText(undefined, undefined), LOGIN_FAILED_DEFAULT);
+  assert.equal(LOGIN_FAILED_DEFAULT, 'Invalid username or password');
 });

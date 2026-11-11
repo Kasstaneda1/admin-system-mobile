@@ -14,6 +14,7 @@ import { colors } from '../constants/colors';
 import YearSelector from '../components/YearSelector';
 import StatusBadge from '../components/StatusBadge';
 import { parseLocalDate } from '../utils/dateUtils';
+import { logError } from '../utils/logError';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -66,7 +67,7 @@ export default function SalaryScreen() {
       }
       setYearData(monthsData);
     } catch (error) {
-      console.error('Failed to load year data:', error);
+      logError('Failed to load year data:', error);
       Alert.alert('Error', 'Failed to load salary data. Please try again.');
     } finally {
       setLoadingYear(false);
@@ -88,7 +89,7 @@ export default function SalaryScreen() {
       const data = await salaryAPI.getSalaryData(startDateStr, endDateStr);
       setMonthData(data);
     } catch (error) {
-      console.error('Failed to load month data:', error);
+      logError('Failed to load month data:', error);
       Alert.alert('Error', 'Failed to load month details. Please try again.');
     } finally {
       setLoading(false);
