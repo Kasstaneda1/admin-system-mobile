@@ -14,6 +14,7 @@ const ICONS = {
   chev: require('../../assets/icons/chev.png'),
   door: require('../../assets/icons/door.png'),
   history: require('../../assets/icons/history.png'),
+  home: require('../../assets/icons/home.png'),
   install: require('../../assets/icons/install.png'),
   key: require('../../assets/icons/key.png'),
   mapoff: require('../../assets/icons/mapoff.png'),

@@ -5,9 +5,15 @@
 // save a detour, with their words. The app only draws that: no number and no phrase of the
 // route is counted here again.
 //
-// Server: { date, today, stops: [{ n, visit_id, client_name, status, lat, lng, has_map_point,
+// Server: { date, today, stops: [{ n, kind, visit_id, client_name, status, lat, lng, has_map_point,
 //   planned_start, window: { start, end }, leg_miles }], total_miles, stops_without_point,
-//   flags: [{ between: [n, n + 1], visit_ids, saves_miles, past, text }] }
+//   home_missing, flags: [{ between: [n, n + 1], visit_ids, saves_miles, past, text }] }
+// The day starts at the technician's home (backend #157): stop 0 { kind: 'home', lat, lng },
+// no customer and no address; the first visit's leg_miles is the leg from home, and the total
+// has it. home_missing: no point of home (the office has not set the address): the route
+// starts at the first stop, as before. A server before #157 has neither kind nor
+// home_missing: every stop is a visit. Visits are numbered from 1 either way, and so are the
+// hints (between [1, 2] may come now: home → 2 → 1 can be shorter).
 // The list rows take the rest (city, role, the tag) from the day's own visits by id.
 import { areaOf, clock, clockAmPm, dayLabel, momentWall, parseWall, shortName, stateOf, tagOf, windowText } from './model.js';
 
@@ -58,7 +64,13 @@ export function routeView(route, { visits = [], marks = {} } = {}) {
   const flags = pickFlags(route && route.flags);
   const flagged = new Set();
   for (const f of flags) f.between.forEach((n) => flagged.add(n));
-  const list = Array.isArray(route && route.stops) ? route.stops : [];
+  const all = Array.isArray(route && route.stops) ? route.stops.filter(Boolean) : [];
+  // home: the start of the legs and a mark of its own on the map, never a visit
+  const homeStop = all.find((s) => s.kind === 'home') || null;
+  const home = homeStop && Number.isFinite(homeStop.lat) && Number.isFinite(homeStop.lng)
+    ? { key: 'home', home: true, n: 0, state: 'home', lat: homeStop.lat, lng: homeStop.lng }
+    : null;
+  const list = all.filter((s) => s.kind !== 'home');
 
   const stops = list.map((s) => {
     const visit = byId.get(s.visit_id) || null;
@@ -81,20 +93,22 @@ export function routeView(route, { visits = [], marks = {} } = {}) {
     };
   });
 
-  // Legs: from each stop with a point to the next one with a point, as the server counted
-  // them (leg_miles); bad when they run through a hint's two stops, done when both are closed
+  // Legs: from home (when the server gave it) and from each stop with a point to the next one
+  // with a point, as the server counted them (leg_miles); bad when they run through a hint's
+  // two stops (home is stop 0: home → 1 is in a hint between 1 and 2), done when driven:
+  // the stop it goes to is closed, and so is the one it starts at (home always is)
   const legs = [];
-  let prev = null;
+  let prev = home;
   stops.forEach((s, i) => {
     const server = list[i];
-    if (i > 0) s.leg = s.hasPoint && Number.isFinite(server.leg_miles) ? { text: milesText(server.leg_miles), bad: false } : { text: 'distance unknown', bad: false };
+    if (i > 0 || home) s.leg = s.hasPoint && Number.isFinite(server.leg_miles) ? { text: milesText(server.leg_miles), bad: false } : { text: 'distance unknown', bad: false };
     if (!s.hasPoint) return;
     if (prev) {
       const bad = flags.some((f) => {
         const [a, b] = f.between;
         return (s.n >= a && s.n <= b + 1) && (prev.n >= a - 1 && prev.n <= b);
       });
-      legs.push({ key: `${prev.n}-${s.n}`, from: { latitude: prev.lat, longitude: prev.lng }, to: { latitude: s.lat, longitude: s.lng }, bad, done: prev.state === 'closed' && s.state === 'closed' });
+      legs.push({ key: `${prev.n}-${s.n}`, from: { latitude: prev.lat, longitude: prev.lng }, to: { latitude: s.lat, longitude: s.lng }, bad, done: s.state === 'closed' && (prev.home || prev.state === 'closed') });
       if (s.leg) s.leg.bad = bad;
     }
     prev = s;
@@ -106,9 +120,8 @@ export function routeView(route, { visits = [], marks = {} } = {}) {
   const n = stops.length;
   let summary;
   if (!n) summary = 'No stops';
-  else if (n === 1) summary = 'One stop';
-  else if (points.length < 2) summary = `${n} stops`;
-  else summary = `${milesText(route.total_miles)} · ${n} stops`;
+  else if (!legs.length || !points.length) summary = n === 1 ? 'One stop' : `${n} stops`;
+  else summary = `${milesText(route.total_miles)} · ${n} stop${n === 1 ? '' : 's'}`;
 
   const hints = flags.map((f) => ({
     key: flagKey(f),
@@ -125,6 +138,11 @@ export function routeView(route, { visits = [], marks = {} } = {}) {
     stops,
     legs,
     points,
+    // home at the top of the list and on the map (null: no point of home, or the server is
+    // older); the map's marks and its box: home and the stops with a point
+    home,
+    homeMissing: !!(route && route.home_missing === true),
+    mapPoints: home && points.length ? [home, ...points] : points,
     hints,
     noPoint: stops.filter((s) => !s.hasPoint).length,
     issue: hasIssue(route, marks),

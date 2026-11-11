@@ -2,7 +2,9 @@
 // from the Route button of My day with the day's date and visits. The server counts the route
 // (GET /api/my/route?date); route.js turns it into what is drawn here, nothing is counted again.
 // The map is Apple Maps (react-native-maps, no key) on iOS: numbered stops, straight lines
-// between them, the legs of a back-and-forth in orange. The library is loaded here only, by
+// between them, the legs of a back-and-forth in orange. The day starts at home (backend #157):
+// a house on the map and «Home» at the top of the list, the first leg from it; without a point
+// of home, «Home address not set · ask the office» and the route from the first stop. The library is loaded here only, by
 // mapsModule.js, and only when this build of the app has the native map: an app built before
 // it shows the list and «Update the app to see the map». On Android the map needs a Google key
 // (not yet): the list only. A day without map points (production today: the geocoding key is
@@ -25,7 +27,7 @@ import { keepRoute, keptRoute, markHint, marksOf } from '../myDay/routeMarks';
 import { noteBody, noteError, noteRequest } from '../myDay/notesPhotos';
 import { openRoute } from '../myDay/phoneLinks';
 import { NoticeBar } from '../myDay/parts';
-import { HintBox, StopDot, StopRow, TellSheet } from '../myDay/routeParts';
+import { HintBox, HomeMissing, HomeRow, StopDot, StopRow, TellSheet } from '../myDay/routeParts';
 import Icon from '../myDay/Icon';
 
 const MAP_HEIGHT = 280;
@@ -35,6 +37,7 @@ const MAP_PADDING = { top: 76, right: 44, bottom: 44, left: 44 };
 const MAP_INSETS = { top: 0, right: 0, bottom: 28, left: 0 };
 // on top: the stop of now, then those of a back-and-forth
 const markerZ = (stop) => (stop.state === 'current' ? 3 : stop.flagged ? 2 : 1);
+const markerLabel = (stop) => (stop.home ? 'Home' : `Stop ${stop.n}, ${stop.client}`);
 const listOf = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 
 export default function RouteScreen({ route: nav, navigation }) {
@@ -93,18 +96,22 @@ export default function RouteScreen({ route: nav, navigation }) {
   // stops that would overlap at this zoom share one marker: every number reads
   const [mapSize, setMapSize] = useState(null);
   const [mapRegion, setMapRegion] = useState(null);
-  const groups = useMemo(() => (hasPoints ? markerGroups(view.points, mapRegion || regionOf(view.points), mapSize) : []),
+  // A line taken off the map's children stays drawn (react-native-maps 1.20 on the new
+  // architecture: a marker goes, a polyline does not — seen when home was cleared): the map is
+  // drawn anew whenever its lines change, which is rare (home set or cleared, stops changed)
+  const linesKey = view ? view.legs.map((l) => `${l.key}${l.bad ? 'b' : ''}${l.done ? 'd' : ''}`).join(',') : '';
+  const groups = useMemo(() => (hasPoints ? markerGroups(view.mapPoints, mapRegion || regionOf(view.mapPoints), mapSize) : []),
     [hasPoints, view, mapRegion, mapSize]);
 
   // the map shows all its stops
   const mapRef = useRef(null);
   const fit = useCallback(() => {
     if (!mapRef.current || !view || !view.points.length) return;
-    if (view.points.length === 1) {
-      mapRef.current.animateToRegion(regionOf(view.points), 0);
+    if (view.mapPoints.length === 1) {
+      mapRef.current.animateToRegion(regionOf(view.mapPoints), 0);
       return;
     }
-    mapRef.current.fitToCoordinates(view.points.map((p) => ({ latitude: p.lat, longitude: p.lng })), { edgePadding: MAP_PADDING, animated: false });
+    mapRef.current.fitToCoordinates(view.mapPoints.map((p) => ({ latitude: p.lat, longitude: p.lng })), { edgePadding: MAP_PADDING, animated: false });
   }, [view]);
   useEffect(() => { fit(); }, [fit]);
 
@@ -167,7 +174,7 @@ export default function RouteScreen({ route: nav, navigation }) {
 
       {showMap ? (
         <View style={styles.map} onLayout={(e) => setMapSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
-          <MapView ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={regionOf(view.points)} onMapReady={fit}
+          <MapView key={linesKey} ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={regionOf(view.mapPoints)} onMapReady={fit}
             onRegionChangeComplete={setMapRegion} mapPadding={MAP_INSETS}
             showsPointsOfInterest={false} showsBuildings={false} pitchEnabled={false} rotateEnabled={false} toolbarEnabled={false}
             accessibilityLabel="Map of the day's stops">
@@ -179,7 +186,7 @@ export default function RouteScreen({ route: nav, navigation }) {
             {groups.map((group) => (
               <Maps.Marker key={group.key} coordinate={{ latitude: group.latitude, longitude: group.longitude }} anchor={{ x: 0.5, y: 0.5 }}
                 zIndex={Math.max(...group.stops.map(markerZ))} tracksViewChanges={false}
-                accessibilityLabel={`${group.stops.length > 1 ? 'Stops' : 'Stop'} ${listOf(group.stops.map((st) => st.n))}, ${listOf(group.stops.map((st) => st.client))}`}>
+                accessibilityLabel={listOf(group.stops.map(markerLabel))}>
                 {group.stops.length === 1 ? <StopDot stop={group.stops[0]} size={30} onMap /> : (
                   <View style={styles.group}>
                     {group.stops.map((stop) => <StopDot key={stop.key} stop={stop} size={28} onMap />)}
@@ -233,6 +240,8 @@ export default function RouteScreen({ route: nav, navigation }) {
               </View>
             </View>
           ) : null}
+          {view.stops.length && view.home ? <HomeRow /> : null}
+          {view.stops.length && view.homeMissing ? <HomeMissing /> : null}
           {view.stops.length ? view.stops.map((stop) => <StopRow key={stop.key} stop={stop} />) : (
             <Text style={styles.quiet}>No visits on this day.</Text>
           )}
