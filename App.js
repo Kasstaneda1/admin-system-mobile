@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { colors } from './src/constants/colors';
@@ -16,6 +17,10 @@ import UnpaidScreen from './src/screens/UnpaidScreen';
 
 const Stack = createNativeStackNavigator();
 
+// The splash (app.json, expo-splash-screen) stays until the kept session is read, so the first
+// screen follows it straight, without an empty frame
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function App() {
   return (
     <AuthProvider>
@@ -28,6 +33,10 @@ export default function App() {
 // there is no way back to sign in but Logout; the end of a session swaps the set by itself.
 function Screens() {
   const { status } = useAuth();
+
+  useEffect(() => {
+    if (status !== 'loading') SplashScreen.hideAsync().catch(() => {});
+  }, [status]);
 
   if (status === 'loading') {
     return null;
