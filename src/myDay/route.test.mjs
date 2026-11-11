@@ -203,19 +203,31 @@ test('the map library is loaded only by mapsModule.js, never at the app\'s start
   const { readFile, readdir } = await import('node:fs/promises');
   const { join } = await import('node:path');
   const root = new URL('../../', import.meta.url).pathname;
-  const files = ['App.js'];
+  // the app's code: not the tests (they never run in the app, and this one names the library)
+  const code = /^(?!.*\.test\.)[^.].*\.(m?js|jsx|tsx?)$/;
+  const files = (await readdir(root, { withFileTypes: true })).filter((e) => e.isFile() && code.test(e.name)).map((e) => e.name);
+  assert.ok(files.includes('App.js'));
   const walk = async (dir) => {
     for (const entry of await readdir(join(root, dir), { withFileTypes: true })) {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) await walk(path);
-      else if (/\.(m?js|jsx|tsx?)$/.test(entry.name)) files.push(path);
+      else if (code.test(entry.name)) files.push(path);
     }
   };
   await walk('src');
+  await walk('config');
+  // the library's name in quotes anywhere in the code, comments aside: import … from,
+  // a bare import 'react-native-maps', import(), require(), export … from
+  const named = /['"`]react-native-maps['"`]/;
+  const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
+  for (const form of [`import 'react-native-maps';`, `import MapView from "react-native-maps";`, 'const M = require(`react-native-maps`);',
+    `export { default } from 'react-native-maps';`, `const M = await import('react-native-maps');`]) {
+    assert.match(withoutComments(form), named, form);
+  }
+  assert.doesNotMatch(withoutComments(`// import 'react-native-maps';\n/* require('react-native-maps') */`), named);
   const using = [];
   for (const file of files) {
-    const code = (await readFile(join(root, file), 'utf8')).split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
-    if (/from\s+['"]react-native-maps['"]|import\(\s*['"]react-native-maps['"]|require\(\s*['"]react-native-maps['"]/.test(code)) using.push(file);
+    if (named.test(withoutComments(await readFile(join(root, file), 'utf8')))) using.push(file);
   }
   assert.deepEqual(using, ['src/myDay/mapsModule.js']);
   const loader = await readFile(join(root, 'src/myDay/mapsModule.js'), 'utf8');
