@@ -26,8 +26,11 @@ const CHOICES = {
   installation: { title: 'Installation done', hint: 'New unit is in and working', icon: 'install', kind: 'installation' },
   recall: { title: 'Recall checked', hint: 'The earlier work was checked', icon: 'replay', kind: 'recall' },
 };
-// «How did it end?»: four outcomes; «Recall checked» only on a recall visit (the server refuses it elsewhere)
+// «How did it end?»: four outcomes; «Recall checked» only on a recall visit (the server refuses it elsewhere).
+// An installation visit ends one way only: «Installation done» (the owner, 2026-11-11). Until
+// the server names the outcomes allowed for each kind of visit, the app keeps this rule itself.
 export function finishChoices(visit) {
+  if (visit.visit_kind === 'installation') return [{ outcome: 'installation', ...CHOICES.installation }];
   const outcomes = ['done', 'diagnostics_only', 'deposit', 'installation'];
   if (visit.visit_kind === 'recall') outcomes.push('recall');
   return outcomes.map((outcome) => ({ outcome, ...CHOICES[outcome] }));
