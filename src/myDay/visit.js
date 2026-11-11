@@ -1,7 +1,7 @@
 // The visit card, read only (TECH_APP_MY_DAY_SPEC.md §3 «Visit», design A3:
 // design-mockups/tech-app/shots/final-visit-*.png): what VisitScreen shows, without React
 // Native (visit.test.mjs runs it on node). The visit is GET /api/my/visits/:id
-// ({ ...the list's fields, job_visits, notes, office_notes }) or, before it answers or
+// ({ ...the list's fields, job_visits, notes, office_notes, office_messages }) or, before it answers or
 // without the network, the list's visit or the card kept on the phone.
 // Not here (APP-3): the actions bar, Finish, No access, Undo, adding a note or a photo.
 import {
@@ -139,31 +139,35 @@ export function noteWhen(createdAt, now) {
   return at.date === now.date ? clockAmPm(at.minutes) : monthDay(at.date);
 }
 
-// The office's notes for the technician, under «How to get in». The server gives the job's
-// notes as one text (office_notes, no author, no time); a list of notes { author_name,
-// created_at, text } is read too, the newest first. Two show, the rest behind «+N more».
-// Returns null when there is nothing, else { notes: [{ key, head ('Anna · 9:12 AM' or ''), text }], more }.
+// The office's words for the technician, under «How to get in» (backend #141): its messages
+// to this visit (office_messages { id, author_name, created_at, text, seen_at }: seen_at is
+// when this technician saw it, null until then), the newest first, two shown and the rest
+// behind «+N more»; then the job's common text (office_notes, one text, no author), always.
+// Returns null when there is nothing, else {
+//   messages: [{ key, id, head ('Anna · 9:12 AM'), text, unseen }], more,
+//   job: { head ('Job notes' under messages, else ''), text } | null }
 export const OFFICE_NOTES_SHOWN = 2;
 export function officeNotesOf(visit, now, { open = false } = {}) {
-  const value = visit.office_notes;
-  let all;
-  if (Array.isArray(value)) {
-    all = value
-      .filter((note) => note && typeof note.text === 'string' && note.text.trim())
-      .map((note, i) => ({ note, i, at: Date.parse(note.created_at) || 0 }))
-      .sort((a, b) => b.at - a.at || b.i - a.i)
-      .map(({ note, i }) => ({
-        key: `o${note.id ?? i}`,
-        head: [firstWord(note.author_name), noteWhen(note.created_at, now)].filter(Boolean).join(' · '),
-        text: note.text.trim(),
-      }));
-  } else {
-    const text = typeof value === 'string' ? value.trim() : '';
-    all = text ? [{ key: 'o0', head: '', text }] : [];
-  }
-  if (!all.length) return null;
-  const shown = open ? all : all.slice(0, OFFICE_NOTES_SHOWN);
-  return { notes: shown, more: all.length - shown.length };
+  const list = Array.isArray(visit.office_messages) ? visit.office_messages : [];
+  const all = list
+    .filter((m) => m && Number.isInteger(m.id) && typeof m.text === 'string' && m.text.trim())
+    .map((m) => ({ m, at: Date.parse(m.created_at) || 0 }))
+    .sort((a, b) => b.at - a.at || b.m.id - a.m.id)
+    .map(({ m }) => ({
+      key: `m${m.id}`,
+      id: m.id,
+      head: [firstWord(m.author_name) || 'Office', noteWhen(m.created_at, now)].filter(Boolean).join(' · '),
+      text: m.text.trim(),
+      unseen: !m.seen_at,
+    }));
+  const jobText = typeof visit.office_notes === 'string' ? visit.office_notes.trim() : '';
+  if (!all.length && !jobText) return null;
+  const messages = open ? all : all.slice(0, OFFICE_NOTES_SHOWN);
+  return {
+    messages,
+    more: all.length - messages.length,
+    job: jobText ? { head: all.length ? 'Job notes' : '', text: jobText } : null,
+  };
 }
 const firstWord = (name) => (typeof name === 'string' && name.trim() ? name.trim().split(/\s+/)[0] : '');
 
