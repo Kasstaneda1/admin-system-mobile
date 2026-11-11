@@ -190,7 +190,7 @@ export default function VisitScreen({ route, navigation }) {
         setPending(null);
         if (failed.visit) await keep(failed.visit);
         else setShown((s) => (s ? { ...s, visit: { ...s.visit, finish_outcomes: failed.outcomes } } : s));
-        Alert.alert('Choose another outcome', failed.text,
+        Alert.alert('The office changed this visit', failed.text,
           [{ text: 'OK', onPress: () => { if (failed.outcomes.length) setFinishOpen(true); } }]);
       } else if (failed.kind === 'refused') {
         // the server's words, and the visit as it is now (another phone, the office, 15 minutes)
