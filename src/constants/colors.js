@@ -54,6 +54,11 @@ export const colors = {
   lateFg: '#7C2D12',         // --visit-late-fg: the words of a back-and-forth, 8.83:1
   lateBg: '#FFF7ED',         // --visit-late-bg
   lateBorder: '#EA580C',     // --visit-late-border
+  // The bill (design-mockups/app-invoice): a line deleted, a control that cannot be pressed
+  dangerFg: '#7F1D1D',       // --danger-fg, 8.20:1 on dangerBg
+  dangerBg: '#FEE2E2',       // --danger-bg
+  dangerBorder: '#B91C1C',   // --danger-border
+  fgDisabled: '#A3A3A3',     // --fg-disabled: disabled controls only, never content
 
   // Primary
   primary: '#14B8A6',

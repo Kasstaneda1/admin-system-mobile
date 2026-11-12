@@ -29,7 +29,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
-import { myDayAPI, photosAPI, session } from '../services/api';
+import { billAPI, myDayAPI, photosAPI, session } from '../services/api';
 import { logError } from '../utils/logError';
 import { useAuth } from '../session/AuthContext';
 import { failedText, nowWall, offlineText, skewOf, visitDay } from '../myDay/model';
@@ -45,6 +45,8 @@ import { ActionBar, FinishSheet, NoAccessSheet } from '../myDay/visitBar';
 import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
 import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
 import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
+import { billError, billTile, canBill, draftedFrom, knownOf } from '../bill/model';
+import { Box } from '../bill/parts';
 
 export default function VisitScreen({ route, navigation }) {
   const { id, visit: fromList = null, n = null, savedAt: listSavedAt = null, skew: skewIn = 0, fresh = null } = route.params || {};
@@ -93,6 +95,24 @@ export default function VisitScreen({ route, navigation }) {
     }
   }, [id]);
 
+  // The visit's bill (src/bill): { status, bill } as GET …/bill answered, for the Bill tile and
+  // «Open the bill»; read with the card, only where this technician works on the bill
+  const [known, setKnown] = useState(null);
+  const billSeq = useRef(0);
+  const loadBill = useCallback(async (visit) => {
+    if (!canBill(visit)) return;
+    const seq = ++billSeq.current;
+    try {
+      const data = await billAPI.get(id);
+      if (seq === billSeq.current) setKnown(knownOf(data.bill));
+    } catch (error) {
+      if (seq !== billSeq.current) return;
+      const failed = billError(error);
+      if (failed.kind === 'failed') logError('Error loading the visit bill:', error);
+      setKnown((k) => (failed.kind === 'none' ? knownOf(null) : k && k.status !== 'loading' ? k : { status: 'unknown', bill: null }));
+    }
+  }, [id]);
+
   const load = useCallback(async ({ pull = false } = {}) => {
     if (gone.current) return;
     const seq = ++loadSeq.current;
@@ -116,6 +136,7 @@ export default function VisitScreen({ route, navigation }) {
       setTick(Date.now());
       seenHold.current = false;
       if (!data.visit.legacy) loadPhotos();
+      loadBill(data.visit);
       await updateMyDay((cache) => keepCard(cache, userId, data.visit, savedAt), mark);
     } catch (error) {
       if (seq !== loadSeq.current || gone.current) return;
@@ -126,10 +147,12 @@ export default function VisitScreen({ route, navigation }) {
       }
       if (status >= 500) logError('Error loading a visit:', error);
       setProblem(status ? 'failed' : 'offline');
+      // the bill is read with the card: without it the Bill tile says so instead of waiting
+      setKnown((k) => k || { status: 'unknown', bill: null });
     } finally {
       if (seq === loadSeq.current) setRefreshing(false);
     }
-  }, [id, userId, fromList, leaveGone, loadPhotos]);
+  }, [id, userId, fromList, leaveGone, loadPhotos, loadBill]);
 
   // on opening and every time the screen comes back
   useFocusEffect(useCallback(() => { setTick(Date.now()); load(); }, [load]));
@@ -155,6 +178,15 @@ export default function VisitScreen({ route, navigation }) {
   // the band and the old words (only for a visit UPDATED when it was opened; stays while open)
   const updated = useMemo(() => (fresh === 'updated' && shown && before !== undefined
     ? updatedOf(shown.visit, before && before.visit, before && before.at) : null), [fresh, shown, before]);
+  const tile = shown ? billTile(shown.visit, known) : null;
+  const drafted = tile && card && card.state === 'closed' && known && known.status === 'draft' ? draftedFrom(known.bill) : null;
+  // «Open the bill»: a draft or an issued bill opens as it is; none yet: the server drafts it
+  const openBill = useCallback(() => {
+    if (!shown) return;
+    const has = known && (known.status === 'draft' || known.status === 'issued');
+    navigation.navigate('Bill', { id, visit: shown.visit, create: !has });
+  }, [navigation, id, shown, known]);
+  const billButton = tile && card && card.state === 'closed' ? { label: 'Open the bill', onPress: openBill } : null;
   const notice = problem && shown ? (problem === 'offline' ? offlineText(shown.savedAt, now) : failedText(shown.savedAt, now)) : null;
   // history and notes come only with the card itself
   const waiting = problem ? 'Needs connection' : 'Loading…';
@@ -175,8 +207,9 @@ export default function VisitScreen({ route, navigation }) {
     setShown({ visit: fresh, savedAt, source: 'server' });
     setProblem(null);
     setTick(Date.now());
+    loadBill(fresh);
     await updateMyDay((cache) => keepActed(cache, userId, fresh, savedAt), mark);
-  }, [userId]);
+  }, [userId, loadBill]);
 
   const send = useCallback(async ({ action, outcome = null, requestId }) => {
     if (busy.current || gone.current) return;
@@ -516,6 +549,20 @@ export default function VisitScreen({ route, navigation }) {
               })}
             </View>
 
+            {tile ? (
+              <TouchableOpacity style={[styles.billTile, tile.kind === 'draft' && styles.billTileFill, tile.off && styles.billTileOff]}
+                onPress={openBill} disabled={tile.off} accessibilityRole="button" accessibilityLabel={`${tile.title}, ${tile.line}`}
+                accessibilityState={{ disabled: tile.off }}>
+                <Icon name="doc" size={26} color={tile.off ? colors.fgDisabled : tile.kind === 'draft' ? colors.fgOnFill : colors.brandPressed} />
+                <View style={styles.billTileBody}>
+                  <Text style={[styles.billTileTitle, tile.kind === 'draft' && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>{tile.title}</Text>
+                  <Text style={[styles.billTileLine, tile.kind === 'draft' && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>{tile.line}</Text>
+                </View>
+                {tile.off ? null : <Icon name="chev" size={20} color={tile.kind === 'draft' ? colors.fgOnFill : colors.fgSecondary} />}
+              </TouchableOpacity>
+            ) : null}
+            {drafted ? <Box kind="info" icon="doc" title={drafted.title} text={drafted.text} style={styles.drafted} /> : null}
+
             {card.access ? (
               <View style={styles.access}>
                 <Icon name="key" size={18} color={colors.warningFg} />
@@ -626,7 +673,8 @@ export default function VisitScreen({ route, navigation }) {
           onPress={press}
           onRetry={() => pending && send(pending)}
           onCancel={() => { setPending(null); setFailure(null); }}
-          onNote={extras ? () => setNoteOpen(true) : null} />
+          onNote={extras ? () => setNoteOpen(true) : null}
+          bill={billButton} />
       ) : null}
       {shown ? (
         <>
@@ -714,6 +762,16 @@ const styles = StyleSheet.create({
   chgText: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: colors.infoFg },
   tileChanged: { borderWidth: 2, borderColor: colors.infoBorder },
   tileWas: { color: colors.infoFg },
+  // The Bill tile (design app-invoice visit-done): a draft is the filled one
+  billTile: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
+  billTileFill: { backgroundColor: colors.brandPressed },
+  billTileOff: { borderColor: colors.borderDefault, backgroundColor: colors.bgSunken },
+  billTileBody: { flex: 1 },
+  billTileTitle: { fontSize: 18, fontWeight: '800', color: colors.fgDefault },
+  billTileLine: { fontSize: 15, fontWeight: '700', color: colors.brandPressed },
+  billTileOnFill: { color: colors.fgOnFill },
+  billTileTextOff: { color: colors.fgDisabled },
+  drafted: { marginTop: 10 },
   access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   accessBody: { flex: 1 },
   accessTitle: { fontSize: 15, fontWeight: '700', color: colors.warningFg },
