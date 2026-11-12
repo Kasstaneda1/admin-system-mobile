@@ -91,10 +91,15 @@ function closedWord(visit) {
 
 // What the bar shows, from the server's actions and undo_until (nowMs: this moment by the
 // server's clock):
-// { primary: { action, label, icon } | null, noAccess, undo: { action, text, left } | null,
-//   closed: { text, note } | null, line, empty }
-//   primary — the big amber button: On my way, else Finish;
-//   noAccess — the «No access» link under it;
+// { primary: { action, label, icon } | null, secondary: { … } | null, noAccess,
+//   undo: { action, text, left } | null, closed: { text, note } | null, line, empty }
+//   primary — the big amber button, the one of the day: Finish whenever the server allows it,
+//             right from a planned visit (the owner's decision of 2026-11-11: his technicians
+//             tell the office they are on the way in Telegram, so On my way is optional; the
+//             server lets the main technician finish an open visit of today, #140); else On my
+//             way (a helper, who does not close the visit);
+//   secondary — On my way under Finish while the visit is still planned: a plain button;
+//   noAccess — the «No access» link under them;
 //   undo — «On my way at 11:08 · 3 min to undo» while the server's undo_until holds;
 //   closed — the green box of a closed visit once its undo is over: «Finished at 10:52 · undo
 //            closed after 15 min» (a helper did not close it: no note);
@@ -103,9 +108,13 @@ function closedWord(visit) {
 export function barOf(visit, nowMs) {
   const actions = Array.isArray(visit.actions) ? visit.actions : [];
   const state = stateOf(visit);
+  const omw = { action: 'omw', label: 'On my way', icon: 'car' };
   let primary = null;
-  if (actions.includes('omw')) primary = { action: 'omw', label: 'On my way', icon: 'car' };
-  else if (actions.includes('finish')) primary = { action: 'finish', label: 'Finish', icon: 'check' };
+  let secondary = null;
+  if (actions.includes('finish')) {
+    primary = { action: 'finish', label: 'Finish', icon: 'check' };
+    if (actions.includes('omw')) secondary = omw;
+  } else if (actions.includes('omw')) primary = omw;
   const noAccess = actions.includes('no_access');
 
   let undo = null;
@@ -136,7 +145,7 @@ export function barOf(visit, nowMs) {
   } else if (visit.role === 'helper') {
     line = `${firstName(visit.main_technician_name) || 'The main technician'} finishes the visit`;
   }
-  return { primary, noAccess, undo, closed, line, empty: !primary && !noAccess && !undo && !closed && !line };
+  return { primary, secondary, noAccess, undo, closed, line, empty: !primary && !secondary && !noAccess && !undo && !closed && !line };
 }
 
 // What a press asks the server: { action, outcome } (outcome only with finish)

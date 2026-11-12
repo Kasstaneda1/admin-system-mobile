@@ -89,15 +89,24 @@ test('No access: two steps in words', () => {
   assert.equal(noAccessWords(visit({ client_name: null, phone: null })).call.button, 'Call the customer');
 });
 
-test('the bar, planned: On my way and No access', () => {
+test('the bar, planned: Finish first, On my way under it (optional), No access', () => {
   const bar = barOf(visit({ actions: ['omw', 'finish', 'no_access'] }), NOW);
-  assert.deepEqual(bar, { primary: { action: 'omw', label: 'On my way', icon: 'car' }, noAccess: true, undo: null, closed: null, line: null, empty: false });
+  assert.deepEqual(bar, { primary: { action: 'finish', label: 'Finish', icon: 'check' }, secondary: { action: 'omw', label: 'On my way', icon: 'car' },
+    noAccess: true, undo: null, closed: null, line: null, empty: false });
+  // a past day still open: the server allows no On my way, Finish alone
+  const past = barOf(visit({ actions: ['finish', 'no_access'] }), NOW);
+  assert.deepEqual([past.primary.action, past.secondary, past.noAccess], ['finish', null, true]);
+  // only On my way (a server that does not let a planned visit finish): it stays the main one
+  const omwOnly = barOf(visit({ actions: ['omw'] }), NOW);
+  assert.deepEqual([omwOnly.primary.action, omwOnly.secondary], ['omw', null]);
+  assert.equal(barOf(visit({ actions: ['omw'] }), NOW).empty, false);
 });
 
 test('the bar, on the way: Finish, No access and the undo while the server allows it', () => {
   const onway = visit({ status: 'omw', omw_at: '2026-11-10T16:08:00.000Z', actions: ['finish', 'no_access', 'undo_omw'], undo_until: '2026-11-10T16:23:00.000Z' });
   const bar = barOf(onway, NOW);
   assert.deepEqual(bar.primary, { action: 'finish', label: 'Finish', icon: 'check' });
+  assert.equal(bar.secondary, null, 'on the way already: no second On my way');
   assert.equal(bar.noAccess, true);
   assert.deepEqual(bar.undo, { action: 'undo_omw', text: 'On my way at 11:08', left: '12 min to undo' });
   // the last seconds still say 1 min; past undo_until it is gone (the server would refuse)
@@ -111,7 +120,7 @@ test('the bar, closed: undo for 15 minutes, then the green box of how it ended',
   assert.deepEqual(barOf(closed, at('2026-11-10T15:55:00Z')).undo, { action: 'undo_finish', text: 'Finished at 10:52', left: '12 min to undo' });
   assert.equal(barOf(closed, at('2026-11-10T15:55:00Z')).closed, null, 'while the undo holds, no box');
   assert.deepEqual(barOf({ ...closed, actions: [], undo_until: null }, NOW),
-    { primary: null, noAccess: false, undo: null, closed: { text: 'Finished at 10:52', note: 'undo closed after 15 min' }, line: null, empty: false });
+    { primary: null, secondary: null, noAccess: false, undo: null, closed: { text: 'Finished at 10:52', note: 'undo closed after 15 min' }, line: null, empty: false });
   // the server still lists the undo but its time is over: the box, not a dead button
   assert.equal(barOf(closed, at('2026-11-10T16:07:00Z')).closed.text, 'Finished at 10:52');
   // right after the press the phone's clock may be a moment before the server's: never more
@@ -129,7 +138,7 @@ test('the bar, closed: undo for 15 minutes, then the green box of how it ended',
 
 test('the bar, helper: their own On my way, its undo; the main technician closes', () => {
   const helping = visit({ role: 'helper', main_technician_name: 'Alex Kim', actions: ['omw'] });
-  assert.deepEqual(barOf(helping, NOW), { primary: { action: 'omw', label: 'On my way', icon: 'car' }, noAccess: false, undo: null, closed: null, line: 'Alex finishes the visit', empty: false });
+  assert.deepEqual(barOf(helping, NOW), { primary: { action: 'omw', label: 'On my way', icon: 'car' }, secondary: null, noAccess: false, undo: null, closed: null, line: 'Alex finishes the visit', empty: false });
   const marked = { ...helping, actions: ['undo_omw'], undo_until: '2026-11-10T16:20:00.000Z' };
   const bar = barOf(marked, NOW);
   assert.equal(bar.primary, null);
@@ -141,7 +150,7 @@ test('the bar, helper: their own On my way, its undo; the main technician closes
 });
 
 test('the bar, an old task and a cancelled visit: no buttons, a line says why', () => {
-  assert.deepEqual(barOf(visit({ legacy: true, job_id: null }), NOW), { primary: null, noAccess: false, undo: null, closed: null, line: 'Old task: change it in the old technician portal', empty: false });
+  assert.deepEqual(barOf(visit({ legacy: true, job_id: null }), NOW), { primary: null, secondary: null, noAccess: false, undo: null, closed: null, line: 'Old task: change it in the old technician portal', empty: false });
   assert.equal(barOf(visit({ status: 'cancelled' }), NOW).line, 'The office cancelled this visit');
   assert.equal(barOf(visit(), NOW).empty, true, 'a closed job: the server allows nothing, nothing shows');
 });

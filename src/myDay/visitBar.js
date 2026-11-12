@@ -60,6 +60,18 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </TouchableOpacity>
       ) : null}
 
+      {bar.secondary ? (
+        <TouchableOpacity style={[styles.second, off && styles.off]} disabled={off} onPress={() => onPress(bar.secondary.action)} accessibilityRole="button"
+          accessibilityState={{ disabled: off, busy: spinner(bar.secondary.action) }}>
+          {spinner(bar.secondary.action) ? <ActivityIndicator color={colors.fgDefault} /> : (
+            <>
+              <Icon name={bar.secondary.icon} size={20} color={colors.fgDefault} />
+              <Text style={styles.secondText}>{bar.secondary.label}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      ) : null}
+
       {bar.noAccess ? (
         <TouchableOpacity style={styles.link} disabled={off} onPress={() => onPress('no_access')} accessibilityRole="button" accessibilityState={{ disabled: off }}>
           {spinner('no_access') ? <ActivityIndicator color={colors.fgDefault} /> : (
@@ -87,7 +99,7 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
       ) : null}
       {bar.closed && onNote && blocked ? <Text style={styles.blocked}>{blocked}</Text> : null}
 
-      {blocked && (bar.primary || bar.noAccess || bar.undo) ? <Text style={styles.blocked}>{blocked}</Text> : null}
+      {blocked && (bar.primary || bar.secondary || bar.noAccess || bar.undo) ? <Text style={styles.blocked}>{blocked}</Text> : null}
       {bar.line ? <Text style={styles.line}>{bar.line}</Text> : null}
     </View>
   );
@@ -191,6 +203,9 @@ const styles = StyleSheet.create({
   undoBtnText: { fontSize: 16, fontWeight: '700', color: colors.fgOnFill },
   main: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 60, borderRadius: 14, backgroundColor: colors.accent },
   mainText: { fontSize: 20, fontWeight: '800', color: colors.onAccent },
+  // On my way under Finish: optional, so a plain button (SEMIX_STYLE «Secondary»)
+  second: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 14, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  secondText: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
   link: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44 },
   linkText: { fontSize: 17, fontWeight: '600', color: colors.fgDefault, textDecorationLine: 'underline' },
   linkOff: { color: colors.fgMutedField },
