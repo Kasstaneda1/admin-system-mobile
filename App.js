@@ -14,6 +14,8 @@ import RouteScreen from './src/screens/RouteScreen';
 import BillScreen from './src/screens/BillScreen';
 import BillLineScreen from './src/screens/BillLineScreen';
 import BillPreviewScreen from './src/screens/BillPreviewScreen';
+import BillSendScreen from './src/screens/BillSendScreen';
+import BillPdfScreen from './src/screens/BillPdfScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
 import PartsScreen from './src/screens/PartsScreen';
@@ -101,6 +103,16 @@ function Screens() {
               name="BillPreview"
               component={BillPreviewScreen}
               options={{ headerShown: false, title: 'What the customer gets' }}
+            />
+            <Stack.Screen
+              name="BillSend"
+              component={BillSendScreen}
+              options={{ headerShown: false, title: 'Send' }}
+            />
+            <Stack.Screen
+              name="BillPdf"
+              component={BillPdfScreen}
+              options={{ headerShown: false, title: 'PDF' }}
             />
             <Stack.Screen
               name="Route"

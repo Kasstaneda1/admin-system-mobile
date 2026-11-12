@@ -22,7 +22,7 @@ import { useAuth } from '../session/AuthContext';
 import { logError } from '../utils/logError';
 import { kindWord, nowWall } from '../myDay/model';
 import { Tag } from '../myDay/parts';
-import { billError, blockersOf, creditNote, footOf, partiesOf, sectionsOf, statusOf, totalsOf } from '../bill/model';
+import { billError, blockersOf, creditNote, deliveryOf, footOf, partiesOf, sectionsOf, statusOf, totalsOf } from '../bill/model';
 import { AddRow, Box, Foot, LineRow, MainButton, PlainButton, SectionHead, TopBar, Totals, billStyles } from '../bill/parts';
 import { PriceBookSheet } from '../bill/PriceBookSheet';
 
@@ -227,6 +227,9 @@ export default function BillScreen({ route, navigation }) {
             <Box kind="done" icon="checkc" title={`Bill ${bill.label || `#${bill.bill_number}`} is issued`}
               text="It is frozen and has its PDF. To change it now, the office voids and reissues it." />
           ) : null}
+          {bill.status === 'issued' && deliveryOf(bill, now) ? (
+            <Box kind="done" icon="check" title={deliveryOf(bill, now).title} text={deliveryOf(bill, now).line} />
+          ) : null}
           <View style={styles.chipRow}>
             <Tag tag={status.chip} big />
             {status.saved ? <Text style={styles.saved}>{status.saved}</Text> : null}
@@ -309,8 +312,19 @@ export default function BillScreen({ route, navigation }) {
       </ScrollView>
 
       <Foot foot={foot} bottom={insets.bottom}>
-        <MainButton text={draft ? 'Preview the bill' : 'What the customer gets'} icon="eye" off={busy === 'message'}
-          onPress={async () => { if (draft) await saveMessage(); navigation.navigate('BillPreview', { id, visit }); }} />
+        {draft ? (
+          <MainButton text="Preview the bill" icon="eye" off={busy === 'message'}
+            onPress={async () => { await saveMessage(); navigation.navigate('BillPreview', { id, visit }); }} />
+        ) : bill.status === 'issued' ? (
+          <>
+            {bill.delivered_at ? (
+              <PlainButton text="PDF and delivery" icon="share" onPress={() => navigation.navigate('BillSend', { id, visit })} />
+            ) : (
+              <MainButton text="Give it to the customer" icon="share" onPress={() => navigation.navigate('BillSend', { id, visit })} />
+            )}
+            <PlainButton text="What the customer gets" icon="eye" onPress={() => navigation.navigate('BillPreview', { id, visit })} />
+          </>
+        ) : null}
       </Foot>
       </KeyboardAvoidingView>
 

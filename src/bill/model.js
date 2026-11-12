@@ -262,7 +262,8 @@ export function billTile(visit, known) {
   const bill = known ? known.bill : null;
   if (status === 'draft' && bill) return { title: 'Bill', line: `Draft · ${usd(bill.total_cents)}`, off: false, kind: 'draft' };
   if (status === 'issued' && bill) {
-    return { title: 'Bill', line: `${bill.label || `#${bill.bill_number}`} · ${usd(bill.total_cents)}`, off: false, kind: 'issued' };
+    const label = bill.label || `#${bill.bill_number}`;
+    return { title: 'Bill', line: bill.delivered_at ? `${label} · delivered` : `${label} · ${usd(bill.total_cents)} · not given yet`, off: false, kind: 'issued' };
   }
   const closed = stateOf(visit) === 'closed';
   if (!closed) return { title: 'Bill', line: 'After Finish', off: true, kind: 'wait' };
@@ -473,6 +474,7 @@ export function billError(error, { issue = false, company = null } = {}) {
     if (/line not found/i.test(said)) return { kind: 'refused', text: 'This line is no longer on the bill.' };
     return { kind: 'gone', text: 'This visit was changed by the office' };
   }
+  if (status === 409 && /already marked delivered/i.test(said)) return { kind: 'refused', text: 'This bill is already marked delivered.' };
   if (status === 409 && data.code === 'total_changed') {
     return { kind: 'refused', text: `The total changed to ${usd(data.total_cents)}. Check the bill and issue again.`, total: data.total_cents };
   }
@@ -483,3 +485,50 @@ export function billError(error, { issue = false, company = null } = {}) {
   }
   return { kind: 'failed', text: 'Something went wrong. Try again.' };
 }
+
+// ---------- giving the bill to the customer (design app-invoice send) ----------
+// How the bill reached the customer, as the server's «delivered» takes it (backend
+// billIssue.js): handed — a printed copy; shared — the PDF from the company's email, a message
+// or AirDrop, only with the customer's consent to electronic documents (E-SIGN / NY ESRA).
+export const DELIVERY_CHOICES = [
+  { via: 'handed', title: 'Printed and handed to the customer', hint: 'A paper copy at the visit' },
+  { via: 'shared', title: 'Sent the PDF', hint: 'From the company email or AirDrop, not from your personal number' },
+];
+export const CONSENT_WORDS = 'The customer agreed to get the documents of this job electronically.';
+// The body of POST …/bill/delivered, or { error } in words
+export function deliverBody(via, to, consent) {
+  if (!DELIVERY_CHOICES.some((c) => c.via === via)) return { error: 'Choose how the customer got the bill.' };
+  const sentTo = String(to || '').trim();
+  if (sentTo.length > 255) return { error: 'Sent to: at most 255 characters.' };
+  if (via === 'shared' && !consent) return { error: 'Tick that the customer agreed to get the documents electronically.' };
+  const body = { via };
+  if (sentTo) body.to = sentTo;
+  if (via === 'shared') body.consent = true;
+  return { body };
+}
+// The delivery mark of an issued bill: { title: 'Delivered 12:42', line: 'Printed and handed · by Ivan' } or null
+export function deliveryOf(bill, now) {
+  if (!bill || !bill.delivered_at) return null;
+  const at = momentWall(bill.delivered_at);
+  const how = bill.delivered_via === 'shared' ? 'PDF sent' : bill.delivered_via === 'handed' ? 'Printed and handed' : 'Delivered';
+  return {
+    title: at ? `Delivered ${whenText(at, now)}` : 'Delivered',
+    line: [how, bill.delivered_to || null, bill.delivered_by_name ? `by ${firstName(bill.delivered_by_name)}` : null].filter(Boolean).join(' · '),
+  };
+}
+// The email the customer will get once the company's email works (shown, not sent)
+export function emailOf(bill) {
+  const company = (bill.company && (bill.company.legal_name || bill.company.name)) || 'the company';
+  const customer = bill.customer || {};
+  const label = bill.label || `#${bill.bill_number}`;
+  const due = usd(balanceOf(bill));
+  const terms = bill.company && bill.company.payment_terms ? `, ${String(bill.company.payment_terms).toLowerCase()}` : '';
+  const phone = bill.company && bill.company.phone ? ` Questions: ${bill.company.phone}.` : '';
+  return {
+    to: customer.email ? `${customer.email} · from the job` : 'No email on the job',
+    subject: `Bill ${label} from ${company} — ${due} due`,
+    message: `Hi ${firstName(customer.name) || 'there'}, thank you for choosing ${company}. Your bill ${label} is attached. Amount due: ${due}${terms}.${phone}`,
+  };
+}
+// The PDF's file name on the phone: 'bill-NY-1048.pdf'
+export const pdfName = (bill) => `bill-${String(bill.label || bill.bill_number || bill.id).replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`;
