@@ -15,7 +15,7 @@ import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import {
   KIND_WORDS, OWN_SERVICE_KINDS, billError, editError, editHint, editOf, editTotal, lineName, lineSub, newEdit, newLineBody,
-  patchOf, percentText, qtyStep, qtyText, unitWord, usd,
+  patchOf, percentText, qtyStep, qtyText, showQty, unitWord, usd,
 } from '../bill/model';
 import { Box, TopBar, billStyles } from '../bill/parts';
 
@@ -114,7 +114,7 @@ export default function BillLineScreen({ route, navigation }) {
                     {OWN_SERVICE_KINDS.map((k) => {
                       const on = edit.kind === k;
                       return (
-                        <TouchableOpacity key={k} style={[styles.kind, on && styles.kindOn]} onPress={() => set({ kind: k, unit: k === 'labor' ? 'hour' : '', qty: 1000 })}
+                        <TouchableOpacity key={k} style={[styles.kind, on && styles.kindOn]} onPress={() => set({ kind: k })}
                           accessibilityRole="radio" accessibilityState={{ checked: on }}>
                           <Text style={[styles.kindText, on && styles.kindTextOn]}>{KIND_WORDS[k]}</Text>
                         </TouchableOpacity>
@@ -151,10 +151,11 @@ export default function BillLineScreen({ route, navigation }) {
                   <View style={styles.priceBox}>
                     <Text style={styles.dollar}>$</Text>
                     <TextInput style={styles.priceInput} value={edit.price} onChangeText={(t) => set({ price: t })} keyboardType="decimal-pad"
-                      placeholder="0.00" placeholderTextColor={colors.fgMutedField} accessibilityLabel={`Price per ${unitWord(edit)}`} />
-                    <Text style={styles.unit}>{`/ ${unitWord(edit)}`}</Text>
+                      placeholder="0.00" placeholderTextColor={colors.fgMutedField} accessibilityLabel={unitWord(edit) ? `Price per ${unitWord(edit)}` : 'Price'} />
+                    {unitWord(edit) ? <Text style={styles.unit}>{`/ ${unitWord(edit)}`}</Text> : null}
                   </View>
                 </View>
+                {showQty(edit) ? (
                 <View style={styles.half}>
                   <Text style={styles.label}>QUANTITY</Text>
                   <View style={styles.qtyBox}>
@@ -168,6 +169,7 @@ export default function BillLineScreen({ route, navigation }) {
                     </TouchableOpacity>
                   </View>
                 </View>
+                ) : null}
               </View>
 
               <View style={styles.taxRow} accessible accessibilityLabel={`${taxable === false ? 'Not taxable' : 'Taxable'}. ${taxText}. Set by the office.`}>

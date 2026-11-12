@@ -5,7 +5,7 @@ import {
   amountOf, balanceOf, retryTax, billError, billTile, blockersOf, bookRows, canBill, changedText, creditNote, dateText, draftedFrom,
   editError, editHint, editOf, editTotal, footOf, knownOf, lineBadge, lineName, lineSub, newEdit, newLineBody, partiesOf,
   patchOf, percentText, previewOf, priceCents, priceText, qtyMilli, qtyStep, qtyText, sectionsOf, statusOf, taxOf, totalsOf,
-  unitWord, usd, visitDates,
+  showQty, unitWord, usd, visitDates,
 } from './model.js';
 
 // The design's bill (design-mockups/app-invoice README «Числа сходятся»), as the server answers it
@@ -72,7 +72,10 @@ test('a line says what it is and how it is counted', () => {
   assert.equal(lineSub(LABOR), '1.5 h × $120.00 / h');
   assert.equal(lineSub(PUMP), 'New · 1 × $145.00');
   assert.equal(lineSub({ ...PUMP, warranty: true, part_condition: 'rebuilt' }), 'Rebuilt · Warranty — no charge');
-  assert.equal(lineSub({ ...LABOR, kind: 'service_call', unit: null, quantity: '1', unit_price_cents: 9500 }), '1 × $95.00');
+  // flat price (each / no unit): one of it says nothing, two say how many; hours only for an hourly item
+  assert.equal(lineSub({ ...LABOR, kind: 'service_call', unit: null, quantity: '1', unit_price_cents: 9500 }), '');
+  assert.equal(lineSub({ ...LABOR, kind: 'labor', name: 'Washer repair — labor', unit: 'each', quantity: '1', unit_price_cents: 18000 }), '');
+  assert.equal(lineSub({ ...LABOR, kind: 'extra', unit: null, quantity: '2', unit_price_cents: 5000 }), '2 × $50.00');
   assert.equal(lineSub({ ...LABOR, kind: 'extra', unit: 'visit', quantity: '2', unit_price_cents: 5000 }), '2 × $50.00 / visit');
   assert.equal(lineSub(CREDIT), 'Paid on an earlier bill of this job — counts toward the repair');
   assert.equal(lineSub({ ...CREDIT, credit_bill_id: null, credit_line_id: 3 }), 'The diagnostics on this bill counts toward the repair');
@@ -168,8 +171,9 @@ test('canBill and the visit\'s Bill tile', () => {
   assert.equal(canBill({ ...VISIT, outcome: 'client_rescheduled' }), false);
   assert.equal(billTile({ ...VISIT, role: 'helper' }, null), null);
   assert.deepEqual(billTile(VISIT, knownOf(BILL)), { title: 'Bill', line: 'Draft · $250.41', off: false, kind: 'draft' });
-  assert.deepEqual(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048' })), { title: 'Bill', line: 'NY-1048 · $250.41 · not given yet', off: false, kind: 'issued' });
-  assert.equal(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048', delivered_at: '2026-11-11T17:42:00Z' })).line, 'NY-1048 · delivered');
+  assert.deepEqual(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048' })), { title: 'Bill', line: 'NY-1048 · $250.41', warn: 'not given yet', off: false, kind: 'issued' });
+  assert.deepEqual(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048', delivered_at: '2026-11-11T17:42:00Z' })),
+    { title: 'Bill', line: 'NY-1048 · delivered', warn: null, off: false, kind: 'issued' });
   assert.deepEqual(billTile(VISIT, knownOf(null)), { title: 'Bill', line: 'Not started', off: false, kind: 'none' });
   assert.equal(billTile(VISIT, { status: 'unknown', bill: null }).line, 'Needs connection');
   assert.equal(billTile(VISIT, null).line, '…');
@@ -185,7 +189,12 @@ test('editing a line: the fields, the total as it is typed, the PATCH of what ch
   assert.equal(qtyStep(edit), 500);
   assert.equal(qtyStep(editOf(PUMP)), 1000);
   assert.equal(unitWord(edit), 'hour');
-  assert.equal(unitWord(editOf(PUMP)), 'each');
+  assert.equal(unitWord(editOf(PUMP)), '');
+  assert.equal(unitWord({ unit: 'visit' }), 'visit');
+  assert.equal(showQty(edit), true);
+  assert.equal(showQty(editOf(PUMP)), true);
+  assert.equal(showQty(editOf({ ...LABOR, unit: null, quantity: '1' })), false);
+  assert.equal(showQty(editOf({ ...LABOR, unit: 'each', quantity: '2' })), true);
   assert.equal(editTotal(edit), 18000);
   assert.equal(editTotal({ ...edit, price: '12.3x' }), null);
   assert.equal(editTotal({ ...editOf(PUMP), warranty: true }), 0);
@@ -201,8 +210,8 @@ test('editing a line: the fields, the total as it is typed, the PATCH of what ch
 });
 
 test('a new line of the technician\'s own', () => {
-  assert.deepEqual(newEdit('labor'), { kind: 'labor', name: '', price: '', qty: 1000, unit: 'hour', warranty: false, description: '', fromBook: false, version: null });
-  assert.deepEqual(newLineBody({ ...newEdit('labor'), name: ' Extra hour ', price: '90', qty: 1500 }), { kind: 'labor', name: 'Extra hour', unit_price_cents: 9000, quantity: '1.5', unit: 'hour' });
+  assert.deepEqual(newEdit('labor'), { kind: 'labor', name: '', price: '', qty: 1000, unit: '', warranty: false, description: '', fromBook: false, version: null });
+  assert.deepEqual(newLineBody({ ...newEdit('labor'), name: ' Washer repair ', price: '180' }), { kind: 'labor', name: 'Washer repair', unit_price_cents: 18000, quantity: '1' });
   assert.deepEqual(newLineBody({ ...newEdit('part'), name: 'Hose', price: '12.50' }), { kind: 'part', name: 'Hose', unit_price_cents: 1250, quantity: '1', part_condition: 'new' });
 });
 

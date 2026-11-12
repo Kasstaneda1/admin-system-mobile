@@ -78,7 +78,10 @@ export function lineName(line) {
   const name = (typeof line.name === 'string' && line.name.trim()) || KIND_WORDS[line.kind] || 'Line';
   return line.kind === 'part' && line.part_number ? `${name} · ${line.part_number}` : name;
 }
-// The line under it: '1.5 h × $120.00 / h', 'New · 1 × $145.00', 'Warranty — no charge', '10% off the charges'
+// The line under it: '1.5 h × $120.00 / h', 'New · 1 × $145.00', 'Warranty — no charge', '10% off the charges'.
+// The unit is the price book item's (the owner: no company is bound to hours — SEMIX charges a
+// flat price): a service by the piece (each, or no unit) once says nothing, its amount is
+// its price; two of it say '2 × $50.00'; hours only where the item is by the hour.
 export function lineSub(line) {
   const q = qtyText(qtyMilli(line.quantity) || 1000);
   const price = usd(line.unit_price_cents);
@@ -94,7 +97,9 @@ export function lineSub(line) {
       return [cond, line.warranty ? 'Warranty — no charge' : `${q} × ${price}`].filter(Boolean).join(' · ');
     }
     default:
-      return isHour(line.unit) ? `${q} h × ${price} / h` : `${q} × ${price}${perUnit(line.unit)}`;
+      if (isHour(line.unit)) return `${q} h × ${price} / h`;
+      if (perUnit(line.unit)) return `${q} × ${price}${perUnit(line.unit)}`;
+      return (qtyMilli(line.quantity) || 1000) === 1000 ? '' : `${q} × ${price}`;
   }
 }
 // Where a line came from, when it says something: a part of this visit, of the estimate
@@ -254,7 +259,7 @@ export function canBill(visit) {
   return !NO_WORK_OUTCOMES.includes(visit.outcome);
 }
 // The bill as the visit knows it: { status: 'loading' | 'none' | 'draft' | 'issued' | 'unknown', bill }
-// → the tile under the visit's buttons { title: 'Bill', line, off, kind } or null (no bill
+// → the tile under the visit's buttons { title: 'Bill', line, warn?, off, kind } or null (no bill
 // for this technician). Before Finish there is no bill yet: the tile waits for it (off).
 export function billTile(visit, known) {
   if (!canBill(visit)) return null;
@@ -263,7 +268,10 @@ export function billTile(visit, known) {
   if (status === 'draft' && bill) return { title: 'Bill', line: `Draft · ${usd(bill.total_cents)}`, off: false, kind: 'draft' };
   if (status === 'issued' && bill) {
     const label = bill.label || `#${bill.bill_number}`;
-    return { title: 'Bill', line: bill.delivered_at ? `${label} · delivered` : `${label} · ${usd(bill.total_cents)} · not given yet`, off: false, kind: 'issued' };
+    // not given yet: in warning colour on the tile — the payment waits until the customer has it
+    return bill.delivered_at
+      ? { title: 'Bill', line: `${label} · delivered`, warn: null, off: false, kind: 'issued' }
+      : { title: 'Bill', line: `${label} · ${usd(bill.total_cents)}`, warn: 'not given yet', off: false, kind: 'issued' };
   }
   const closed = stateOf(visit) === 'closed';
   if (!closed) return { title: 'Bill', line: 'After Finish', off: true, kind: 'wait' };
@@ -293,15 +301,23 @@ export function editOf(line) {
   };
 }
 // A new line of the technician's own (from the price book's «Add your own line»):
-// a service is Labor, Service call or Other; a material is a new part
+// a service is Labor, Service call or Other; a material is a new part. A flat price, one of it:
+// no unit (each), as SEMIX charges — hours only come with a price book item by the hour.
 export function newEdit(kind) {
-  return { kind, name: '', price: '', qty: 1000, unit: kind === 'labor' ? 'hour' : '', warranty: false, description: '', fromBook: false, version: null };
+  return { kind, name: '', price: '', qty: 1000, unit: '', warranty: false, description: '', fromBook: false, version: null };
 }
 export const OWN_SERVICE_KINDS = ['labor', 'service_call', 'extra'];
 // What − and + add: half an hour for hours, one for the rest
 export const qtyStep = (edit) => (isHour(edit.unit) ? 500 : 1000);
-// The unit beside the price: '/ hour', '/ each' …
-export const unitWord = (edit) => (isHour(edit.unit) ? 'hour' : String(edit.unit || '').trim() || 'each');
+// The unit beside the price: 'hour', 'visit' … ; '' for a piece (each or no unit): no «/ …»
+export const unitWord = (edit) => {
+  const u = String(edit.unit || '').trim();
+  if (isHour(u)) return 'hour';
+  return !u || /^each$/i.test(u) ? '' : u;
+};
+// Whether the editor shows the quantity: a part, a unit that is counted (hours, visits …),
+// or a line already more than one; a flat service is its name and price
+export const showQty = (edit) => edit.kind === 'part' || !!unitWord(edit) || edit.qty !== 1000;
 // The line's total as it is being typed, in cents; null while the price is not a price
 export function editTotal(edit) {
   const cents = priceCents(edit.price);

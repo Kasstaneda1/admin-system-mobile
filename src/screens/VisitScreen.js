@@ -551,12 +551,15 @@ export default function VisitScreen({ route, navigation }) {
 
             {tile ? (
               <TouchableOpacity style={[styles.billTile, tile.kind === 'draft' && styles.billTileFill, tile.off && styles.billTileOff]}
-                onPress={openBill} disabled={tile.off} accessibilityRole="button" accessibilityLabel={`${tile.title}, ${tile.line}`}
+                onPress={openBill} disabled={tile.off} accessibilityRole="button" accessibilityLabel={`${tile.title}, ${tile.line}${tile.warn ? `, ${tile.warn}` : ''}`}
                 accessibilityState={{ disabled: tile.off }}>
                 <Icon name="doc" size={26} color={tile.off ? colors.fgDisabled : tile.kind === 'draft' ? colors.fgOnFill : colors.brandPressed} />
                 <View style={styles.billTileBody}>
                   <Text style={[styles.billTileTitle, tile.kind === 'draft' && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>{tile.title}</Text>
-                  <Text style={[styles.billTileLine, tile.kind === 'draft' && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>{tile.line}</Text>
+                  <Text style={[styles.billTileLine, tile.kind === 'draft' && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>
+                    {tile.line}
+                    {tile.warn ? <Text style={styles.billTileWarn}>{` · ${tile.warn}`}</Text> : null}
+                  </Text>
                 </View>
                 {tile.off ? null : <Icon name="chev" size={20} color={tile.kind === 'draft' ? colors.fgOnFill : colors.fgSecondary} />}
               </TouchableOpacity>
@@ -771,6 +774,7 @@ const styles = StyleSheet.create({
   billTileLine: { fontSize: 15, fontWeight: '700', color: colors.brandPressed },
   billTileOnFill: { color: colors.fgOnFill },
   billTileTextOff: { color: colors.fgDisabled },
+  billTileWarn: { color: colors.warningFg },
   drafted: { marginTop: 10 },
   access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   accessBody: { flex: 1 },

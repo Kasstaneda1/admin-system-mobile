@@ -172,7 +172,7 @@ export default function BillSendScreen({ route, navigation }) {
             {pdfBusy === 'view' ? <ActivityIndicator color={colors.brandPressed} /> : <Text style={styles.link}>View</Text>}
           </TouchableOpacity>
           <View style={styles.tabs}>
-            {[['message', 'Email'], ['send', 'Text']].map(([icon, word], i) => (
+            {[['mail', 'Email'], ['sms', 'Text']].map(([icon, word], i) => (
               <View key={word} style={[styles.tab, i === 0 && styles.tabOn]} accessible accessibilityLabel={`${word}, soon`}>
                 <Icon name={icon} size={18} color={i === 0 ? colors.brandPressed : colors.fgSecondary} />
                 <Text style={[styles.tabText, i === 0 && styles.tabTextOn]}>{word}</Text>
