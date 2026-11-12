@@ -168,8 +168,9 @@ test('canBill and the visit\'s Bill tile', () => {
   assert.equal(canBill({ ...VISIT, outcome: 'client_rescheduled' }), false);
   assert.equal(billTile({ ...VISIT, role: 'helper' }, null), null);
   assert.deepEqual(billTile(VISIT, knownOf(BILL)), { title: 'Bill', line: 'Draft · $250.41', off: false, kind: 'draft' });
-  assert.deepEqual(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048' })), { title: 'Bill', line: 'NY-1048 · $250.41 · not given yet', off: false, kind: 'issued' });
-  assert.equal(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048', delivered_at: '2026-11-11T17:42:00Z' })).line, 'NY-1048 · delivered');
+  assert.deepEqual(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048' })), { title: 'Bill', line: 'NY-1048 · $250.41', warn: 'not given yet', off: false, kind: 'issued' });
+  assert.deepEqual(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048', delivered_at: '2026-11-11T17:42:00Z' })),
+    { title: 'Bill', line: 'NY-1048 · delivered', warn: null, off: false, kind: 'issued' });
   assert.deepEqual(billTile(VISIT, knownOf(null)), { title: 'Bill', line: 'Not started', off: false, kind: 'none' });
   assert.equal(billTile(VISIT, { status: 'unknown', bill: null }).line, 'Needs connection');
   assert.equal(billTile(VISIT, null).line, '…');

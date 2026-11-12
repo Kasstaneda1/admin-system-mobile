@@ -254,7 +254,7 @@ export function canBill(visit) {
   return !NO_WORK_OUTCOMES.includes(visit.outcome);
 }
 // The bill as the visit knows it: { status: 'loading' | 'none' | 'draft' | 'issued' | 'unknown', bill }
-// → the tile under the visit's buttons { title: 'Bill', line, off, kind } or null (no bill
+// → the tile under the visit's buttons { title: 'Bill', line, warn?, off, kind } or null (no bill
 // for this technician). Before Finish there is no bill yet: the tile waits for it (off).
 export function billTile(visit, known) {
   if (!canBill(visit)) return null;
@@ -263,7 +263,10 @@ export function billTile(visit, known) {
   if (status === 'draft' && bill) return { title: 'Bill', line: `Draft · ${usd(bill.total_cents)}`, off: false, kind: 'draft' };
   if (status === 'issued' && bill) {
     const label = bill.label || `#${bill.bill_number}`;
-    return { title: 'Bill', line: bill.delivered_at ? `${label} · delivered` : `${label} · ${usd(bill.total_cents)} · not given yet`, off: false, kind: 'issued' };
+    // not given yet: in warning colour on the tile — the payment waits until the customer has it
+    return bill.delivered_at
+      ? { title: 'Bill', line: `${label} · delivered`, warn: null, off: false, kind: 'issued' }
+      : { title: 'Bill', line: `${label} · ${usd(bill.total_cents)}`, warn: 'not given yet', off: false, kind: 'issued' };
   }
   const closed = stateOf(visit) === 'closed';
   if (!closed) return { title: 'Bill', line: 'After Finish', off: true, kind: 'wait' };
