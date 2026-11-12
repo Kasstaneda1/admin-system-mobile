@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  deliverBody, deliveryOf, emailOf, pdfName, DELIVERY_CHOICES,
   amountOf, balanceOf, retryTax, billError, billTile, blockersOf, bookRows, canBill, changedText, creditNote, dateText, draftedFrom,
   editError, editHint, editOf, editTotal, footOf, knownOf, lineBadge, lineName, lineSub, newEdit, newLineBody, partiesOf,
   patchOf, percentText, previewOf, priceCents, priceText, qtyMilli, qtyStep, qtyText, sectionsOf, statusOf, taxOf, totalsOf,
@@ -167,7 +168,8 @@ test('canBill and the visit\'s Bill tile', () => {
   assert.equal(canBill({ ...VISIT, outcome: 'client_rescheduled' }), false);
   assert.equal(billTile({ ...VISIT, role: 'helper' }, null), null);
   assert.deepEqual(billTile(VISIT, knownOf(BILL)), { title: 'Bill', line: 'Draft · $250.41', off: false, kind: 'draft' });
-  assert.deepEqual(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048' })), { title: 'Bill', line: 'NY-1048 · $250.41', off: false, kind: 'issued' });
+  assert.deepEqual(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048' })), { title: 'Bill', line: 'NY-1048 · $250.41 · not given yet', off: false, kind: 'issued' });
+  assert.equal(billTile(VISIT, knownOf({ ...BILL, status: 'issued', label: 'NY-1048', delivered_at: '2026-11-11T17:42:00Z' })).line, 'NY-1048 · delivered');
   assert.deepEqual(billTile(VISIT, knownOf(null)), { title: 'Bill', line: 'Not started', off: false, kind: 'none' });
   assert.equal(billTile(VISIT, { status: 'unknown', bill: null }).line, 'Needs connection');
   assert.equal(billTile(VISIT, null).line, '…');
@@ -271,4 +273,35 @@ test('billError: the server\'s no in words', () => {
   assert.equal(billError(err(403, { error: 'Only the main technician of the visit works on its bill' })).kind, 'refused');
   assert.equal(billError(err(409, {})).text, 'The bill could not be changed.');
   assert.deepEqual(billError(err(500, {})), { kind: 'failed', text: 'Something went wrong. Try again.' });
+});
+
+test('deliverBody: handed, shared only with the consent, sent to', () => {
+  assert.deepEqual(deliverBody('handed', '', false), { body: { via: 'handed' } });
+  assert.deepEqual(deliverBody('handed', ' front desk ', true), { body: { via: 'handed', to: 'front desk' } });
+  assert.deepEqual(deliverBody('shared', 'customer@example.com', true), { body: { via: 'shared', to: 'customer@example.com', consent: true } });
+  assert.equal(deliverBody('shared', '', false).error, 'Tick that the customer agreed to get the documents electronically.');
+  assert.equal(deliverBody(null, '', false).error, 'Choose how the customer got the bill.');
+  assert.equal(deliverBody('handed', 'x'.repeat(256), false).error, 'Sent to: at most 255 characters.');
+  assert.deepEqual(DELIVERY_CHOICES.map((c) => c.via), ['handed', 'shared']);
+});
+
+test('deliveryOf, emailOf, pdfName', () => {
+  const issued = { ...BILL, status: 'issued', label: 'NY-1048', issued_at: '2026-11-11T17:41:00Z' };
+  assert.equal(deliveryOf(issued, NOW), null);
+  assert.deepEqual(deliveryOf({ ...issued, delivered_at: '2026-11-11T17:42:00Z', delivered_via: 'shared', delivered_to: 'customer@example.com', delivered_by_name: 'Ivan Petrov' }, NOW),
+    { title: 'Delivered 12:42', line: 'PDF sent · customer@example.com · by Ivan' });
+  assert.equal(deliveryOf({ ...issued, delivered_at: '2026-11-10T17:42:00Z', delivered_via: 'handed' }, NOW).line, 'Printed and handed');
+  assert.deepEqual(emailOf(issued), {
+    to: 'customer@example.com · from the job',
+    subject: 'Bill NY-1048 from SEMIX CORP — $250.41 due',
+    message: 'Hi Sanjay, thank you for choosing SEMIX CORP. Your bill NY-1048 is attached. Amount due: $250.41, upon completion. Questions: (718) 555-0100.',
+  });
+  assert.equal(emailOf({ ...issued, customer: { name: null }, company: null }).to, 'No email on the job');
+  assert.equal(pdfName(issued), 'bill-NY-1048.pdf');
+  assert.equal(pdfName({ id: 9, label: 'NY 10/48' }), 'bill-NY_10_48.pdf');
+});
+
+test('billError: the delivery is marked once', () => {
+  assert.deepEqual(billError({ response: { status: 409, data: { error: 'This bill is already marked delivered', delivered_at: 'x' } } }),
+    { kind: 'refused', text: 'This bill is already marked delivered.' });
 });

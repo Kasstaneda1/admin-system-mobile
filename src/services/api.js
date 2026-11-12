@@ -226,6 +226,9 @@ export const billAPI = {
   removeLine: async (id, lineId) => (await api.delete(`${billPath(id)}/lines/${encodeURIComponent(lineId)}`, { timeout: 15000 })).data,
   issue: async (id, expectedTotal) => (await api.post(`${billPath(id)}/issue`, { expected_total_cents: expectedTotal }, { timeout: 30000 })).data,
   priceBook: async (id) => (await api.get(`/api/my/visits/${encodeURIComponent(id)}/price-items`, { timeout: 15000 })).data,
+  // { via: 'handed' | 'shared', to?, consent? (shared: true) }: the issued bill reached the
+  // customer; once per bill (409 again). The PDF itself: src/bill/pdf.js
+  delivered: async (id, body) => (await api.post(`${billPath(id)}/delivered`, body, { timeout: 15000 })).data,
 };
 
 // The visit's photos (backend routes/scheduler/photos.js; a technician only on their own

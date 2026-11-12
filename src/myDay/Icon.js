@@ -40,6 +40,7 @@ const ICONS = {
   route: require('../../assets/icons/route.png'),
   search: require('../../assets/icons/search.png'),
   send: require('../../assets/icons/send.png'),
+  share: require('../../assets/icons/share.png'),
   sun: require('../../assets/icons/sun.png'),
   trash: require('../../assets/icons/trash.png'),
   undo: require('../../assets/icons/undo.png'),
