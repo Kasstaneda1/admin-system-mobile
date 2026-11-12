@@ -205,6 +205,29 @@ export const myDayAPI = {
   },
 };
 
+// The visit's bill (backend routes/scheduler/bills.js, the main technician of the visit only;
+// src/bill/model.js reads the answers). Every change answers the whole bill
+// { success, bill: { status, lines, totals…, company, customer, technician, warnings } }:
+//   get — 404 'This visit has no bill yet' before it is drafted;
+//   draft — POST: the server assembles a new draft (201, created: true) or answers the one
+//           the visit has (200); 409 for a visit that has an issued bill or no work;
+//   message — PUT { message }; addLine — POST { price_item_id } or { kind, name, … };
+//   changeLine — PATCH the fields that changed; removeLine — DELETE;
+//   issue — POST { expected_total_cents }: the number, the snapshot and the PDF; 409 with a
+//           code when the draft is not ready (tax_missing, profile_missing, no_lines, …);
+//   priceBook — the active items of the price book of the job's company.
+const billPath = (id) => `/api/my/visits/${encodeURIComponent(id)}/bill`;
+export const billAPI = {
+  get: async (id) => (await api.get(billPath(id), { timeout: 15000 })).data,
+  draft: async (id) => (await api.post(billPath(id), {}, { timeout: 15000 })).data,
+  message: async (id, message) => (await api.put(billPath(id), { message }, { timeout: 15000 })).data,
+  addLine: async (id, body) => (await api.post(`${billPath(id)}/lines`, body, { timeout: 15000 })).data,
+  changeLine: async (id, lineId, body) => (await api.patch(`${billPath(id)}/lines/${encodeURIComponent(lineId)}`, body, { timeout: 15000 })).data,
+  removeLine: async (id, lineId) => (await api.delete(`${billPath(id)}/lines/${encodeURIComponent(lineId)}`, { timeout: 15000 })).data,
+  issue: async (id, expectedTotal) => (await api.post(`${billPath(id)}/issue`, { expected_total_cents: expectedTotal }, { timeout: 30000 })).data,
+  priceBook: async (id) => (await api.get(`/api/my/visits/${encodeURIComponent(id)}/price-items`, { timeout: 15000 })).data,
+};
+
 // The visit's photos (backend routes/scheduler/photos.js; a technician only on their own
 // visit). list: the server's rows, the newest first. upload(file { uri, name, type }): the
 // field 'photo', JPEG/PNG/GIF/WebP up to 10 MB; 201 { photo }. A photo itself is

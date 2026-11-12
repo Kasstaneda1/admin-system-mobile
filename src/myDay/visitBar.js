@@ -10,8 +10,10 @@ import { TAG_FAMILIES } from './parts';
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
 // when it got no answer (Try again sends the same request); blocked: why nothing can be
 // pressed now ('Needs connection'), or null; onNote: «Add a note for the office» under a
-// closed visit (design final-visit-closed), when notes may be added
-export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null }) {
+// closed visit (design final-visit-closed), when notes may be added; bill: «Open the bill» under
+// a closed visit whose bill this technician works on (design app-invoice visit-done), the
+// amber button of a closed visit: { label, onPress } or null
+export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null, bill = null }) {
   if (bar.empty && !failure) return null;
   const waiting = !!pending && !failure;
   const off = waiting || !!failure || !!blocked;
@@ -89,6 +91,12 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
             <Text style={styles.undoStrong}>{bar.closed.text}</Text>{bar.closed.note ? ` · ${bar.closed.note}` : ''}
           </Text>
         </View>
+      ) : null}
+      {bill ? (
+        <TouchableOpacity style={styles.main} onPress={bill.onPress} accessibilityRole="button">
+          <Icon name="doc" size={24} color={colors.onAccent} />
+          <Text style={styles.mainText}>{bill.label}</Text>
+        </TouchableOpacity>
       ) : null}
       {bar.closed && onNote ? (
         <TouchableOpacity style={[styles.noteBtn, !!blocked && styles.off]} disabled={!!blocked} onPress={onNote} accessibilityRole="button"

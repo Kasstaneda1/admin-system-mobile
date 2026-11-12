@@ -11,6 +11,9 @@ import MyDayScreen from './src/screens/MyDayScreen';
 import VisitScreen from './src/screens/VisitScreen';
 import MovedScreen from './src/screens/MovedScreen';
 import RouteScreen from './src/screens/RouteScreen';
+import BillScreen from './src/screens/BillScreen';
+import BillLineScreen from './src/screens/BillLineScreen';
+import BillPreviewScreen from './src/screens/BillPreviewScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
 import PartsScreen from './src/screens/PartsScreen';
@@ -83,6 +86,21 @@ function Screens() {
               name="Moved"
               component={MovedScreen}
               options={{ headerShown: false, title: 'Visit' }}
+            />
+            <Stack.Screen
+              name="Bill"
+              component={BillScreen}
+              options={{ headerShown: false, title: 'Bill' }}
+            />
+            <Stack.Screen
+              name="BillLine"
+              component={BillLineScreen}
+              options={{ headerShown: false, title: 'Edit line' }}
+            />
+            <Stack.Screen
+              name="BillPreview"
+              component={BillPreviewScreen}
+              options={{ headerShown: false, title: 'What the customer gets' }}
             />
             <Stack.Screen
               name="Route"
