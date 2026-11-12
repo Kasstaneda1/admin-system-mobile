@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  amountOf, balanceOf, billError, billTile, blockersOf, bookRows, canBill, changedText, creditNote, dateText, draftedFrom,
+  amountOf, balanceOf, retryTax, billError, billTile, blockersOf, bookRows, canBill, changedText, creditNote, dateText, draftedFrom,
   editError, editHint, editOf, editTotal, footOf, knownOf, lineBadge, lineName, lineSub, newEdit, newLineBody, partiesOf,
   patchOf, percentText, previewOf, priceCents, priceText, qtyMilli, qtyStep, qtyText, sectionsOf, statusOf, taxOf, totalsOf,
   unitWord, usd, visitDates,
@@ -137,7 +137,10 @@ test('partiesOf: from, to and the appliance of the visit', () => {
 test('blockersOf: what only the office can fix stops the technician\'s issue', () => {
   assert.deepEqual(blockersOf(BILL), []);
   const noTax = { ...BILL, warnings: [{ code: 'tax_missing', message: '…' }, { code: 'credit_not_paid', message: '…' }] };
-  assert.deepEqual(blockersOf(noTax).map((b) => [b.code, b.hard]), [['tax_missing', false]]);
+  assert.deepEqual(blockersOf(noTax), [{ code: 'tax_missing', text: 'No sales tax set for SEMIX CORP. The office sets it, then you can issue.', hard: true }]);
+  assert.equal(retryTax(blockersOf(noTax)), true);
+  assert.equal(retryTax(blockersOf({ ...noTax, lines: [CREDIT] })), false);
+  assert.equal(retryTax([]), false);
   assert.deepEqual(blockersOf({ ...BILL, warnings: [{ code: 'profile_missing' }], lines: [CREDIT] }).map((b) => [b.code, b.hard]), [['profile_missing', true], ['no_lines', true]]);
   assert.deepEqual(blockersOf({ ...BILL, status: 'issued', warnings: [{ code: 'tax_missing' }] }), []);
   assert.equal(creditNote(BILL), 'Bill #1031 is not marked paid yet');
@@ -258,8 +261,9 @@ test('billError: the server\'s no in words', () => {
   assert.equal(billError(err(404, { error: 'This visit has no bill yet: draft it first' })).kind, 'none');
   assert.equal(billError(err(404, { error: 'Visit not found' })).kind, 'gone');
   assert.deepEqual(billError(err(404, { error: 'Line not found' })), { kind: 'refused', text: 'This line is no longer on the bill.' });
-  assert.deepEqual(billError(err(409, { code: 'tax_missing', error: 'The company has no default tax: the office sets it or issues the bill' })),
-    { kind: 'refused', text: 'The company has no default tax. Ask the office to set it, or to issue this bill.' });
+  assert.deepEqual(billError(err(409, { code: 'tax_missing', error: 'The company has no default tax: the office sets it or issues the bill' }), { issue: true, company: 'SEMIX CORP' }),
+    { kind: 'refused', text: 'No sales tax set for SEMIX CORP. The office sets it, then you can issue.' });
+  assert.equal(billError(err(409, { code: 'tax_missing' })).text, 'No sales tax set for the company. The office sets it, then you can issue.');
   assert.equal(billError(err(409, { code: 'profile_missing' })).text, 'The office has not filled in the company details yet. Ask the office, then issue.');
   assert.equal(billError(err(409, { code: 'no_lines' })).text, 'The bill has nothing to charge for. Add a service or a part.');
   assert.deepEqual(billError(err(409, { code: 'total_changed', total_cents: 26041 })), { kind: 'refused', text: 'The total changed to $260.41. Check the bill and issue again.', total: 26041 });

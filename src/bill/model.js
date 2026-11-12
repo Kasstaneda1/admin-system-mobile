@@ -199,18 +199,22 @@ export function partiesOf(bill, visit) {
 
 // ---------- what stops the issue ----------
 const BLOCKING = {
-  company_missing: 'The job has no company. Ask the office to set one.',
-  profile_missing: 'The office has not filled in the company details yet.',
-  tax_missing: 'The company has no default tax. The office sets it, or issues this bill.',
+  company_missing: () => 'The job has no company. Ask the office to set one.',
+  profile_missing: () => 'The office has not filled in the company details yet.',
+  tax_missing: (company) => taxWords(company),
 };
-// The warnings of a draft that only the office can fix: [{ code, text, hard }]. hard: the issue
-// cannot go (no company, no company details, nothing to charge). The tax is not hard: the
-// draft keeps the tax of its last change, and the issue counts it again — when the office has
-// set the tax meanwhile the issue answers with the new total, else with its words.
+// No tax: the technician cannot issue without it (only the office may), so the words say who
+// sets it: 'No sales tax set for SEMIX CORP. The office sets it, then you can issue.'
+export const taxWords = (company) => `No sales tax set for ${company || 'the company'}. The office sets it, then you can issue.`;
+const companyName = (bill) => (bill && bill.company && (bill.company.name || bill.company.legal_name)) || null;
+// The warnings of a draft that only the office can fix: [{ code, text, hard }]. hard: the
+// technician's issue cannot go (no company, no company details, no tax, nothing to charge).
+// The draft keeps the tax of its last change: when the office sets the tax later, the screen
+// still says «no tax» until the issue counts the bill again (retryTax: the quiet «try again»).
 export function blockersOf(bill) {
   if (bill.status !== 'draft') return [];
   const out = (Array.isArray(bill.warnings) ? bill.warnings : []).filter((w) => w && BLOCKING[w.code])
-    .map((w) => ({ code: w.code, text: BLOCKING[w.code], hard: w.code !== 'tax_missing' }));
+    .map((w) => ({ code: w.code, text: BLOCKING[w.code](companyName(bill)), hard: true }));
   const charges = (Array.isArray(bill.lines) ? bill.lines : []).filter((l) => CHARGE_KINDS.includes(l.kind));
   if (!charges.length) out.push({ code: 'no_lines', text: 'Add a service or a part: the bill has nothing to charge for.', hard: true });
   return out;
@@ -445,7 +449,6 @@ export function visitDates(visit) {
 
 // ---------- when the server says no ----------
 const ISSUE_WORDS = {
-  tax_missing: 'The company has no default tax. Ask the office to set it, or to issue this bill.',
   profile_missing: 'The office has not filled in the company details yet. Ask the office, then issue.',
   company_missing: 'The job has no company. Ask the office to set one, then issue.',
   no_lines: 'The bill has nothing to charge for. Add a service or a part.',
@@ -455,7 +458,9 @@ const ISSUE_WORDS = {
 //   offline — no answer (the same request may go again); none — the visit has no bill yet;
 //   gone — the visit is no longer this technician's; refused — the server's reason, in words;
 //   failed — the server broke.
-export function billError(error, { issue = false } = {}) {
+// A bill that has only the missing tax against it: the office may have set the tax since
+export const retryTax = (blockers) => blockers.length > 0 && blockers.every((b) => b.code === 'tax_missing');
+export function billError(error, { issue = false, company = null } = {}) {
   const response = error && error.response;
   const status = response ? response.status : 0;
   const data = (response && response.data) || {};
@@ -471,6 +476,7 @@ export function billError(error, { issue = false } = {}) {
   if (status === 409 && data.code === 'total_changed') {
     return { kind: 'refused', text: `The total changed to ${usd(data.total_cents)}. Check the bill and issue again.`, total: data.total_cents };
   }
+  if ((status === 409 || status === 400) && data.code === 'tax_missing') return { kind: 'refused', text: taxWords(company) };
   if ((status === 409 || status === 400) && ISSUE_WORDS[data.code]) return { kind: 'refused', text: ISSUE_WORDS[data.code] };
   if (status === 409 || status === 403 || status === 400) {
     return { kind: 'refused', text: said ? `${said.replace(/[.\s]*$/, '')}.` : 'The bill could not be changed.' };

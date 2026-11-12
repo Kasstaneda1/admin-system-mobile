@@ -9,7 +9,7 @@
 // company details) keeps the button off and says why. No internet: the number comes from the
 // server, so the issue waits for it.
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -17,7 +17,7 @@ import { colors } from '../constants/colors';
 import { billAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { nowWall } from '../myDay/model';
-import { billError, blockersOf, previewOf } from '../bill/model';
+import { billError, blockersOf, previewOf, retryTax } from '../bill/model';
 import { Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 
 export default function BillPreviewScreen({ route, navigation }) {
@@ -63,7 +63,7 @@ export default function BillPreviewScreen({ route, navigation }) {
       Alert.alert(`Bill ${label} is issued`, 'It is frozen and has its PDF. Give it to the customer before taking the payment.',
         [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (error) {
-      const failed = billError(error, { issue: true });
+      const failed = billError(error, { issue: true, company: bill.company && (bill.company.name || bill.company.legal_name) });
       if (failed.kind === 'gone') {
         Alert.alert(failed.text, 'It is no longer on your day.', [{ text: 'OK', onPress: () => navigation.popToTop() }]);
         return;
@@ -193,6 +193,11 @@ export default function BillPreviewScreen({ route, navigation }) {
               note={blockers.length ? blockers.map((b) => b.text).join(' ') : 'Issuing gives the number, freezes the bill and makes the PDF. To change it later: Void & reissue.'}>
               <MainButton text={stopped ? 'Issue · the office has to fix it' : 'Issue the bill'} icon="doc"
                 off={stopped} waiting={issuing} onPress={askIssue} />
+              {retryTax(blockers) ? (
+                <TouchableOpacity style={styles.retryTax} onPress={askIssue} disabled={issuing} accessibilityRole="button">
+                  <Text style={styles.retryTaxText}>The office set the tax? Try again</Text>
+                </TouchableOpacity>
+              ) : null}
             </Foot>
           ) : null}
         </>
@@ -248,5 +253,7 @@ const styles = StyleSheet.create({
   sumTotal: { marginTop: 4, paddingTop: 6, borderTopWidth: 1.5, borderTopColor: colors.fgDefault },
   sumBig: { fontSize: 18, fontWeight: '800', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
   sumDue: { fontSize: 18, fontWeight: '800', color: colors.brandPressed, fontVariant: ['tabular-nums'] },
+  retryTax: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  retryTaxText: { fontSize: 16, fontWeight: '700', color: colors.brandPressed, textDecorationLine: 'underline' },
   para: { marginTop: 14, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.borderDefault, gap: 2 },
 });
