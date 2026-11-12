@@ -2,7 +2,8 @@
 // design-mockups/tech-app/shots/final-visit-*.png). Opens from a row of My day with the
 // list's visit, so it shows at once; the card kept on the phone fills in history and notes;
 // GET /api/my/visits/:id replaces both. What it shows is visit.js.
-// The bar at the bottom (APP-3a): On my way, Finish with its outcome, No access, Undo for
+// The bar at the bottom (APP-3a): Finish with its outcome (right from a planned visit), On my
+// way (optional, under it), No access, Undo for
 // 15 minutes; the server says what may be pressed (actions.js barOf). A press waits for the
 // answer; with none, «No connection. Try again» sends the same request (same client_request_id).
 // Notes and photos (APP-3b): «Add note» writes a note (POST /api/my/visits/:id/notes, the same
