@@ -40,6 +40,14 @@ export const partsNote = (rule, hasParts = true) => {
     ? 'The customer chooses. Giving them up is only in writing, after the bill (NYC).'
     : 'The customer chooses.';
 };
+// The choice the screen starts with: the bill without parts has one card, «No parts were
+// replaced» — a fact of the bill, not a waiver, so it is chosen at once; with parts nothing is
+// chosen until the customer chooses (giving them up is their written choice, §2-259) —
+// «Архитектор ПО», #46
+export function initialParts(bill) {
+  const choices = partsChoicesOf(bill);
+  return choices.length === 1 ? choices[0].choice : null;
+}
 // A tap on a choice: { parts, clear }. The customer signs under one choice: a different choice
 // after the signature is drawn wipes it (and the request id with it), the customer signs again.
 // The name is not part of it («Тимлид», «Архитектор ПО», #46)

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  REPLACED_PARTS, ackBody, ackTermsLine, billHasParts, partsChoicesOf, pickParts, ackCopyName, ackError, ackStage, billHeadOf, partsNote, partsOf, signedLine, stageText,
+  REPLACED_PARTS, ackBody, ackTermsLine, billHasParts, initialParts, partsChoicesOf, pickParts, ackCopyName, ackError, ackStage, billHeadOf, partsNote, partsOf, signedLine, stageText,
 } from './model.js';
 
 const BILL = { id: 77, status: 'issued', label: 'NY-1048', bill_number: 1048, total_cents: 25041, delivered_at: '2026-11-17T17:42:00Z' };
@@ -117,4 +117,11 @@ test('a different choice after the signature is drawn wipes it: the customer sig
   assert.deepEqual(pickParts('returned', 'waived', true), { parts: 'waived', clear: true });
   assert.deepEqual(pickParts('returned', 'waived', false), { parts: 'waived', clear: false });
   assert.deepEqual(pickParts('returned', 'returned', true), { parts: 'returned', clear: false });
+});
+
+test('one card (no parts on the bill) is chosen at once; with parts nothing is chosen', () => {
+  assert.equal(initialParts({ ...BILL, lines: [{ kind: 'labor' }] }), 'none');
+  assert.equal(initialParts({ ...BILL, lines: [] }), 'none');
+  assert.equal(initialParts({ ...BILL, lines: [{ kind: 'labor' }, { kind: 'part' }] }), null);
+  assert.equal(initialParts({ ...BILL, lines: [{ kind: 'part', warranty: true }] }), null);
 });

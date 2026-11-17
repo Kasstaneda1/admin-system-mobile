@@ -26,7 +26,7 @@ import { nowWall } from '../myDay/model';
 import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
-import { ackBody, ackError, ackStage, ackTermsLine, billHasParts, billHeadOf, partsChoicesOf, partsNote, partsOf, pickParts, signedLine, stageText } from '../ack/model';
+import { ackBody, ackError, ackStage, ackTermsLine, billHasParts, billHeadOf, initialParts, partsChoicesOf, partsNote, partsOf, pickParts, signedLine, stageText } from '../ack/model';
 import { downloadAckPdf } from '../ack/pdf';
 import SignaturePad from '../approve/SignaturePad';
 
@@ -66,7 +66,9 @@ export default function AckScreen({ route, navigation }) {
 
   // ---------- the form ----------
   const [name, setName] = useState((visit && visit.client_name) || '');
-  const [parts, setParts] = useState(null);           // 'returned' | 'waived' | 'none'
+  const [parts, setParts] = useState(null);           // 'returned' | 'waived' | 'none' the customer tapped
+  const picked = parts !== null ? parts : initialParts(bill); // a bill without parts: «none» at once
+  const [choiceNote, setChoiceNote] = useState(false);  // the choice changed after the signature: shown over the box
   const [drawn, setDrawn] = useState(false);
   const [sending, setSending] = useState(false);
   const [said, setSaid] = useState(null);             // { kind, text } of the last try
@@ -82,13 +84,12 @@ export default function AckScreen({ route, navigation }) {
   };
   // a choice: another one after the signature is drawn wipes the signature
   const choose = (next) => {
-    const { parts: chosenNow, clear } = pickParts(parts, next, drawn);
+    const { parts: chosenNow, clear } = pickParts(picked, next, drawn);
     setParts(chosenNow);
+    setSaid(null);
     if (clear) {
       startOver();
-      setSaid({ kind: 'resign', text: 'The choice changed: the customer signs again.' });
-    } else {
-      setSaid(null);
+      setChoiceNote(true);
     }
   };
 
@@ -96,7 +97,7 @@ export default function AckScreen({ route, navigation }) {
     if (sending) return;
     const png = pad.current ? await pad.current.png() : null;
     if (!requestId.current) requestId.current = newRequestId();
-    const { body, error } = ackBody({ name, png, parts, terms, requestId: requestId.current, bill });
+    const { body, error } = ackBody({ name, png, parts: picked, terms, requestId: requestId.current, bill });
     if (error) { setSaid({ kind: 'refused', text: error }); return; }
     setSending(true);
     setSaid(null);
@@ -186,7 +187,7 @@ export default function AckScreen({ route, navigation }) {
   const signing = !ack && stage === 'open';
   const hasParts = billHasParts(bill);
   const choices = partsChoicesOf(bill);
-  const chosen = choices.find((p) => p.choice === parts) || null;
+  const chosen = choices.find((p) => p.choice === picked) || null;
   const mustChoose = !chosen;
   const signedParts = ack ? partsOf(ack.replaced_parts) : null;
 
@@ -270,7 +271,7 @@ export default function AckScreen({ route, navigation }) {
                 <Text style={styles.label} accessibilityRole="header">REPLACED PARTS</Text>
                 <Text style={styles.right}>{partsNote(rule, hasParts)}</Text>
                 {choices.map((p) => {
-                  const on = parts === p.choice;
+                  const on = picked === p.choice;
                   return (
                     <TouchableOpacity key={p.choice} style={[styles.choice, on && styles.choiceOn]} onPress={() => choose(p.choice)} disabled={sending}
                       accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={p.words ? `${p.title}. ${p.words}` : p.title}>
@@ -295,8 +296,9 @@ export default function AckScreen({ route, navigation }) {
                 <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name of who signs" placeholderTextColor={colors.fgMutedField}
                   autoCapitalize="words" autoCorrect={false} returnKeyType="done" maxLength={200} accessibilityLabel="Customer name" />
               </View>
+              {choiceNote ? <Box kind="warn" icon="warn" text="The choice changed: the customer signs again." style={styles.noteOverPad} /> : null}
               <View onTouchStart={() => setScroll(false)} onTouchEnd={() => setScroll(true)} onTouchCancel={() => setScroll(true)}>
-                <SignaturePad ref={pad} onDrawn={(d) => { setDrawn(d); if (!d) requestId.current = null; }} disabled={sending || mustChoose} />
+                <SignaturePad ref={pad} onDrawn={(d) => { setDrawn(d); if (d) setChoiceNote(false); else requestId.current = null; }} disabled={sending || mustChoose} />
               </View>
             </>
           ) : null}
@@ -331,6 +333,7 @@ const styles = StyleSheet.create({
   body: { paddingTop: 12, paddingBottom: 24 },
   pad: { paddingHorizontal: 16, paddingBottom: 12 },
   boxGap: { marginHorizontal: 16, marginBottom: 12 },
+  noteOverPad: { marginHorizontal: 16, marginBottom: 8 },
   flex: { flex: 1 },
   // the delivered chip (design .iv-chip): success-soft with a success border
   chip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.successBorder, backgroundColor: colors.successBg },
