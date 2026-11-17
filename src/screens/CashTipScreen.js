@@ -4,12 +4,12 @@
 // balance do not change (kind tip, BILLS_MV_DESIGN.md §3.7). A split is two lines.
 // The lines live in pay/attempts.js by bill: after the first line the server took, or a send
 // without an answer, the amount, who it is for and how stay as sent (also after Back and «Add a
-// cash tip» again, until Pay has read the bill); after no answer the next press looks first.
+// cash tip» again, until Pay has read the bill); the next press sends the same lines.
 import React, { useReducer, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { billAPI, payAPI } from '../services/api';
+import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
@@ -54,11 +54,11 @@ export default function CashTipScreen({ route, navigation }) {
       });
       const bad = lines.find((l) => l.built.error);
       if (bad) { setFailed(bad.built.error); return; }
-      current = startAttempt(bill.id, 'tip', { bill, lines: lines.map((l) => ({ rid: l.rid, body: l.built.body })), view: { picked, typed, forKey, method } });
+      current = startAttempt(bill.id, 'tip', { lines: lines.map((l) => ({ rid: l.rid, body: l.built.body })), view: { picked, typed, forKey, method } });
     }
     setSending(true);
     setFailed(null);
-    const result = await runAttempt(current, { record: (body) => payAPI.record(id, body), readBill: async () => (await billAPI.get(id)).bill });
+    const result = await runAttempt(current, { record: (body) => payAPI.record(id, body) });
     setSending(false);
     redraw();
     const key = current.lines[0].rid;

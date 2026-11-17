@@ -6,15 +6,15 @@
 // and the summary (PayCardScreen); the rest are recorded here.
 // Not here yet: the photo of a check (server PR 13а-2), the company's Zelle number (the profile's
 // payment_instructions does not come with the bill yet) — the screen says «the company» instead.
-// A send without an answer (pay/attempts.js): the chosen method, amount and fields stay as sent
-// until the app has looked at the bill again; the next press looks first, then sends the same
-// request or says «Already recorded».
+// A send without an answer (pay/attempts.js): the chosen method, amount and fields stay as sent;
+// the next press sends the same request (the server records it once) — «Already recorded» when it
+// had gone through.
 import React, { useMemo, useReducer, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
-import { billAPI, payAPI } from '../services/api';
+import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
@@ -62,14 +62,13 @@ export default function PayMethodScreen({ route, navigation }) {
       if (part && !note.trim()) { setFailed('Part of the balance: the note says why.'); return; }
       const rid = newRequestId();
       attempt = startAttempt(bill.id, 'method', {
-        bill,
         lines: [{ rid, body: { ...built.body, client_request_id: rid } }],
         view: { cents, tile, otherKey, otherName, checkNumber, note },
       });
     }
     setSending(true);
     setFailed(null);
-    const result = await runAttempt(attempt, { record: (body) => payAPI.record(id, body), readBill: async () => (await billAPI.get(id)).bill });
+    const result = await runAttempt(attempt, { record: (body) => payAPI.record(id, body) });
     setSending(false);
     redraw();
     if (result.done) {

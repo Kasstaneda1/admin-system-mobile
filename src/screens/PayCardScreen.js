@@ -7,14 +7,13 @@
 // each once — so a tip that did not go is sent again without a second payment.
 // The lines live in pay/attempts.js, by bill, not in this screen: Back to Tip and Next again finds
 // the same lines and the same ids; after the first line the server took, or a send without an
-// answer, who gets the tip and the amounts do not change; after no answer the next press first
-// looks at the bill.
+// answer, who gets the tip and the amounts do not change; the next press sends the same lines.
 import React, { useMemo, useReducer, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
-import { billAPI, payAPI } from '../services/api';
+import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
@@ -59,14 +58,13 @@ export default function PayCardScreen({ route, navigation }) {
       const bad = [pay, ...tips.map((t) => t.built)].find((b) => b.error);
       if (bad) { setFailed(bad.error); return; }
       current = startAttempt(bill.id, 'card', {
-        bill,
         lines: [{ rid: payRid, body: pay.body }, ...tips.map((t) => ({ rid: t.rid, body: t.built.body }))],
         view: { cents, tipCents, forKey },
       });
     }
     setSending(true);
     setFailed(null);
-    const result = await runAttempt(current, { record: (body) => payAPI.record(id, body), readBill: async () => (await billAPI.get(id)).bill });
+    const result = await runAttempt(current, { record: (body) => payAPI.record(id, body) });
     setSending(false);
     redraw();
     const key = current.lines[0].rid;
