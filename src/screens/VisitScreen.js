@@ -819,7 +819,7 @@ export default function VisitScreen({ route, navigation }) {
               onChangeText: (t) => { setFinishText(t); setFinishFailure(null); },
             } : null} />
           <DiagnosisSheet {...diag.sheet} visible={diag.sheet.visible && !!diagBlock} bottom={insets.bottom}
-            onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onSaveMine={diag.saveMine} onClose={diag.close} />
+            onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onAddMine={diag.addMine} onSaveMine={diag.saveMine} onClose={diag.close} />
           <NoAccessSheet step={noAccessStep} words={noAccessWords(shown.visit)} bottom={insets.bottom}
             onClose={() => setNoAccessStep(null)}
             onCall={() => { callCustomer(shown.visit, userId); setNoAccessStep('close'); }}

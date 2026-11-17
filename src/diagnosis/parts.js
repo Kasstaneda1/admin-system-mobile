@@ -69,8 +69,9 @@ export function DiagnosisBody({ block, blocked = null, changed = null, onPress }
 // current: the visit's text now (Save is off while the field says the same); sending: the save
 // waits for the server; failure: the words of no answer (Try again: the same request) or of
 // the bill issued meanwhile; conflict: { text, by } of «Someone changed it before you» —
-// onUseTheirs drops this text, onSaveMine writes it over theirs
-export function DiagnosisSheet({ visible, mode, text, current, sending, failure, conflict, bottom, onChangeText, onSave, onUseTheirs, onSaveMine, onClose }) {
+// onUseTheirs takes their text into the field (nothing sent), onSaveMine writes this one over
+// theirs; mine: this text after «Keep their text», not saved — onAddMine puts it below theirs
+export function DiagnosisSheet({ visible, mode, text, current, sending, failure, conflict, mine = null, bottom, onChangeText, onSave, onUseTheirs, onSaveMine, onAddMine, onClose }) {
   const adding = mode === 'add';
   const ready = diagnosisReady(mode, text, current);
   const off = !!sending || !ready;
@@ -99,6 +100,16 @@ export function DiagnosisSheet({ visible, mode, text, current, sending, failure,
             <Text style={s.conflictAsk}>Keep their text, or save yours over it?</Text>
           </View>
         ) : null}
+        {mine && !conflict ? (
+          <View style={s.mine}>
+            <Text style={s.mineHead}>Your text · not saved</Text>
+            <Text style={s.mineText} selectable>{mine}</Text>
+            <TouchableOpacity style={s.mineBtn} disabled={!!sending} onPress={onAddMine} accessibilityRole="button">
+              <Icon name="note" size={18} color={colors.brandPressed} />
+              <Text style={s.smallText}>Add it below theirs</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         {failure && !conflict ? (
           <View style={s.fail} accessibilityRole="alert">
             <Icon name="wifioff" size={16} color={colors.warningFg} />
@@ -108,12 +119,12 @@ export function DiagnosisSheet({ visible, mode, text, current, sending, failure,
       </ScrollView>
       {conflict ? (
         <>
-          <TouchableOpacity style={[s.primary, sending && s.off]} disabled={!!sending} onPress={onSaveMine} accessibilityRole="button"
-            accessibilityState={{ disabled: !!sending, busy: !!sending }}>
-            {sending ? <ActivityIndicator color={colors.fgOnFill} /> : <Text style={s.primaryText}>Save mine instead</Text>}
+          <TouchableOpacity style={[s.primary, sending && s.off]} disabled={!!sending} onPress={onUseTheirs} accessibilityRole="button">
+            <Text style={s.primaryText}>Keep their text</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.ghost} disabled={!!sending} onPress={onUseTheirs} accessibilityRole="button">
-            <Text style={s.ghostText}>Keep their text</Text>
+          <TouchableOpacity style={[s.ghost, sending && s.off]} disabled={!!sending} onPress={onSaveMine} accessibilityRole="button"
+            accessibilityState={{ disabled: !!sending, busy: !!sending }}>
+            {sending ? <ActivityIndicator color={colors.brandPressed} /> : <Text style={s.ghostText}>Save mine instead</Text>}
           </TouchableOpacity>
         </>
       ) : (
@@ -168,6 +179,11 @@ const s = StyleSheet.create({
   conflictBy: { fontSize: 13, fontWeight: '600', color: colors.warningFg },
   conflictText: { fontSize: 15, lineHeight: 21, color: colors.fgDefault },
   conflictAsk: { marginTop: 4, fontSize: 14, color: colors.warningFg },
+  // the own text after «Keep their text»: quiet, it is not saved
+  mine: { gap: 6, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgSubtle },
+  mineHead: { fontSize: 13, fontWeight: '700', color: colors.fgSecondary },
+  mineText: { fontSize: 15, lineHeight: 21, color: colors.fgDefault },
+  mineBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, height: 44, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
   fail: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   failText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.warningFg },
   primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 56, borderRadius: 14, backgroundColor: colors.brandPressed },

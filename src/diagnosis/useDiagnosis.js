@@ -12,7 +12,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { myDayAPI } from '../services/api';
 import { logError } from '../utils/logError';
-import { conflictOf, diagnosisBody, diagnosisError, diagnosisRequest } from './model';
+import { conflictOf, diagnosisBody, diagnosisError, diagnosisRequest, diagnosisToSend } from './model';
 
 export function useDiagnosis({ id, current, onAnswer, onGone, begin = () => null, nowMs = () => Date.now() }) {
   const [mode, setMode] = useState(null);                 // the open sheet: 'write' | 'edit' | 'add'
@@ -20,6 +20,7 @@ export function useDiagnosis({ id, current, onAnswer, onGone, begin = () => null
   const [sending, setSending] = useState(false);
   const [failure, setFailure] = useState(null);
   const [theirs, setTheirs] = useState(null);             // «Someone changed it before you»
+  const [mine, setMine] = useState(null);                 // the own text after «Keep their text», not saved
   const held = useRef(null);                              // { mode, text } not sent when the sheet closed
   const base = useRef(0);                                 // the version the text is written on
   const last = useRef(null);                              // the last request, for Try again
@@ -33,6 +34,7 @@ export function useDiagnosis({ id, current, onAnswer, onGone, begin = () => null
     if (kept === null) base.current = current.version;
     setFailure(null);
     setTheirs(null);
+    setMine(null);
     setMode(next);
   }, [current]);
 
@@ -58,7 +60,7 @@ export function useDiagnosis({ id, current, onAnswer, onGone, begin = () => null
       const data = kind === 'add' ? await myDayAPI.addToDiagnosis(id, body) : await myDayAPI.diagnosis(id, body);
       last.current = null;
       held.current = null;
-      if (sheet) { setMode(null); setTheirs(null); setText(''); }
+      if (sheet) { setMode(null); setTheirs(null); setMine(null); setText(''); }
       await onAnswer({ visit: data && data.visit ? data.visit : null, diagnosis: data && data.diagnosis ? data.diagnosis : null }, mark);
       return { ok: true };
     } catch (error) {
@@ -94,18 +96,29 @@ export function useDiagnosis({ id, current, onAnswer, onGone, begin = () => null
   }, [id, onAnswer, onGone, begin, nowMs]);
 
   const save = useCallback(() => run(mode === 'add' ? 'add' : 'edit', text), [run, mode, text]);
-  // «Keep their text»: nothing sent, the sheet closes; the screen already shows theirs
+  // «Keep their text» (the main button: theirs is mostly the office's edit — the Designer on
+  // #53): nothing sent; the field takes their text, on their version, and this text stays under
+  // it, «not saved», to be added below theirs and saved, or dropped with Cancel
   const keepTheirs = useCallback(() => {
-    held.current = null;
+    if (!theirs) return;
     last.current = null;
+    base.current = theirs.version;
+    setMine(diagnosisToSend(text) || null);
+    setText(theirs.text || '');
     setTheirs(null);
-    setMode(null);
-  }, []);
+  }, [theirs, text]);
+  // «Add it below theirs»: the own text after theirs in the field (still to be saved)
+  const addMine = useCallback(() => {
+    if (!mine) return;
+    setText((t) => [diagnosisToSend(t), mine].filter(Boolean).join('\n'));
+    setMine(null);
+  }, [mine]);
   // «Save mine instead»: this text written on their version
   const saveMine = useCallback(() => {
     if (!theirs) return Promise.resolve({ ok: false });
     base.current = theirs.version;
     setTheirs(null);
+    setMine(null);
     return run('edit', text);
   }, [run, theirs, text]);
 
@@ -121,13 +134,14 @@ export function useDiagnosis({ id, current, onAnswer, onGone, begin = () => null
   // time): this sheet with the typed text and theirs
   const openConflict = useCallback((typed) => {
     held.current = null;
+    setMine(null);
     setText(typed);
     setFailure(null);
     setMode('edit');
   }, []);
 
   return {
-    sheet: { visible: !!mode, mode, text, sending, failure, conflict: conflictOf(theirs), current: current ? current.text : null },
-    open, close, save, setText, keepTheirs, saveMine, startFinish, saveForFinish, openConflict,
+    sheet: { visible: !!mode, mode, text, sending, failure, conflict: conflictOf(theirs), mine, current: current ? current.text : null },
+    open, close, save, setText, keepTheirs, addMine, saveMine, startFinish, saveForFinish, openConflict,
   };
 }

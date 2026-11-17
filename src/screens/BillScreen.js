@@ -351,7 +351,7 @@ export default function BillScreen({ route, navigation }) {
       </KeyboardAvoidingView>
 
       <DiagnosisSheet {...diag.sheet} visible={diag.sheet.visible && draft} bottom={insets.bottom}
-        onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onSaveMine={diag.saveMine} onClose={diag.close} />
+        onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onAddMine={diag.addMine} onSaveMine={diag.saveMine} onClose={diag.close} />
       <PriceBookSheet visible={bookOpen !== null} tab={bookOpen} book={book} failed={bookFailed} bill={bill} kindWord={kind}
         adding={adding} bottom={insets.bottom} onTryAgain={loadBook} onAdd={addItem} onOwn={own}
         onClose={() => setBookOpen(null)} />
