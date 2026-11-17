@@ -11,6 +11,10 @@
 // the visit's photos show as thumbnails (notesPhotos.js, visitExtras.js).
 // The office's messages (backend #141) under «From the office», the newest first, «NEW» until
 // seen; the app marks seen the ones the technician has really had on the screen (officeSeen.js).
+// The diagnosis (D1-APP; design visit-diagnosis app-visit-empty, app-after, app-after-bill):
+// a block under Notes, «Printed on the bill»: Add diagnosis / Edit while the visit has no issued
+// bill, Add to diagnosis after it; the field in «How did it end?», saved before the finish
+// (src/diagnosis). «Someone changed it before you» shows both texts to choose from.
 // No map at the top (no map key yet, and no fake one).
 // UPDATED in My day when it was opened (route param fresh): «Updated by the office · 11:02 AM»
 // over the card while it is open, and under each field that changed what it was, from the card
@@ -50,6 +54,9 @@ import { Box } from '../bill/parts';
 import { approveError, approveTile, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
 import { approvals } from '../approve/store';
+import { diagnosisBlock, diagnosisOf, finishAsksDiagnosis, finishDiagnosisChanged } from '../diagnosis/model';
+import { DiagnosisBody, DiagnosisHead, DiagnosisSheet } from '../diagnosis/parts';
+import { useDiagnosis } from '../diagnosis/useDiagnosis';
 
 export default function VisitScreen({ route, navigation }) {
   const { id, visit: fromList = null, n = null, savedAt: listSavedAt = null, skew: skewIn = 0, fresh = null } = route.params || {};
@@ -293,13 +300,55 @@ export default function VisitScreen({ route, navigation }) {
     }
   }, [id, keepFresh, leaveGone]);
 
+  // ---------- the diagnosis ----------
+  const diagCurrent = useMemo(() => (shown ? diagnosisOf(shown.visit) : null), [shown]);
+  const diagBlock = useMemo(() => (shown ? diagnosisBlock(shown.visit) : null), [shown]);
+  const diag = useDiagnosis({
+    id,
+    current: diagCurrent,
+    begin: myDayMark,
+    nowMs: () => Date.now() + skew.current,
+    onAnswer: async ({ visit }, mark) => { if (visit && !gone.current) await keepFresh(visit, mark); },
+    onGone: (mark) => leaveGone(mark),
+  });
+  // The field of «How did it end?»: the visit's text when the sheet opens; its save's failure
+  const [finishText, setFinishText] = useState('');
+  const [finishFailure, setFinishFailure] = useState(null);
+  const openFinish = useCallback(() => {
+    setFinishText((diagCurrent && diagCurrent.text) || '');
+    setFinishFailure(null);
+    diag.startFinish();
+    setFinishOpen(true);
+  }, [diagCurrent, diag]);
+  // Finish: a changed diagnosis is saved first (the finish carries no text, VISIT_DIAGNOSIS_DESIGN
+  // Р-4); no answer — the sheet stays with Try again; their text meanwhile — the sheet goes and
+  // the diagnosis sheet shows both texts, Finish again after
+  const finishVisit = useCallback(async (outcome, field) => {
+    if (field && shown && finishDiagnosisChanged(shown.visit, finishText)) {
+      setFinishFailure(null);
+      const saved = await diag.saveForFinish(finishText);
+      if (!saved.ok) {
+        if (saved.kind === 'busy') return;
+        if (saved.kind === 'offline' || saved.kind === 'failed') { setFinishFailure(saved.text); return; }
+        setFinishOpen(false);
+        if (saved.kind === 'conflict') {
+          const typed = finishText;
+          setTimeout(() => diag.openConflict(typed), Platform.OS === 'ios' ? 700 : 200);
+        } else if (saved.kind === 'locked') Alert.alert(saved.text);
+        return;
+      }
+    }
+    setFinishOpen(false);
+    send({ action: 'finish', outcome, requestId: newRequestId(Date.now() + skew.current) });
+  }, [shown, finishText, diag, send]);
+
   // a new press: a new request id; Finish and No access ask first
   const press = useCallback((action) => {
     if (busy.current || pending) return;
-    if (action === 'finish') { setFinishOpen(true); return; }
+    if (action === 'finish') { openFinish(); return; }
     if (action === 'no_access') { setNoAccessStep('call'); return; }
     send({ action, requestId: newRequestId(Date.now() + skew.current) });
-  }, [pending, send]);
+  }, [pending, send, openFinish]);
 
   // the undo counts down by the minute
   const nowMs = tick + skew.current;
@@ -731,6 +780,14 @@ export default function VisitScreen({ route, navigation }) {
             {extras ? <ExtrasRow blocked={blocked} onNote={() => setNoteOpen(true)} onPhoto={() => setPhotoSheet(true)} /> : null}
           </Section>
 
+          {diagBlock ? (
+            <View style={styles.section}>
+              <DiagnosisHead />
+              <DiagnosisBody block={diagBlock} blocked={blocked} onPress={() => diag.open(diagBlock.mode)}
+                changed={updated && updated.was.diagnosis ? <ChangedWas text={updated.was.diagnosis} /> : null} />
+            </View>
+          ) : null}
+
           {!shown.visit.legacy ? (
             <Section label={photos ? photosTitle(photos.length) : 'Photos'}>
               <PhotoGrid photos={photos} header={photoHeader} upload={upload} waiting={waiting}
@@ -755,7 +812,14 @@ export default function VisitScreen({ route, navigation }) {
           <FinishSheet visible={finishOpen} choices={finishChoices(shown.visit)} initial={defaultOutcome(shown.visit)}
             subtitle={finishSubtitle(shown.visit, n)} bottom={insets.bottom}
             onClose={() => setFinishOpen(false)}
-            onFinish={(outcome) => { setFinishOpen(false); send({ action: 'finish', outcome, requestId: newRequestId(Date.now() + skew.current) }); }} />
+            onFinish={finishVisit}
+            diagnosis={diagCurrent ? {
+              asks: (outcome) => finishAsksDiagnosis(shown.visit, outcome),
+              text: finishText, failure: finishFailure, sending: diag.sheet.sending,
+              onChangeText: (t) => { setFinishText(t); setFinishFailure(null); },
+            } : null} />
+          <DiagnosisSheet {...diag.sheet} visible={diag.sheet.visible && !!diagBlock} bottom={insets.bottom}
+            onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onSaveMine={diag.saveMine} onClose={diag.close} />
           <NoAccessSheet step={noAccessStep} words={noAccessWords(shown.visit)} bottom={insets.bottom}
             onClose={() => setNoAccessStep(null)}
             onCall={() => { callCustomer(shown.visit, userId); setNoAccessStep('close'); }}

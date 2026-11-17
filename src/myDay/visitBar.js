@@ -2,10 +2,11 @@
 // (final-finish, final-noaccess). What shows comes from actions.js barOf; nothing here
 // decides what may be pressed. Sizes in pt, colours only tokens.
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from './Icon';
 import { TAG_FAMILIES } from './parts';
+import { FinishDiagnosisField } from '../diagnosis/field';
 
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
 // when it got no answer (Try again sends the same request); blocked: why nothing can be
@@ -132,12 +133,18 @@ export function Sheet({ visible, onClose, children, bottom, keyboard = false, on
   );
 }
 
-// «How did it end?»: choices (actions.js finishChoices), one marked, then Finish visit
-export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFinish, onClose }) {
+// «How did it end?»: choices (actions.js finishChoices), one marked, then Finish visit.
+// diagnosis (D1-APP, design visit-diagnosis app-finish): the visit's diagnosis under the choices
+// where the outcome asks for it — { asks(outcome), text, failure, sending, onChangeText } — or
+// null; the screen saves a changed text before the finish (onFinish waits for it)
+export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFinish, onClose, diagnosis = null }) {
   const [chosen, setChosen] = useState(initial);
   useEffect(() => { if (visible) setChosen(initial); }, [visible, initial]);
+  const field = !!diagnosis && diagnosis.asks(chosen);
+  const saving = !!diagnosis && diagnosis.sending;
   return (
-    <Sheet visible={visible} onClose={onClose} bottom={bottom}>
+    <Sheet visible={visible} onClose={saving ? () => {} : onClose} bottom={bottom} keyboard={!!diagnosis}>
+      <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollBody} keyboardShouldPersistTaps="handled">
       <Text style={styles.title} accessibilityRole="header">How did it end?</Text>
       <Text style={styles.sub}>{subtitle}</Text>
       <View style={styles.choices} accessibilityRole="radiogroup">
@@ -159,11 +166,18 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
           );
         })}
       </View>
-      <TouchableOpacity style={styles.main} onPress={() => onFinish(chosen)} accessibilityRole="button">
-        <Icon name="check" size={24} color={colors.onAccent} />
-        <Text style={styles.mainText}>Finish visit</Text>
+      {field ? <FinishDiagnosisField text={diagnosis.text} failure={diagnosis.failure} sending={saving} onChangeText={diagnosis.onChangeText} /> : null}
+      </ScrollView>
+      <TouchableOpacity style={[styles.main, saving && styles.off]} disabled={saving} onPress={() => onFinish(chosen, field)} accessibilityRole="button"
+        accessibilityState={{ disabled: saving, busy: saving }}>
+        {saving ? <ActivityIndicator color={colors.onAccent} /> : (
+          <>
+            <Icon name="check" size={24} color={colors.onAccent} />
+            <Text style={styles.mainText}>Finish visit</Text>
+          </>
+        )}
       </TouchableOpacity>
-      <TouchableOpacity style={styles.plain} onPress={onClose} accessibilityRole="button">
+      <TouchableOpacity style={styles.plain} onPress={onClose} disabled={saving} accessibilityRole="button">
         <Text style={styles.plainText}>Back</Text>
       </TouchableOpacity>
     </Sheet>
@@ -229,7 +243,9 @@ const styles = StyleSheet.create({
   failCancelText: { fontSize: 15, fontWeight: '600', color: colors.warningFg, textDecorationLine: 'underline' },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim },
-  sheet: { paddingHorizontal: 16, paddingTop: 8, gap: 10, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: colors.bgCard },
+  sheet: { maxHeight: '94%', paddingHorizontal: 16, paddingTop: 8, gap: 10, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: colors.bgCard },
+  sheetScroll: { flexGrow: 0, flexShrink: 1 },
+  sheetScrollBody: { gap: 10 },
   grab: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, marginBottom: 6, backgroundColor: colors.borderStrong },
   step: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
   title: { fontSize: 24, fontWeight: '800', color: colors.fgDefault },

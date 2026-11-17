@@ -7,6 +7,8 @@
 //   - a line: tap → Edit line (BillLineScreen); the credit is the server's (a lock);
 //   - Price book / + Add …: the sheet of the job's company's price book (PriceBookSheet);
 //   - Message on the bill: saved when the field is left;
+//   - Diagnosis (D1-APP): the visit's text over the lines, «Printed on the bill», Edit on a
+//     draft (the same sheet as on the visit); an issued bill shows what it printed;
 //   - Preview the bill: what the customer gets, and the issue (BillPreviewScreen).
 // An issued bill is frozen: it reads the same, nothing to change.
 // No offline queue here: without the connection the bill shows the words and Try again
@@ -25,6 +27,9 @@ import { Tag } from '../myDay/parts';
 import { billError, blockersOf, creditNote, deliveryOf, footOf, partiesOf, sectionsOf, statusOf, totalsOf } from '../bill/model';
 import { AddRow, Box, Foot, LineRow, MainButton, PlainButton, SectionHead, TopBar, Totals, billStyles } from '../bill/parts';
 import { PriceBookSheet } from '../bill/PriceBookSheet';
+import { billDiagnosis, diagnosisOf } from '../diagnosis/model';
+import { DiagnosisBody, DiagnosisHead, DiagnosisSheet } from '../diagnosis/parts';
+import { useDiagnosis } from '../diagnosis/useDiagnosis';
 
 export default function BillScreen({ route, navigation }) {
   const { id, visit = null, create = false } = route.params || {};
@@ -170,6 +175,16 @@ export default function BillScreen({ route, navigation }) {
     setTimeout(goOwn, Platform.OS === 'ios' ? 700 : 200);
   };
 
+  // ---------- the diagnosis ----------
+  // Its answer is the visit's block: the bill shows it at once (the visit reads its own on return)
+  const diag = useDiagnosis({
+    id,
+    current: bill && bill.status === 'draft' ? diagnosisOf(bill) : null,
+    onAnswer: ({ diagnosis }) => { if (diagnosis) setBill((b) => (b ? { ...b, diagnosis } : b)); },
+    onGone: () => leave('This visit was changed by the office'),
+  });
+  const diagBlock = billDiagnosis(bill);
+
   const openLine = (line) => navigation.navigate('BillLine', { id, mode: 'edit', line, tax: { rate: bill.tax_rate, name: bill.tax_name } });
 
   // ---------- what the screen shows ----------
@@ -257,6 +272,13 @@ export default function BillScreen({ route, navigation }) {
           </View>
         </View>
 
+        {diagBlock ? (
+          <View style={[billStyles.section, styles.diag]}>
+            <DiagnosisHead />
+            <DiagnosisBody block={diagBlock} onPress={() => diag.open(diagBlock.mode)} />
+          </View>
+        ) : null}
+
         <View style={billStyles.section}>
           <SectionHead label="Services" link={draft ? 'Price book' : null} icon="book" onLink={() => openBook('service')} />
           {sections.services.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
@@ -328,6 +350,8 @@ export default function BillScreen({ route, navigation }) {
       </Foot>
       </KeyboardAvoidingView>
 
+      <DiagnosisSheet {...diag.sheet} visible={diag.sheet.visible && draft} bottom={insets.bottom}
+        onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onSaveMine={diag.saveMine} onClose={diag.close} />
       <PriceBookSheet visible={bookOpen !== null} tab={bookOpen} book={book} failed={bookFailed} bill={bill} kindWord={kind}
         adding={adding} bottom={insets.bottom} onTryAgain={loadBook} onAdd={addItem} onOwn={own}
         onClose={() => setBookOpen(null)} />
@@ -354,4 +378,5 @@ const styles = StyleSheet.create({
   messageState: { fontSize: 13, color: colors.fgSecondary },
   blockers: { paddingHorizontal: 16, paddingTop: 12 },
   retryWrap: { alignSelf: 'stretch' },
+  diag: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
 });

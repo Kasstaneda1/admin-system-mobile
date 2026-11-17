@@ -159,6 +159,21 @@ export const myDayAPI = {
     const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/notes`, body, { timeout: 15000 });
     return response.data;
   },
+  // The visit's diagnosis (src/diagnosis/model.js diagnosisBody): { text, base_version,
+  // client_request_id }. 200 { success, changed, diagnosis, visit } (changed: false for the
+  // same text or the same id again); 409 { error, code, diagnosis, visit } — diagnosis_conflict
+  // (diagnosis: their text), diagnosis_locked (the bill is issued: add to it); 400; 404.
+  diagnosis: async (id, body) => {
+    const response = await api.put(`/api/my/visits/${encodeURIComponent(id)}/diagnosis`, body, { timeout: 15000 });
+    return response.data;
+  },
+  // An addition to the diagnosis after the bill: { text, client_request_id }. 201 { success,
+  // created: true, addendum, diagnosis, visit }; 200 created: false for the same id again;
+  // 409 { error, code, visit } — diagnosis_not_locked, addenda_limit; 400; 404.
+  addToDiagnosis: async (id, body) => {
+    const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/diagnosis/addenda`, body, { timeout: 15000 });
+    return response.data;
+  },
   // The route of a New York day (backend routes/scheduler/route.js, route.js here): { success,
   // date, today, stops, total_miles, stops_without_point, flags }; 400 for a bad date.
   route: async (date) => {
