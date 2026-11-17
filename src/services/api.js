@@ -55,39 +55,17 @@ export const authAPI = {
   },
 };
 
-// Estimates API
-export const estimatesAPI = {
-  getMyEstimates: async () => {
-    // Backend /api/estimates returns paginated data
-    // Backend doesn't filter by role automatically - returns all estimates
-    // TODO: Backend needs to add role-based filtering or create /api/my-estimates endpoint
-    const response = await api.get('/api/estimates');
-    return response.data.data || []; // Extract data array from pagination response
-  },
-
-  getEstimateById: async (id) => {
-    const response = await api.get(`/api/estimates/${id}`);
-    return response.data;
-  },
-
-  updateEstimate: async (id, data) => {
-    const response = await api.put(`/api/estimates/${id}`, data);
-    return response.data;
-  },
-
-  // Parts - get estimates by status for current technician
-  getPartsByStatus: async (status) => {
-    const response = await api.get('/api/my-parts', {
-      params: { status }
-    });
-    return response.data;
-  },
-
-  // Get comments for an estimate
-  getEstimateComments: async (estimateId) => {
-    const response = await api.get(`/api/estimates/${estimateId}/comments`);
-    return response.data;
-  },
+// One estimate of this technician (TECH_APP_ESTIMATE_SCREEN_SPEC.md, estimate/model.js): the
+// server gives a technician only their own estimates (404 for the rest) and only the fields
+// of routes/estimates/access.js.
+//   get — the estimate; comments — its messages, the oldest first;
+//   send — POST { commentText, author_tz }: 201 { comment }; 400 empty; 404 not theirs;
+//   viewed — the technician has seen the messages (has_unread_comments goes false).
+export const estimateAPI = {
+  get: async (id) => (await api.get(`/api/estimates/${encodeURIComponent(id)}`, { timeout: 15000 })).data,
+  comments: async (id) => (await api.get(`/api/estimates/${encodeURIComponent(id)}/comments`, { timeout: 15000 })).data,
+  send: async (id, body) => (await api.post(`/api/estimates/${encodeURIComponent(id)}/comments`, body, { timeout: 15000 })).data,
+  viewed: async (id) => (await api.post(`/api/estimates/${encodeURIComponent(id)}/mark-viewed`, {}, { timeout: 15000 })).data,
 };
 
 // Salary API

@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  EMPTY, GROUP_ORDER, STAGES, cardOf, chipsOf, detailOf, estimatesOf, groupsOf, partnerOf, partsError, partsOf, partsQuery,
-  shortDate, stageTag, stageWord, stepsOf,
+  EMPTY, GROUP_ORDER, STAGES, cardOf, chipsOf, estimatesOf, groupsOf, partnerOf, partsError, partsOf, partsQuery,
+  shortDate, stageTag, stageWord,
 } from './model.js';
 
 // The design's estimates (design-mockups/app-salary-parts parts-all), as GET /api/estimates
@@ -93,25 +93,6 @@ test('groups: Arrived first, titles with counts, one stage alone, empty groups d
   assert.deepEqual(groupsOf(list.filter((e) => e.status !== 'arrived')).map((g) => g.key), ['in_transit', 'on_board', 'scheduled']);
   assert.deepEqual(groupsOf([], 'arrived'), []);
   assert.equal(EMPTY.stage, 'No parts in this status');
-});
-
-test('where it is: done before, now, to do after', () => {
-  assert.deepEqual(stepsOf('in_transit').map((s) => `${s.label}:${s.state}`), [
-    'Sold:done', 'In Transit:now', 'Arrived:todo', 'On Board:todo', 'Scheduled:todo', 'Installed:todo',
-  ]);
-  assert.equal(stepsOf('scheduled').filter((s) => s.state === 'done').length, 4);
-  assert.ok(stepsOf('nope').every((s) => s.state === 'todo'));
-});
-
-test('one estimate: the design E-1189', () => {
-  const d = detailOf(ROWS[1], { me: 'Ivan Petrov', thisYear: 2026 });
-  assert.equal(d.title, 'E-1189');
-  assert.equal(d.line, 'Estimate E-1189 · Nov 6');
-  assert.deepEqual([d.client, d.appliance, d.partner, d.total], ['Patel S.', 'Washer', null, '$186.40']);
-  assert.equal(d.parts.length, 2);
-  assert.equal(d.note, 'ETA Nov 13. Call the customer when it arrives.');
-  assert.equal(d.steps[1].state, 'now');
-  assert.equal(detailOf({ id: 1, status: 'arrived', name_parts: 'x' }, { thisYear: 2026 }).title, 'Estimate');
 });
 
 test('errors: no connection or a refusal', () => {

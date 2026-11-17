@@ -3,7 +3,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { colors } from './src/constants/colors';
+import { AppState } from 'react-native';
 import { AuthProvider, useAuth } from './src/session/AuthContext';
+import { outbox } from './src/estimate/outboxStore';
+import { refreshUnread, setUnread } from './src/estimate/unread';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -22,7 +25,7 @@ import SalaryMonthScreen from './src/screens/SalaryMonthScreen';
 import SalaryJobsScreen from './src/screens/SalaryJobsScreen';
 import SalaryJobScreen from './src/screens/SalaryJobScreen';
 import PartsScreen from './src/screens/PartsScreen';
-import PartsEstimateScreen from './src/screens/PartsEstimateScreen';
+import EstimateScreen from './src/screens/EstimateScreen';
 import WarehouseScreen from './src/screens/WarehouseScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
 import ReceiptsScreen from './src/screens/ReceiptsScreen';
@@ -47,11 +50,26 @@ export default function App() {
 // session swaps the set by itself. The older screens open from My day's bar: Salary, Parts,
 // and More (the old menu, Home, with Warehouse, Payments, Receipts, Unpaid and Logout).
 function Screens() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
 
   useEffect(() => {
     if (status !== 'loading') SplashScreen.hideAsync().catch(() => {});
   }, [status]);
+
+  // Signed in, at start and on return to the app: the messages to the office still on the phone
+  // go (estimate/outbox.js, never twice) and the Parts tab gets its count of unread estimates
+  const userId = status === 'signedIn' && user ? user.id : null;
+  const fullName = status === 'signedIn' && user ? user.fullName || null : null;
+  useEffect(() => {
+    if (userId === null || userId === undefined) { setUnread(0); return undefined; }
+    const wake = () => {
+      outbox.flushAll(userId).catch(() => {});
+      refreshUnread(fullName, { force: true });
+    };
+    wake();
+    const sub = AppState.addEventListener('change', (state) => { if (state === 'active') wake(); });
+    return () => sub.remove();
+  }, [userId, fullName]);
 
   if (status === 'loading') {
     return null;
@@ -154,8 +172,8 @@ function Screens() {
               options={{ headerShown: false, title: 'Parts' }}
             />
             <Stack.Screen
-              name="PartsEstimate"
-              component={PartsEstimateScreen}
+              name="Estimate"
+              component={EstimateScreen}
               options={{ headerShown: false, title: 'Estimate' }}
             />
             <Stack.Screen
