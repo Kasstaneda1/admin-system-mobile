@@ -87,7 +87,8 @@ function byLine(d) {
 }
 
 // What the Diagnosis block of the visit shows (design app-visit-empty, app-after,
-// app-after-bill), or null when the visit has no diagnosis in it:
+// app-after-bill), or null when the visit has no diagnosis in it, or none may be written and
+// none was:
 // { text, by, addenda: [{ key, head, text }], mode, button, hint, empty }
 //   mode — what the button does: 'write' (none yet: «Add diagnosis»), 'edit' («Edit»), 'add'
 //          (the bill is issued: «Add to diagnosis»), or null (nothing may be written here);
@@ -96,6 +97,8 @@ export function diagnosisBlock(visit) {
   const d = diagnosisOf(visit);
   if (!d) return null;
   const writable = canWriteDiagnosis(visit);
+  // a visit where nothing may be written and nothing was: no block (no access, cancelled)
+  if (!writable && !d.text && !d.addenda.length) return null;
   let mode = null;
   if (writable) mode = d.locked ? 'add' : d.text ? 'edit' : 'write';
   const button = { write: 'Add diagnosis', edit: 'Edit', add: 'Add to diagnosis' }[mode] || null;

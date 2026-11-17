@@ -70,12 +70,13 @@ test('the block: the bill issued — the additions in order, «Add to diagnosis�
   assert.equal(b.empty, false);
 });
 
-test('the block: nothing may be written — no button; empty reads «No diagnosis written» on the screen', () => {
-  const b = diagnosisBlock(visit({ status: 'cancelled', diagnosis: D({ text: null }) }));
-  assert.equal(b.mode, null);
-  assert.equal(b.button, null);
-  assert.equal(b.hint, null);
-  assert.equal(b.empty, true);
+test('the block: nothing may be written — the text without a button; nothing written — no block', () => {
+  const b = diagnosisBlock(visit({ status: 'cancelled' }));
+  assert.deepEqual([b.text, b.mode, b.button, b.hint, b.empty], [TEXT, null, null, null, false]);
+  assert.equal(diagnosisBlock(visit({ status: 'cancelled', diagnosis: D({ text: null }) })), null);
+  assert.equal(diagnosisBlock(visit({ status: 'completed', outcome: 'no_access', closed_at: '2026-11-11T16:00:00Z', diagnosis: D({ text: null }) })), null);
+  // additions only (the text cleared by the office): still shown
+  assert.equal(diagnosisBlock(visit({ status: 'cancelled', diagnosis: D({ text: null, addenda: [ADD] }) })).addenda.length, 1);
 });
 
 test('what is sent: control characters out, trimmed; Save only for a change, at most 2000', () => {
