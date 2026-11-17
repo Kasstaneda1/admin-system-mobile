@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ESTIMATE_CHOICES, RESIGN_WORDS, agreedOf, approveError, approveTile, authBody, canApprove, copyName, countText, estimatePriceOf, estimatePriceText, estimateText, writtenText,
-  latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf,
+  latestOf, needsEstimateChoice, pickEstimate, ruleText, signedText, termsLineOf,
 } from './model.js';
 
 // The design's draft (design-mockups/app-invoice «Числа сходятся»): $230.00 before tax, $250.41 with it
@@ -123,4 +123,11 @@ test('a refusal in words: offline keeps it, amount or terms changed — the cust
   assert.equal(approveError(err(404, { error: 'Visit not found' })).kind, 'gone');
   assert.equal(approveError(err(500)).kind, 'failed');
   assert.equal(copyName({ id: 412 }), 'approval-412.pdf');
+});
+
+test('a different written-estimate choice after the signature is drawn wipes it', () => {
+  assert.deepEqual(pickEstimate(null, 'written', false), { estimate: 'written', clear: false });
+  assert.deepEqual(pickEstimate('written', 'waived', true), { estimate: 'waived', clear: true });
+  assert.deepEqual(pickEstimate('written', 'waived', false), { estimate: 'waived', clear: false });
+  assert.deepEqual(pickEstimate('waived', 'waived', true), { estimate: 'waived', clear: false });
 });

@@ -29,7 +29,7 @@ import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody, usd } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 import {
-  ESTIMATE_CHOICES, ESTIMATE_RIGHT, agreedOf, authBody, countText, estimatePriceOf, estimatePriceText, writtenText, latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf,
+  ESTIMATE_CHOICES, ESTIMATE_RIGHT, agreedOf, authBody, pickEstimate, countText, estimatePriceOf, estimatePriceText, writtenText, latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf,
 } from '../approve/model';
 import { approvals } from '../approve/store';
 import { downloadApprovalPdf } from '../approve/pdf';
@@ -80,6 +80,17 @@ export default function ApproveScreen({ route, navigation }) {
   const [estimate, setEstimate] = useState(null);    // { choice, price }
   const [estimatePrice, setEstimatePrice] = useState(0); // the written estimate's price (the price book's estimate_fee)
   const [drawn, setDrawn] = useState(false);
+  const [choiceNote, setChoiceNote] = useState(false); // the estimate choice changed after the signature: shown over the box
+  // a written-estimate choice: another one after the signature is drawn wipes the signature
+  const chooseEstimate = (next) => {
+    const { estimate: chosenNow, clear } = pickEstimate(estimate, next, drawn);
+    setEstimate(chosenNow);
+    if (clear) {
+      if (pad.current) pad.current.clear();
+      setDrawn(false);
+      setChoiceNote(true);
+    }
+  };
   const [sending, setSending] = useState(false);
   const [said, setSaid] = useState(null);            // { kind, text } of the last try
   const [termsOpen, setTermsOpen] = useState(false);
@@ -269,7 +280,7 @@ export default function ApproveScreen({ route, navigation }) {
                   {ESTIMATE_CHOICES.map((c) => {
                     const on = estimate === c.choice;
                     return (
-                      <TouchableOpacity key={c.choice} style={[styles.choice, on && styles.choiceOn]} onPress={() => setEstimate(c.choice)} disabled={sending}
+                      <TouchableOpacity key={c.choice} style={[styles.choice, on && styles.choiceOn]} onPress={() => chooseEstimate(c.choice)} disabled={sending}
                         accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${c.title}. ${c.sub}`}>
                         <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
                         <View style={styles.flex}>
@@ -293,8 +304,9 @@ export default function ApproveScreen({ route, navigation }) {
                 <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name of who signs" placeholderTextColor={colors.fgMutedField}
                   autoCapitalize="words" autoCorrect={false} returnKeyType="done" maxLength={200} accessibilityLabel="Customer name" />
               </View>
+              {choiceNote ? <Box kind="warn" icon="warn" text="The choice changed: the customer signs again." style={styles.noteOverPad} /> : null}
               <View onTouchStart={() => setScroll(false)} onTouchEnd={() => setScroll(true)} onTouchCancel={() => setScroll(true)}>
-                <SignaturePad ref={pad} onDrawn={setDrawn} disabled={sending || mustChoose} />
+                <SignaturePad ref={pad} onDrawn={(d) => { setDrawn(d); if (d) setChoiceNote(false); }} disabled={sending || mustChoose} />
               </View>
               <Text style={styles.rule}>{ruleText(rule)}</Text>
             </>
@@ -338,6 +350,7 @@ const styles = StyleSheet.create({
   body: { paddingTop: 12, paddingBottom: 24 },
   pad: { paddingHorizontal: 16, paddingBottom: 12 },
   boxGap: { marginHorizontal: 16, marginBottom: 12 },
+  noteOverPad: { marginHorizontal: 16, marginBottom: 8 },
   flex: { flex: 1 },
   label: { marginBottom: 8, fontSize: 13, fontWeight: '800', letterSpacing: 1.1, color: colors.fgSecondary },
   labelGap: { marginTop: 16 },

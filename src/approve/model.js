@@ -65,6 +65,13 @@ export function estimatePriceOf(items) {
   return Number.isInteger(cents) && cents > 0 ? cents : 0;
 }
 // The right in plain words, then its price (the screen shows the price in bold)
+// A tap on a written-estimate choice: { estimate, clear }. The customer signs under one choice: a
+// different choice after the signature is drawn wipes it, the customer signs again (the same rule
+// as Replaced parts, #46 — «Тимлид», «Архитектор ПО»). The request id is new on every Approve.
+export function pickEstimate(current, next, drawn) {
+  if (next === current) return { estimate: current, clear: false };
+  return { estimate: next, clear: !!drawn };
+}
 export const ESTIMATE_RIGHT = 'You have the right to a written estimate before any repair.';
 export const estimatePriceText = (cents) => (cents > 0 ? `It costs ${usd(cents)}.` : 'It is free.');
 export const estimateText = (cents) => `${ESTIMATE_RIGHT} ${estimatePriceText(cents)}`;
