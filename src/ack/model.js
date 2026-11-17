@@ -61,6 +61,15 @@ export function billHeadOf(bill, today) {
   };
 }
 
+// ---------- the company's terms ----------
+// The line of the latest acknowledgment terms the customer can read before signing (null when the
+// company has published none: then no terms_version_id goes with the signature)
+export function ackTermsLine(terms) {
+  if (!terms) return null;
+  const title = (typeof terms.title === 'string' && terms.title.trim()) || 'Bill acknowledgment terms';
+  return { title, sub: `Version ${terms.version} · the customer gets a copy` };
+}
+
 // ---------- the request ----------
 // The body of POST …/bill/acknowledgment, or { error } in words before anything is sent
 export function ackBody({ name, png, parts, terms, requestId }) {

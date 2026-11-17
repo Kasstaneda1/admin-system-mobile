@@ -224,6 +224,22 @@ export const approveAPI = {
   copies: async (id, authId, body) => (await api.post(`${authPath(id)}/${encodeURIComponent(authId)}/copies`, body, { timeout: 15000 })).data,
 };
 
+// The customer's signature «after the work» (backend billConsents.js, billCopies.js): the
+// customer got the visit's issued and delivered bill and signs that they did, choosing about the
+// replaced parts. One per bill. No queue on the phone: the delivery before it needs the server
+// too, so without the connection the screen says «Try again online».
+//   terms — GET ?kind=acknowledgment: { terms | null }; get — { acknowledgment | null } (404 —
+//   no bill); sign — 201 { acknowledgment }, the same client_request_id again 200, 409
+//   not_issued / not_delivered / void / already_signed / terms_changed; copies — { via, consent }
+//   (as the approval's). The PDF of the copy: src/ack/pdf.js
+const ackPath = (id) => `/api/my/visits/${encodeURIComponent(id)}/bill/acknowledgment`;
+export const ackAPI = {
+  terms: async (id) => (await api.get(`/api/my/visits/${encodeURIComponent(id)}/terms`, { params: { kind: 'acknowledgment' }, timeout: 15000 })).data,
+  get: async (id) => (await api.get(ackPath(id), { timeout: 15000 })).data,
+  sign: async (id, body) => (await api.post(ackPath(id), body, { timeout: 30000 })).data,
+  copies: async (id, body) => (await api.post(`${ackPath(id)}/copies`, body, { timeout: 15000 })).data,
+};
+
 // The visit's photos (backend routes/scheduler/photos.js; a technician only on their own
 // visit). list: the server's rows, the newest first. upload(file { uri, name, type }): the
 // field 'photo', JPEG/PNG/GIF/WebP up to 10 MB; 201 { photo }. A photo itself is

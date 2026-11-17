@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  REPLACED_PARTS, ackBody, ackCopyName, ackError, ackStage, billHeadOf, partsNote, partsOf, signedLine, stageText,
+  REPLACED_PARTS, ackBody, ackTermsLine, ackCopyName, ackError, ackStage, billHeadOf, partsNote, partsOf, signedLine, stageText,
 } from './model.js';
 
 const BILL = { id: 77, status: 'issued', label: 'NY-1048', bill_number: 1048, total_cents: 25041, delivered_at: '2026-11-17T17:42:00Z' };
@@ -82,4 +82,10 @@ test('the copy\'s file name', () => {
   assert.equal(ackCopyName(BILL), 'bill-receipt-NY-1048.pdf');
   assert.equal(ackCopyName({ id: 77 }), 'bill-receipt-77.pdf');
   assert.equal(ackCopyName({ label: 'NY/10 48' }), 'bill-receipt-NY_10_48.pdf');
+});
+
+test('the acknowledgment terms: their title or a plain one, none when the company has none', () => {
+  assert.equal(ackTermsLine(null), null);
+  assert.deepEqual(ackTermsLine({ id: 4, version: 2, title: 'Receipt terms' }), { title: 'Receipt terms', sub: 'Version 2 · the customer gets a copy' });
+  assert.deepEqual(ackTermsLine({ id: 4, version: 1, title: '  ' }), { title: 'Bill acknowledgment terms', sub: 'Version 1 · the customer gets a copy' });
 });
