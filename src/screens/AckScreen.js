@@ -147,7 +147,7 @@ export default function AckScreen({ route, navigation }) {
   };
 
   // ---------- the screen ----------
-  const top = <TopBar back="Bill" title="Customer signs for the bill" onBack={() => navigation.goBack()} />;
+  const top = <TopBar back="Bill" title="Customer signs for the bill" wide onBack={() => navigation.goBack()} />;
 
   if (state.status !== 'ready') {
     return (
