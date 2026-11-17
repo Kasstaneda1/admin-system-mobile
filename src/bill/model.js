@@ -495,6 +495,13 @@ export function billError(error, { issue = false, company = null } = {}) {
     return { kind: 'refused', text: `The total changed to ${usd(data.total_cents)}. Check the bill and issue again.`, total: data.total_cents };
   }
   if ((status === 409 || status === 400) && data.code === 'tax_missing') return { kind: 'refused', text: taxWords(company) };
+  // over the approved amount by the rule of the job's place (backend billIssue.js): no way
+  // around it — the customer approves the new amount (src/approve) or the bill gets smaller
+  if (status === 409 && data.code === 'authorization_exceeded') {
+    const over = Number.isFinite(data.approved_cents) && Number.isFinite(data.current_cents)
+      ? ` The customer approved ${usd(data.approved_cents)} before tax, the bill is ${usd(data.current_cents)} now.` : '';
+    return { kind: 'refused', reapprove: true, text: `The bill grew over what the customer approved.${over} The customer signs again, or make the bill smaller.` };
+  }
   if ((status === 409 || status === 400) && ISSUE_WORDS[data.code]) return { kind: 'refused', text: ISSUE_WORDS[data.code] };
   if (status === 409 || status === 403 || status === 400) {
     return { kind: 'refused', text: said ? `${said.replace(/[.\s]*$/, '')}.` : 'The bill could not be changed.' };

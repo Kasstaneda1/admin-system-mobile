@@ -206,6 +206,24 @@ export const billAPI = {
   delivered: async (id, body) => (await api.post(`${billPath(id)}/delivered`, body, { timeout: 15000 })).data,
 };
 
+// «Approve» before the work (backend routes/scheduler/billConsents.js, billCopies.js; the main
+// technician of a visit of the new schedule only: a helper 403, a visit not theirs 404):
+//   terms — GET ?kind=authorization: { terms: { id, version, title, body, … } | null };
+//   list — GET: { rule: nyc_20 | nj_any | none, authorizations: newest first };
+//   sign — POST { method: signature, signer_name, signature_png, amount_source: bill,
+//          expected_amount_cents, terms_version_id?, estimate_choice?, estimate_price_cents?,
+//          client_request_id }: 201 created, 200 created: false for the same id again; 409
+//          amount_changed / terms_changed (the customer signs again), 400 with the reason;
+//   copies — POST { via: handed | shared, to?, consent? }: the customer got a copy (§2-258);
+//          the PDF itself: src/approve/pdf.js
+const authPath = (id) => `/api/my/visits/${encodeURIComponent(id)}/authorizations`;
+export const approveAPI = {
+  terms: async (id) => (await api.get(`/api/my/visits/${encodeURIComponent(id)}/terms`, { params: { kind: 'authorization' }, timeout: 15000 })).data,
+  list: async (id) => (await api.get(authPath(id), { timeout: 15000 })).data,
+  sign: async (id, body) => (await api.post(authPath(id), body, { timeout: 30000 })).data,
+  copies: async (id, authId, body) => (await api.post(`${authPath(id)}/${encodeURIComponent(authId)}/copies`, body, { timeout: 15000 })).data,
+};
+
 // The visit's photos (backend routes/scheduler/photos.js; a technician only on their own
 // visit). list: the server's rows, the newest first. upload(file { uri, name, type }): the
 // field 'photo', JPEG/PNG/GIF/WebP up to 10 MB; 201 { photo }. A photo itself is

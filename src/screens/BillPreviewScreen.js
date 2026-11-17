@@ -70,12 +70,21 @@ export default function BillPreviewScreen({ route, navigation }) {
         return;
       }
       if (failed.kind === 'failed') logError('Error issuing a bill:', error);
+      if (failed.reapprove) {
+        // the customer approves the new amount on the Approve screen (src/approve)
+        Alert.alert('The bill is not issued', failed.text, [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Approve again', onPress: () => navigation.navigate('Approve', { id, visit, again: true }) },
+        ]);
+        load();
+        return;
+      }
       Alert.alert('The bill is not issued', failed.text);
       if (failed.kind === 'refused') load();
     } finally {
       setIssuing(false);
     }
-  }, [bill, issuing, id, navigation, load]);
+  }, [bill, issuing, id, visit, navigation, load]);
 
   const askIssue = () => {
     Alert.alert('Issue the bill?', 'It gets its number and its PDF and is frozen. To change it later, the office voids and reissues it.', [

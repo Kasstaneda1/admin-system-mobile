@@ -314,3 +314,13 @@ test('billError: the delivery is marked once', () => {
   assert.deepEqual(billError({ response: { status: 409, data: { error: 'This bill is already marked delivered', delivered_at: 'x' } } }),
     { kind: 'refused', text: 'This bill is already marked delivered.' });
 });
+
+test('the issue over the approved amount (authorization_exceeded): in words, and the way back to Approve', () => {
+  const failed = billError({ response: { status: 409, data: { code: 'authorization_exceeded', approved_cents: 23000, current_cents: 29000, rule: 'nyc_20', error: 'x' } } }, { issue: true });
+  assert.equal(failed.kind, 'refused');
+  assert.equal(failed.reapprove, true);
+  assert.equal(failed.text, 'The bill grew over what the customer approved. The customer approved $230.00 before tax, the bill is $290.00 now. The customer signs again, or make the bill smaller.');
+  assert.equal(billError({ response: { status: 409, data: { code: 'authorization_exceeded' } } }).text,
+    'The bill grew over what the customer approved. The customer signs again, or make the bill smaller.');
+  assert.equal(billError({ response: { status: 409, data: { code: 'total_changed', total_cents: 100 } } }).reapprove, undefined);
+});
