@@ -1,225 +1,108 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { unpaidAPI } from '../services/api';
+// Salary, Unpaid → Unpaid Clients (design-mockups/app-salary-parts salary-unpaid; site
+// technician-unpaid.js): tabs Pending and Declined with their counts; a card per record — the
+// customer, the date, the status, Amount, the manager's notes when there are any (as the site);
+// a red stripe on the left. An empty tab and no records at all: the site's words. route params
+// { from? }. Data: salary/money.js unpaidOf.
+import React, { useCallback, useMemo, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
-import LoadingScreen from '../components/LoadingScreen';
-import ErrorMessage from '../components/ErrorMessage';
-import StatusBadge from '../components/StatusBadge';
-import EmptyState from '../components/EmptyState';
-import { parseLocalDate } from '../utils/dateUtils';
-import { logError } from '../utils/logError';
+import { useAuth } from '../session/AuthContext';
+import Icon from '../myDay/Icon';
+import { TopBar } from '../bill/parts';
+import { salaryMoneyAPI } from '../services/api';
+import { MANAGER_NOTES, NO_UNPAID, UNPAID_EMPTY, unpaidOf } from '../salary/money';
+import { useAnswer } from '../salary/useAnswer';
+import { NoData, SalaryFrame, salaryStyles } from '../salary/parts';
+import { EmptyNote, Pill } from '../salary/moneyParts';
 
-export default function UnpaidScreen() {
-  const [loading, setLoading] = useState(true);
-  const [pendingRecords, setPendingRecords] = useState([]);
-  const [declinedRecords, setDeclinedRecords] = useState([]);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    loadUnpaidRecords();
-  }, []);
-
-  const loadUnpaidRecords = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const userJson = await AsyncStorage.getItem('user');
-      const user = JSON.parse(userJson);
-      const technicianName = user?.fullName;
-
-      if (!technicianName) {
-        setError('Unable to load technician name');
-        setLoading(false);
-        return;
-      }
-
-      const data = await unpaidAPI.getUnpaidRecords(technicianName);
-      setPendingRecords(data.pending || []);
-      setDeclinedRecords(data.declined || []);
-    } catch (err) {
-      logError('Error loading unpaid records:', err);
-      const message = err.response?.data?.error || 'Failed to load unpaid records. Please check your connection.';
-      setError(message);
-      Alert.alert('Error', message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const renderRecord = (record, isPending = true) => {
-    const date = parseLocalDate(record.record_date).toLocaleDateString();
-    const amount = parseFloat(record.amount || 0).toFixed(2);
-
-    return (
-      <View
-        key={record.id}
-        style={[
-          styles.recordCard,
-          { borderLeftColor: isPending ? colors.warning : colors.danger }
-        ]}
-      >
-        <View style={styles.recordMainRow}>
-          <Text style={styles.recordDate}>{date}</Text>
-          <Text style={styles.recordAmount}>${amount}</Text>
-        </View>
-        <Text style={styles.recordClient}>{record.client_name}</Text>
-
-        {!isPending && record.manager_notes && (
-          <View style={styles.notesContainer}>
-            <Text style={styles.notesLabel}>Manager Note:</Text>
-            <Text style={styles.notesText}>{record.manager_notes}</Text>
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  if (loading) {
-    return <LoadingScreen message="Loading unpaid records..." />;
-  }
-
-  if (error) {
-    return <ErrorMessage message={error} onRetry={loadUnpaidRecords} />;
-  }
-
-  const totalPending = pendingRecords.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
-  const totalDeclined = declinedRecords.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+export default function UnpaidScreen({ route, navigation }) {
+  const params = route.params || {};
+  const { user } = useAuth();
+  const name = user?.fullName || null;
+  const load = useCallback(() => salaryMoneyAPI.unpaid(name), [name]);
+  const { answer, problem, refreshing, reload } = useAnswer(load, 'Unpaid Clients');
+  const u = useMemo(() => (answer ? unpaidOf(answer) : null), [answer]);
+  const [tab, setTab] = useState('pending');
+  const rows = u ? u[tab] : [];
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        {/* Pending Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionIcon}>⏳</Text>
-              <Text style={styles.sectionTitle}>Pending</Text>
-              <StatusBadge count={pendingRecords.length} variant="warning" />
+    <SalaryFrame navigation={navigation} top={<TopBar back={params.from || 'Salary'} title="Unpaid Clients" onBack={() => navigation.goBack()} />}>
+      {!u ? <NoData problem={problem} onRetry={() => reload()} /> : (
+        <>
+          {u.none ? null : (
+            <View style={styles.chipsBar}>
+              <View style={styles.chips} accessibilityRole="tablist">
+                {u.tabs.map((t) => {
+                  const on = t.key === tab;
+                  return (
+                    <TouchableOpacity key={t.key} style={[styles.chip, on && styles.chipOn]} onPress={() => setTab(t.key)}
+                      accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={`${t.label}, ${t.count}`}>
+                      <Text style={[styles.chipText, on && styles.chipTextOn]}>{t.label}</Text>
+                      <Text style={[styles.count, on && styles.countOn]}>{String(t.count)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
-            {pendingRecords.length > 0 && (
-              <Text style={styles.totalAmount}>
-                Total: ${totalPending.toFixed(2)}
-              </Text>
-            )}
-          </View>
-
-          {pendingRecords.length > 0 ? (
-            pendingRecords.map(record => renderRecord(record, true))
-          ) : (
-            <EmptyState message="No pending records" />
           )}
-        </View>
-
-        {/* Declined Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionIcon}>❌</Text>
-              <Text style={styles.sectionTitle}>Declined</Text>
-              <StatusBadge count={declinedRecords.length} variant="danger" />
-            </View>
-            {declinedRecords.length > 0 && (
-              <Text style={styles.totalAmount}>
-                Total: ${totalDeclined.toFixed(2)}
-              </Text>
+          <ScrollView contentContainerStyle={[styles.body, salaryStyles.bottomSpace]}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => reload({ pull: true })} tintColor={colors.brand} />}>
+            {u.none ? (
+              <EmptyNote icon="checkc" title={NO_UNPAID} text="Customers who have not paid show up here." />
+            ) : rows.length ? rows.map((r) => (
+              <View key={r.key} style={styles.card} accessible
+                accessibilityLabel={[r.client, r.date, r.status, `Amount ${r.amount}`, r.note ? `${MANAGER_NOTES}: ${r.note}` : null].filter(Boolean).join(', ')}>
+                <View style={styles.l1}>
+                  <View style={styles.who}>
+                    <Text style={styles.client} numberOfLines={1}>{r.client}</Text>
+                    <Text style={styles.date}>{r.date}</Text>
+                  </View>
+                  <Pill text={r.status} />
+                </View>
+                <View style={styles.amountRow}>
+                  <Text style={styles.amountLabel}>Amount</Text>
+                  <Text style={styles.amount}>{r.amount}</Text>
+                </View>
+                {r.note ? (
+                  <View style={styles.note}>
+                    <View style={styles.noteHead}>
+                      <Icon name="note" size={14} color={colors.fgSecondary} />
+                      <Text style={styles.noteLabel}>{MANAGER_NOTES}</Text>
+                    </View>
+                    <Text style={styles.noteText}>{r.note}</Text>
+                  </View>
+                ) : null}
+              </View>
+            )) : (
+              <EmptyNote icon="checkc" title={UNPAID_EMPTY[tab].title} text={UNPAID_EMPTY[tab].text} />
             )}
-          </View>
-
-          {declinedRecords.length > 0 ? (
-            declinedRecords.map(record => renderRecord(record, false))
-          ) : (
-            <EmptyState message="No declined records" />
-          )}
-        </View>
-      </View>
-    </ScrollView>
+          </ScrollView>
+        </>
+      )}
+    </SalaryFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: 16,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    marginBottom: 12,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  sectionIcon: {
-    fontSize: 24,
-    marginRight: 8,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.textDark,
-    marginRight: 8,
-  },
-  totalAmount: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
-    marginLeft: 32,
-  },
-  recordCard: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  recordMainRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  recordDate: {
-    fontSize: 14,
-    color: colors.textMedium,
-  },
-  recordAmount: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  recordClient: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textDark,
-    marginBottom: 4,
-  },
-  notesContainer: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  notesLabel: {
-    fontSize: 12,
-    color: colors.textMedium,
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 14,
-    color: colors.textDark,
-    fontStyle: 'italic',
-  },
+  chipsBar: { borderBottomWidth: 1, borderBottomColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  chips: { flexDirection: 'row', gap: 8, paddingVertical: 10, paddingHorizontal: 16 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 12, borderRadius: 22, borderWidth: 1.5, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  chipOn: { borderColor: colors.brandPressed, backgroundColor: colors.brandPressed },
+  chipText: { fontSize: 15, fontWeight: '700', color: colors.fgDefault },
+  chipTextOn: { color: colors.fgOnFill },
+  count: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, overflow: 'hidden', backgroundColor: colors.bgSunken, fontSize: 12, fontWeight: '700', lineHeight: 22, textAlign: 'center', color: colors.fgDefault },
+  countOn: { backgroundColor: colors.brand, color: colors.fgOnFill },
+  body: { gap: 10, paddingTop: 12, paddingHorizontal: 16 },
+  card: { gap: 6, paddingVertical: 12, paddingRight: 14, paddingLeft: 18, borderRadius: 14, borderWidth: 1, borderColor: colors.dangerBorder, borderLeftWidth: 4, borderLeftColor: colors.dangerFg, backgroundColor: colors.bgCard },
+  l1: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  who: { flex: 1, minWidth: 0 },
+  client: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
+  date: { fontSize: 13, color: colors.fgSecondary },
+  amountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 24 },
+  amountLabel: { fontSize: 16, color: colors.fgSecondary },
+  amount: { fontSize: 17, fontWeight: '800', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
+  note: { gap: 2, marginTop: 2, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.borderSubtle },
+  noteHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  noteLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.6, color: colors.fgSecondary },
+  noteText: { fontSize: 15, lineHeight: 20, color: colors.fgDefault },
 });

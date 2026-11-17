@@ -64,7 +64,8 @@ export default function SalaryMonthScreen({ route, navigation }) {
   }
 
   const open = (row) => {
-    if (row.go) navigation.navigate(row.go);
+    // Payments is the month's; Receipts and Unpaid Clients hold every month, as on the site
+    if (row.go) navigation.navigate(row.go, { year, month, from: 'Salary' });
   };
 
   return (

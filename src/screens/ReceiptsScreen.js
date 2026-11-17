@@ -1,238 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import { receiptsAPI } from '../services/api';
+// Salary, Checks → Receipts (design-mockups/app-salary-parts salary-receipts; site
+// technician-receipts.js): this technician's checks not handed in yet, of every month — Total
+// Unsubmitted, «1 check waiting for submission», a row per check: the customer with the work
+// status badge, the date with «Waiting for submission», the amount. Nothing waiting: the site's
+// good news. route params { from? }. Data: salary/money.js receiptsOf.
+import React, { useMemo } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../constants/colors';
-import LoadingScreen from '../components/LoadingScreen';
-import ErrorMessage from '../components/ErrorMessage';
-import StatusBadge from '../components/StatusBadge';
-import EmptyState from '../components/EmptyState';
-import { parseLocalDate } from '../utils/dateUtils';
-import { logError } from '../utils/logError';
+import { Tag } from '../myDay/parts';
+import { SectionHead, TopBar, billStyles } from '../bill/parts';
+import { salaryMoneyAPI } from '../services/api';
+import { NO_RECEIPTS, WAITING, receiptsOf } from '../salary/money';
+import { useAnswer } from '../salary/useAnswer';
+import { NoData, SalaryFrame, salaryStyles } from '../salary/parts';
+import { EmptyNote, Pill, moneyStyles } from '../salary/moneyParts';
 
-export default function ReceiptsScreen() {
-  const [loading, setLoading] = useState(true);
-  const [receipts, setReceipts] = useState([]);
-  const [error, setError] = useState(null);
+const loadReceipts = () => salaryMoneyAPI.receipts();
 
-  useEffect(() => {
-    loadReceipts();
-  }, []);
-
-  const loadReceipts = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const data = await receiptsAPI.getMyReceipts();
-      setReceipts(data || []);
-    } catch (err) {
-      logError('Error loading receipts:', err);
-      const message = err.response?.data?.error || 'Failed to load receipts. Please check your connection.';
-      setError(message);
-      Alert.alert('Error', message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const renderReceipt = (receipt) => {
-    const date = parseLocalDate(receipt.date).toLocaleDateString();
-    const amount = parseFloat(receipt.check_amount || 0).toFixed(2);
-
-    return (
-      <View key={receipt.id} style={styles.receiptCard}>
-        <View style={styles.receiptMainRow}>
-          <Text style={styles.receiptDate}>{date}</Text>
-          <Text style={styles.receiptAmount}>${amount}</Text>
-        </View>
-        <Text style={styles.receiptClient}>{receipt.client_name}</Text>
-        <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>Status:</Text>
-          <Text style={styles.statusValue}>{receipt.work_status}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  if (loading) {
-    return <LoadingScreen message="Loading receipts..." />;
-  }
-
-  if (error) {
-    return <ErrorMessage message={error} onRetry={loadReceipts} />;
-  }
-
-  const totalAmount = receipts.reduce((sum, r) => sum + parseFloat(r.check_amount || 0), 0);
+export default function ReceiptsScreen({ route, navigation }) {
+  const params = route.params || {};
+  const { answer, problem, refreshing, reload } = useAnswer(loadReceipts, 'Receipts');
+  const r = useMemo(() => (answer ? receiptsOf(answer) : null), [answer]);
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.infoCard}>
-          <Text style={styles.infoIcon}>📋</Text>
-          <Text style={styles.infoTitle}>Unsubmitted Checks</Text>
-          <Text style={styles.infoText}>
-            These are checks that have not been submitted yet. Please submit physical receipts to process payments.
-          </Text>
-        </View>
-
-        {receipts.length > 0 && (
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Total Outstanding</Text>
-            <Text style={styles.summaryAmount}>${totalAmount.toFixed(2)}</Text>
-            <Text style={styles.summaryCount}>
-              {receipts.length} {receipts.length === 1 ? 'check' : 'checks'}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>🧾</Text>
-            <Text style={styles.sectionTitle}>Pending Checks</Text>
-            <StatusBadge count={receipts.length} variant="warning" />
-          </View>
-
-          {receipts.length > 0 ? (
-            receipts.map(receipt => renderReceipt(receipt))
+    <SalaryFrame navigation={navigation} top={<TopBar back={params.from || 'Salary'} title="Receipts" onBack={() => navigation.goBack()} />}>
+      {!r ? <NoData problem={problem} onRetry={() => reload()} /> : (
+        <ScrollView contentContainerStyle={salaryStyles.bottomSpace}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => reload({ pull: true })} tintColor={colors.brand} />}>
+          {r.count ? (
+            <>
+              <View style={moneyStyles.head}>
+                <View style={styles.tile} accessible accessibilityLabel={`Total Unsubmitted ${r.total}, ${r.line}`}>
+                  <Text style={[moneyStyles.totalLabel, styles.warn]}>TOTAL UNSUBMITTED</Text>
+                  <Text style={[styles.big, styles.warn]} numberOfLines={1} adjustsFontSizeToFit>{r.total}</Text>
+                  <Text style={styles.sub}>{r.line}</Text>
+                </View>
+              </View>
+              <View style={[billStyles.section, moneyStyles.firstSection]}>
+                <SectionHead label="Checks" />
+                {r.rows.map((c) => (
+                  <View key={c.key} style={styles.row} accessible accessibilityLabel={`${c.client}, ${c.tag.text}, ${c.date}, ${WAITING}, ${c.amount}`}>
+                    <View style={styles.left}>
+                      <View style={styles.line}>
+                        <Text style={styles.client} numberOfLines={1}>{c.client}</Text>
+                        <Tag tag={c.tag} big fixed />
+                      </View>
+                      <View style={styles.line}>
+                        <Text style={styles.date}>{c.date}</Text>
+                        <Pill text={WAITING} kind="warn" />
+                      </View>
+                    </View>
+                    <Text style={styles.amount}>{c.amount}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
           ) : (
-            <EmptyState message="No unsubmitted checks" />
+            <View style={[billStyles.section, moneyStyles.firstSection]}>
+              <EmptyNote icon="checkc" title={NO_RECEIPTS.title} text={NO_RECEIPTS.text} />
+            </View>
           )}
-        </View>
-      </View>
-    </ScrollView>
+        </ScrollView>
+      )}
+    </SalaryFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: 16,
-  },
-  infoCard: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.info,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  infoIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.textDark,
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: colors.textMedium,
-    lineHeight: 20,
-  },
-  summaryCard: {
-    backgroundColor: colors.warning,
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: colors.whiteTransparent90,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  summaryAmount: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 4,
-  },
-  summaryCount: {
-    fontSize: 14,
-    color: colors.whiteTransparent80,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionIcon: {
-    fontSize: 24,
-    marginRight: 8,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.textDark,
-    marginRight: 8,
-    flex: 1,
-  },
-  receiptCard: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.warning,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  receiptMainRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  receiptDate: {
-    fontSize: 14,
-    color: colors.textMedium,
-  },
-  receiptAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.warning,
-  },
-  receiptClient: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textDark,
-    marginBottom: 8,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusLabel: {
-    fontSize: 12,
-    color: colors.textMedium,
-    marginRight: 6,
-  },
-  statusValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-  },
+  tile: { gap: 4, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
+  warn: { color: colors.warningFg },
+  big: { fontSize: 28, lineHeight: 34, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  sub: { fontSize: 15, color: colors.fgSecondary },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: colors.borderSubtle },
+  left: { flex: 1, minWidth: 0, gap: 6 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  client: { flexShrink: 1, fontSize: 17, fontWeight: '700', color: colors.fgDefault },
+  date: { fontSize: 15, color: colors.fgSecondary },
+  amount: { fontSize: 17, fontWeight: '800', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
 });

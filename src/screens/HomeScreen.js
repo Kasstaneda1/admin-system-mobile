@@ -81,7 +81,7 @@ export default function HomeScreen({ navigation }) {
             <TouchableOpacity
               key={index}
               style={styles.menuItem}
-              onPress={() => navigation.navigate(item.screen)}
+              onPress={() => navigation.navigate(item.screen, { from: 'More' })}
             >
               <Text style={styles.menuIcon}>{item.icon}</Text>
               <View style={styles.menuText}>
