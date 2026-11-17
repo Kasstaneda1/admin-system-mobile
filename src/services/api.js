@@ -240,6 +240,20 @@ export const ackAPI = {
   copies: async (id, body) => (await api.post(`${ackPath(id)}/copies`, body, { timeout: 15000 })).data,
 };
 
+// The money of the visit's issued bill (backend routes/scheduler/billPayments.js, PR 13а; the
+// main technician only: a helper 403, takes_payments off 403 payments_off). The balance and the
+// list come with the bill too (billAPI.get: paid_cents, balance_cents, payment_status, payments).
+//   record — POST { kind?: payment | tip, amount_cents, method, method_note?, note?,
+//            check_number?, before_delivery?, before_delivery_reason?, tip_for_user_id?,
+//            client_request_id }: 201 { payment, bill, payment_warnings }, the same id again 200;
+//            409 not_issued / bill_void / not_delivered / over_balance, 400 note_required;
+//   void — POST { reason }: their own record within 15 minutes (403 void_window_passed after).
+const payPath = (id) => `/api/my/visits/${encodeURIComponent(id)}/payments`;
+export const payAPI = {
+  record: async (id, body) => (await api.post(payPath(id), body, { timeout: 30000 })).data,
+  void: async (id, paymentId, reason) => (await api.post(`${payPath(id)}/${encodeURIComponent(paymentId)}/void`, { reason }, { timeout: 15000 })).data,
+};
+
 // The visit's photos (backend routes/scheduler/photos.js; a technician only on their own
 // visit). list: the server's rows, the newest first. upload(file { uri, name, type }): the
 // field 'photo', JPEG/PNG/GIF/WebP up to 10 MB; 201 { photo }. A photo itself is

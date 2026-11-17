@@ -22,6 +22,11 @@ import BillSendScreen from './src/screens/BillSendScreen';
 import ApproveScreen from './src/screens/ApproveScreen';
 import AckScreen from './src/screens/AckScreen';
 import BillPdfScreen from './src/screens/BillPdfScreen';
+import PayScreen from './src/screens/PayScreen';
+import PayMethodScreen from './src/screens/PayMethodScreen';
+import PayTipScreen from './src/screens/PayTipScreen';
+import PayCardScreen from './src/screens/PayCardScreen';
+import CashTipScreen from './src/screens/CashTipScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
 import SalaryMonthScreen from './src/screens/SalaryMonthScreen';
@@ -149,6 +154,31 @@ function Screens() {
               name="BillPdf"
               component={BillPdfScreen}
               options={{ headerShown: false, title: 'PDF' }}
+            />
+            <Stack.Screen
+              name="Pay"
+              component={PayScreen}
+              options={{ headerShown: false, title: 'Payment' }}
+            />
+            <Stack.Screen
+              name="PayMethod"
+              component={PayMethodScreen}
+              options={{ headerShown: false, title: 'How they pay' }}
+            />
+            <Stack.Screen
+              name="PayTip"
+              component={PayTipScreen}
+              options={{ headerShown: false, title: 'Add tip' }}
+            />
+            <Stack.Screen
+              name="PayCard"
+              component={PayCardScreen}
+              options={{ headerShown: false, title: 'Card payment' }}
+            />
+            <Stack.Screen
+              name="CashTip"
+              component={CashTipScreen}
+              options={{ headerShown: false, title: 'Tip' }}
             />
             <Stack.Screen
               name="Route"

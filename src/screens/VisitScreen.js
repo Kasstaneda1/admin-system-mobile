@@ -48,6 +48,7 @@ import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
 import { billError, billTile, canBill, draftedFrom, knownOf } from '../bill/model';
 import { Box } from '../bill/parts';
 import { approveError, approveTile, canApprove } from '../approve/model';
+import { payTile } from '../pay/model';
 import { approvals } from '../approve/store';
 
 export default function VisitScreen({ route, navigation }) {
@@ -223,6 +224,12 @@ export default function VisitScreen({ route, navigation }) {
     navigation.navigate('Bill', { id, visit: shown.visit, create: !has });
   }, [navigation, id, shown, known]);
   const billButton = tile && card && card.state === 'closed' ? { label: 'Open the bill', onPress: openBill } : null;
+  // «Pay» (src/pay): what the bill's money says under the button; the last known balance without
+  // the connection (recording waits for it)
+  const pay = shown ? payTile(shown.visit, known, { offline: problem === 'offline' }) : null;
+  const openPay = useCallback(() => {
+    if (shown) navigation.navigate('Pay', { id, visit: shown.visit, bill: known && known.bill ? known.bill : null });
+  }, [navigation, id, shown, known]);
   const notice = problem && shown ? (problem === 'offline' ? offlineText(shown.savedAt, now) : failedText(shown.savedAt, now)) : null;
   // history and notes come only with the card itself
   const waiting = problem ? 'Needs connection' : 'Loading…';
@@ -615,6 +622,19 @@ export default function VisitScreen({ route, navigation }) {
                 {tile.off ? null : <Icon name="chev" size={20} color={tile.kind === 'draft' ? colors.fgOnFill : colors.fgSecondary} />}
               </TouchableOpacity>
             ) : null}
+            {pay ? (
+              <TouchableOpacity style={[styles.billTile, pay.kind === 'paid' && styles.payPaid, ['wait', 'free', 'offline', 'loading'].includes(pay.kind) && styles.billTileOff]}
+                onPress={openPay} disabled={pay.off} accessibilityRole="button" accessibilityLabel={`${pay.title}, ${pay.line}`} accessibilityState={{ disabled: pay.off }}>
+                <Icon name={pay.kind === 'paid' ? 'checkc' : 'money'} size={26}
+                  color={pay.kind === 'paid' ? colors.successFg : ['wait', 'free', 'offline', 'loading'].includes(pay.kind) ? colors.fgSecondary : colors.brandPressed} />
+                <View style={styles.billTileBody}>
+                  <Text style={styles.billTileTitle}>{pay.title}</Text>
+                  <Text style={[styles.billTileLine, ['due', 'left', 'show'].includes(pay.kind) && styles.payOwed, pay.kind === 'paid' && styles.approveSigned,
+                    ['wait', 'free', 'offline', 'loading'].includes(pay.kind) && styles.payQuiet]}>{pay.line}</Text>
+                </View>
+                {pay.off ? null : <Icon name="chev" size={20} color={colors.fgSecondary} />}
+              </TouchableOpacity>
+            ) : null}
             {drafted ? <Box kind="info" icon="doc" title={drafted.title} text={drafted.text} style={styles.drafted} /> : null}
 
             {card.access ? (
@@ -826,6 +846,10 @@ const styles = StyleSheet.create({
   billTileOnFill: { color: colors.fgOnFill },
   billTileTextOff: { color: colors.fgDisabled },
   billTileWarn: { color: colors.warningFg },
+  // Pay (design payments pay-states): owed in warning brown, paid green, waiting grey
+  payPaid: { borderColor: colors.successBorder, backgroundColor: colors.successBg },
+  payOwed: { color: colors.warningFg },
+  payQuiet: { color: colors.fgSecondary },
   approveTodo: { borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   approveTodoLine: { color: colors.fgSecondary },
   approveSigned: { color: colors.successFg },

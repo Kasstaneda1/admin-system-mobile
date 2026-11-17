@@ -5,14 +5,18 @@ import { Image } from 'react-native';
 
 const ICONS = {
   back: require('../../assets/icons/back.png'),
+  ban: require('../../assets/icons/ban.png'),
   book: require('../../assets/icons/book.png'),
   box: require('../../assets/icons/box.png'),
   cal: require('../../assets/icons/cal.png'),
   calok: require('../../assets/icons/calok.png'),
   camera: require('../../assets/icons/camera.png'),
   car: require('../../assets/icons/car.png'),
+  card: require('../../assets/icons/card.png'),
+  cash: require('../../assets/icons/cash.png'),
   check: require('../../assets/icons/check.png'),
   checkc: require('../../assets/icons/checkc.png'),
+  checkp: require('../../assets/icons/checkp.png'),
   chev: require('../../assets/icons/chev.png'),
   chevd: require('../../assets/icons/chevd.png'),
   clock: require('../../assets/icons/clock.png'),
@@ -53,11 +57,13 @@ const ICONS = {
   trash: require('../../assets/icons/trash.png'),
   truck: require('../../assets/icons/truck.png'),
   undo: require('../../assets/icons/undo.png'),
+  vee: require('../../assets/icons/vee.png'),
   wallet: require('../../assets/icons/wallet.png'),
   warn: require('../../assets/icons/warn.png'),
   wifioff: require('../../assets/icons/wifioff.png'),
   wrench: require('../../assets/icons/wrench.png'),
   xcal: require('../../assets/icons/xcal.png'),
+  zap: require('../../assets/icons/zap.png'),
 };
 
 export default function Icon({ name, size = 18, color, style }) {
