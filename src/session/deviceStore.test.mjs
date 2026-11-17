@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import axios, { AxiosError } from 'axios';
 import { makeDeviceStore } from './deviceStore.js';
 import { createSession } from './session.js';
-import { MY_DAY_KEY } from '../myDay/keys.js';
+import { ESTIMATE_OUTBOX_KEY, MY_DAY_KEY } from '../myDay/keys.js';
 import { makeCacheQueue } from '../myDay/cacheQueue.js';
 
 const NOW = Date.parse('2026-11-10T17:00:00Z');
@@ -44,10 +44,17 @@ async function phone({ savedAgoMs = 60000, accessLeftMs = 15 * 60 * 1000, answer
     write: async (cache) => AsyncStorage.setItem(MY_DAY_KEY, JSON.stringify(cache)),
     remove: async () => AsyncStorage.removeItem(MY_DAY_KEY),
   });
-  const store = makeDeviceStore({ SecureStore, AsyncStorage, clearMyDay: myDay.clear });
+  // the unsent estimate messages (estimate/outboxStore.js), the same way
+  const outbox = makeCacheQueue({
+    read: async () => JSON.parse((await AsyncStorage.getItem(ESTIMATE_OUTBOX_KEY)) || 'null'),
+    write: async (box) => AsyncStorage.setItem(ESTIMATE_OUTBOX_KEY, JSON.stringify(box)),
+    remove: async () => AsyncStorage.removeItem(ESTIMATE_OUTBOX_KEY),
+  });
+  const store = makeDeviceStore({ SecureStore, AsyncStorage, clearMyDay: myDay.clear, clearOutbox: outbox.clear });
   await store.writeTokens({ access: access(NOW, accessLeftMs), refresh: 'r0', savedAt: NOW - savedAgoMs });
   await store.writeUser(USER);
   await AsyncStorage.setItem(MY_DAY_KEY, DAY_KEPT);
+  await AsyncStorage.setItem(ESTIMATE_OUTBOX_KEY, JSON.stringify([{ key: 'a', estimateId: '14', userId: '7', text: 'Customer at 41-22 Bell Blvd says…', at: NOW, state: 'failed' }]));
   const http = {
     async refresh() { return refreshAnswer || { status: 401, data: { error: 'Invalid refresh token', code: 'refresh_invalid' } }; },
     async logout() { return { status: 200, data: { success: true } }; },
@@ -68,6 +75,7 @@ async function phone({ savedAgoMs = 60000, accessLeftMs = 15 * 60 * 1000, answer
 
 const nothingKept = (p) => {
   assert.equal(p.AsyncStorage.items.has(MY_DAY_KEY), false, 'My day kept for offline is gone');
+  assert.equal(p.AsyncStorage.items.has(ESTIMATE_OUTBOX_KEY), false, 'the unsent estimate messages are gone');
   assert.equal(p.AsyncStorage.items.has('user'), false, 'the profile is gone');
   assert.deepEqual([...p.SecureStore.items.keys()], [], 'the tokens are gone');
 };

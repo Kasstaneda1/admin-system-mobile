@@ -10,3 +10,6 @@ export const SEEN_KEY = 'semix.myday.seen';
 // The office's phone and name for «Call the office» (office.js, officeStore.js): the
 // company's own number, no customer data, per technician; it stays after sign out.
 export const OFFICE_KEY = 'semix.office';
+// The technician's messages to the office not yet on the server (estimate/outbox.js): what
+// they wrote about an estimate, so it goes with the session (session/deviceStore.js clear())
+export const ESTIMATE_OUTBOX_KEY = 'semix.estimate.outbox';

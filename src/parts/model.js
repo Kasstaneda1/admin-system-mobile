@@ -18,8 +18,6 @@ const STAGE = {
 };
 // Groups of the All list: Arrived first (design parts-all)
 export const GROUP_ORDER = ['arrived', 'in_transit', 'on_board', 'scheduled'];
-// Where it is (design parts-detail): every stage of an estimate with parts
-export const STEPS = ['sold', 'in_transit', 'arrived', 'on_board', 'scheduled', 'installed'];
 
 export const stageWord = (status) => (STAGE[status] ? STAGE[status][0] : String(status || ''));
 export function stageTag(status) {
@@ -86,6 +84,8 @@ export function cardOf(estimate, { me = null, thisYear } = {}) {
     parts: partsOf(estimate),
     note,
     total: money(estimate.total),
+    // messages from the office this technician has not read (TECH_APP_ESTIMATE_SCREEN_SPEC.md §5)
+    unread: estimate.has_unread_comments === true,
   };
 }
 
@@ -109,30 +109,6 @@ export function groupsOf(estimates, filter = 'all') {
       return { key: s, title: `${stageWord(s)} · ${items.length}`, line: STAGE[s][3], items };
     })
     .filter((g) => g.items.length);
-}
-
-// Where it is (design parts-detail): the stages before the current one done, the current one now
-export function stepsOf(status) {
-  const at = STEPS.indexOf(status);
-  return STEPS.map((s, i) => ({ key: s, label: stageWord(s), state: at < 0 ? 'todo' : i < at ? 'done' : i === at ? 'now' : 'todo' }));
-}
-
-// One estimate (design parts-detail)
-export function detailOf(estimate, { me = null, thisYear } = {}) {
-  const card = cardOf(estimate, { me, thisYear });
-  const date = shortDate(estimate.date, thisYear);
-  return {
-    title: estimate.number || 'Estimate',
-    tag: card.tag,
-    line: [estimate.number ? `Estimate ${estimate.number}` : 'Estimate', date].filter(Boolean).join(' · '),
-    client: card.client,
-    appliance: estimate.name ? String(estimate.name).trim() : null,
-    partner: partnerOf(estimate, me),
-    parts: card.parts,
-    total: card.total,
-    steps: stepsOf(estimate.status),
-    note: card.note,
-  };
 }
 
 export const EMPTY = { all: 'No parts right now', stage: 'No parts in this status' };

@@ -1,7 +1,8 @@
 // Parts (design-mockups/app-salary-parts parts-all, parts-onboard; site technician.html Parts):
 // this technician's estimates with parts in the four stages of the portal — Arrived first and
 // amber (only that stage waits for the technician), then In Transit, On Board, Scheduled. Chips
-// filter by stage; a card opens the estimate (PartsEstimateScreen).
+// filter by stage; a card opens the estimate (EstimateScreen). A dot on a card: messages from
+// the office not read yet; their count goes to the Parts tab (estimate/unread.js).
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,14 +14,18 @@ import Icon from '../myDay/Icon';
 import { Tag } from '../myDay/parts';
 import { EMPTY, EMPTY_TEXT, cardOf, chipsOf, estimatesOf, groupsOf, partsError, partsQuery } from '../parts/model';
 import { NoData, SalaryFrame, TabTitle } from '../salary/parts';
+import { setUnreadFrom } from '../estimate/unread';
 
 export function PartCard({ card, onPress }) {
   return (
     <TouchableOpacity style={[styles.card, card.need && styles.cardNeed]} onPress={onPress} accessibilityRole="button"
-      accessibilityLabel={[card.client, card.sub, card.tag.text, ...card.parts.map((p) => [p.name, p.number].filter(Boolean).join(' ')), card.note, `Estimate total ${card.total}`].filter(Boolean).join(', ')}>
+      accessibilityLabel={[card.client, card.unread ? 'new messages' : null, card.sub, card.tag.text, ...card.parts.map((p) => [p.name, p.number].filter(Boolean).join(' ')), card.note, `Estimate total ${card.total}`].filter(Boolean).join(', ')}>
       <View style={styles.l1}>
         <View style={styles.who}>
-          <Text style={styles.client} numberOfLines={1}>{card.client}</Text>
+          <View style={styles.clientRow}>
+            {card.unread ? <View style={styles.unread} /> : null}
+            <Text style={styles.client} numberOfLines={1}>{card.client}</Text>
+          </View>
           {card.sub ? <Text style={styles.sub}>{card.sub}</Text> : null}
         </View>
         <Tag tag={card.tag} big fixed />
@@ -65,7 +70,9 @@ export default function PartsScreen({ navigation }) {
     try {
       const answer = await partsAPI.list(partsQuery(me));
       if (n !== seq.current) return;
-      setRows(estimatesOf(answer));
+      const list = estimatesOf(answer);
+      setRows(list);
+      setUnreadFrom(list);
       setProblem(null);
     } catch (error) {
       if (n !== seq.current) return;
@@ -111,7 +118,7 @@ export default function PartsScreen({ navigation }) {
                 <View style={styles.cards}>
                   {g.items.map((e) => {
                     const card = cardOf(e, { me, thisYear });
-                    return <PartCard key={card.key} card={card} onPress={() => navigation.navigate('PartsEstimate', { estimate: e })} />;
+                    return <PartCard key={card.key} card={card} onPress={() => navigation.navigate('Estimate', { id: e.id, estimate: e, from: 'Parts' })} />;
                   })}
                 </View>
               </View>
@@ -148,7 +155,9 @@ const styles = StyleSheet.create({
   cardNeed: { borderWidth: 1.5, borderColor: colors.warningBorder, borderLeftWidth: 5, borderLeftColor: colors.warningSolid },
   l1: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   who: { flex: 1, minWidth: 0 },
-  client: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
+  clientRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  unread: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.infoBorder },
+  client: { flexShrink: 1, fontSize: 17, fontWeight: '700', color: colors.fgDefault },
   sub: { fontSize: 13, color: colors.fgSecondary },
   parts: { gap: 3 },
   part: { flexDirection: 'row', alignItems: 'center', gap: 8 },
