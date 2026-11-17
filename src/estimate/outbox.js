@@ -16,7 +16,7 @@
 //
 // makeOutbox({ queue, api: { comments(id), post(id, body) }, timeZone(), now() }):
 //   list() — every entry;
-//   send({ key, estimateId, userId, text }) — keeps the entry, posts it; resolves to
+//   send({ key, estimateId, userId, text, afterId }) — keeps the entry, posts it; resolves to
 //     { result: 'sent', comment } | { result: 'failed' } | { result: 'gone' | 'refused' };
 //   retry(key) — the same entry again, checked against the comments first;
 //   settleWith(estimateId, userId, comments) — drops the entries the server has;
@@ -60,8 +60,9 @@ export function makeOutbox({ queue, api, timeZone = () => null, now = () => Date
     try { return await run(); } finally { running.delete(key); }
   }
 
-  async function send({ key, estimateId, userId, text }) {
-    const entry = newEntry({ key, estimateId, userId, text, at: now() });
+  // afterId: the highest comment id the screen had when the message was written (model.js settle)
+  async function send({ key, estimateId, userId, text, afterId = null }) {
+    const entry = newEntry({ key, estimateId, userId, text, at: now(), afterId });
     if (!entry.text) return { result: 'refused' };
     await change((b) => withEntry(b, entry));
     return guarded(key, () => post(entry));

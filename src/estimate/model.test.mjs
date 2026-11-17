@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  EMPTY_MESSAGES, PATH, SKEW_MS, lastOtherKey, commentBody, commentMs, entriesOf, estimateError, estimateOf, headOf, isOffPath, landingOf,
+  EMPTY_MESSAGES, PATH, SKEW_MS, lastCommentId, lastOtherKey, commentBody, commentMs, entriesOf, estimateError, estimateOf, headOf, isOffPath, landingOf,
   messageReady, messageToSend, messagesOf, newEntry, newMessagesText, newSince, pathOf, roleWord, sendFailure, settle,
   statusTag, statusWord, unreadCount, whatOf, withEntry, withState, withoutKeys,
 } from './model.js';
@@ -172,7 +172,8 @@ test('new messages below: the words and the count of others’ new ones', () => 
 
 test('outbox entries: per estimate and technician; add, remove, change state', () => {
   const a = newEntry({ key: 'a', estimateId: 14, userId: 9, text: ' Thanks ', at: 1000 });
-  assert.deepEqual(a, { key: 'a', estimateId: '14', userId: '9', text: 'Thanks', at: 1000, state: 'sending' });
+  assert.deepEqual(a, { key: 'a', estimateId: '14', userId: '9', text: 'Thanks', at: 1000, afterId: null, state: 'sending' });
+  assert.equal(newEntry({ key: 'z', estimateId: 1, userId: 1, text: 'x', at: 1, afterId: '12' }).afterId, 12);
   const b = newEntry({ key: 'b', estimateId: 15, userId: 9, text: 'x', at: 2000 });
   const c = newEntry({ key: 'c', estimateId: 14, userId: 3, text: 'y', at: 3000 });
   let box = withEntry(withEntry(withEntry([], a), b), c);
@@ -230,4 +231,24 @@ test('read: the newest message of the others', () => {
   assert.equal(lastOtherKey(list), 'c1');
   assert.equal(lastOtherKey(messagesOf([C(2, 9, 'Ivan', 'technician', 'b', '2026-11-17T15:01:00Z')], { meId: 9 })), null);
   assert.equal(lastOtherKey([]), null);
+});
+
+test('settle with afterId: only comments newer than the screen had — the same text sent again is not lost', () => {
+  const at = Date.UTC(2026, 10, 17, 15, 0, 0);
+  const old = C(20, 9, 'Ivan', 'technician', 'Yes', '2026-11-17T14:59:30Z'); // the first «Yes», already on the screen
+  const second = newEntry({ key: 'b', estimateId: 14, userId: 9, text: 'Yes', at, afterId: 20 });
+  assert.deepEqual(settle([second], [old], 9), { delivered: [], left: [second] });
+  const landed = C(21, 9, 'Ivan', 'technician', 'Yes', '2026-11-17T15:00:01Z');
+  assert.deepEqual(settle([second], [old, landed], 9).delivered, ['b']);
+  // afterId wins over the clock: a phone clock far off does not matter
+  const skewed = newEntry({ key: 'c', estimateId: 14, userId: 9, text: 'Yes', at: at + 3600 * 1000, afterId: 20 });
+  assert.deepEqual(settle([skewed], [old, landed], 9).delivered, ['c']);
+  // afterId 0: the screen had no comments
+  assert.deepEqual(settle([newEntry({ key: 'd', estimateId: 14, userId: 9, text: 'Yes', at, afterId: 0 })], [old], 9).delivered, ['d']);
+});
+
+test('the highest comment id', () => {
+  assert.equal(lastCommentId([{ id: 3 }, { id: '12' }, { id: 7 }, {}]), 12);
+  assert.equal(lastCommentId([]), null);
+  assert.equal(lastCommentId(null), null);
 });

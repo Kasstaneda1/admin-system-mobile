@@ -32,7 +32,7 @@ import { newRequestId } from '../myDay/actions';
 import { SEEN_REST_MS, onScreen } from '../myDay/officeSeen';
 import {
   EMPTY_MESSAGES, MESSAGE_HINT, NOT_SENT, POLL_MS, SENDING, entriesOf, estimateError, estimateOf, headOf, landingOf,
-  lastOtherKey, messageReady, messagesOf, newMessagesText, newSince,
+  lastCommentId, lastOtherKey, messageReady, messagesOf, newMessagesText, newSince,
 } from '../estimate/model';
 import { formatAuthorTime } from '../utils/dateUtils';
 import { logError } from '../utils/logError';
@@ -263,7 +263,7 @@ export default function EstimateScreen({ route, navigation }) {
     setText('');
     setPending((p) => [...p, { key, estimateId: String(id), userId: meId, text: body.trim(), at: Date.now(), state: 'sending' }]);
     stickToEnd.current = true;
-    const r = await outbox.send({ key, estimateId: id, userId: meId, text: body });
+    const r = await outbox.send({ key, estimateId: id, userId: meId, text: body, afterId: comments ? (lastCommentId(comments) ?? 0) : null });
     if (r.result === 'sent') {
       if (r.comment) setComments((c) => [...(c || []), r.comment]);
       setOffline(false);

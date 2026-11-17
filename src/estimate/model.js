@@ -195,12 +195,22 @@ export function newSince(beforeKeys, messages) {
 // An entry: { key, estimateId, userId, text, at (ms the first try started), state:
 // 'sending' | 'failed' }. The server takes no request id for a comment, so a try that may
 // have reached it (no answer) is checked against the comments before it is sent again: a
-// comment of mine with the same text, made at or after the first try (a minute of clock
-// difference allowed), is that message — no second copy.
+// comment of mine with the same text, newer than every comment the screen had when the message
+// was written (afterId: the highest id then), is that message — no second copy. A comment the
+// screen already had is never taken for it: «Yes» and, half a minute later, «Yes» again stay two.
+// Without afterId (the screen had no comments yet): made at or after the first try, a minute of
+// clock difference allowed.
 export const SKEW_MS = 60 * 1000;
 
-export function newEntry({ key, estimateId, userId, text, at }) {
-  return { key, estimateId: String(estimateId), userId: userId === null || userId === undefined ? null : String(userId), text: messageToSend(text), at, state: 'sending' };
+// The highest comment id of a list (the server's ids are numbers); null — none
+export function lastCommentId(comments) {
+  const ids = (Array.isArray(comments) ? comments : []).map((c) => Number(c && c.id)).filter(Number.isFinite);
+  return ids.length ? Math.max(...ids) : null;
+}
+
+export function newEntry({ key, estimateId, userId, text, at, afterId = null }) {
+  const after = afterId === null || afterId === undefined || !Number.isFinite(Number(afterId)) ? null : Number(afterId);
+  return { key, estimateId: String(estimateId), userId: userId === null || userId === undefined ? null : String(userId), text: messageToSend(text), at, afterId: after, state: 'sending' };
 }
 
 // The entries of one estimate and one technician
@@ -217,7 +227,10 @@ export function settle(entries, comments, meId) {
   const delivered = [];
   const left = [];
   [...(entries || [])].sort((a, b) => a.at - b.at).forEach((p) => {
-    const hit = mine.find((m) => !m.used && String(m.c.comment_text || '').trim() === p.text && !Number.isNaN(m.ms) && m.ms >= p.at - SKEW_MS);
+    const newer = (m) => (Number.isFinite(p.afterId)
+      ? Number(m.c.id) > p.afterId
+      : !Number.isNaN(m.ms) && m.ms >= p.at - SKEW_MS);
+    const hit = mine.find((m) => !m.used && String(m.c.comment_text || '').trim() === p.text && newer(m));
     if (hit) { hit.used = true; delivered.push(p.key); } else left.push(p);
   });
   return { delivered, left };

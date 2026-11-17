@@ -153,3 +153,17 @@ test('sign out clears the list; an answer after it writes nothing back', async (
   await queue.clear();
   assert.deepEqual(await outbox.list(), []);
 });
+
+test('«Yes», then «Yes» again offline: the first is not taken for the second (Teamlead #42)', async () => {
+  const { outbox, server, tick } = setup();
+  server.comments[14].push({ id: 20, user_id: 9, comment_text: 'Yes', created_at_utc: new Date(Date.UTC(2026, 10, 17, 14, 59, 30)).toISOString() });
+  server.fail = new Error('Network Error');
+  await outbox.send({ key: 'b', estimateId: 14, userId: 9, text: 'Yes', afterId: 20 });
+  // the screen's next read: nothing delivered, the message stays «Not sent»
+  assert.deepEqual(await outbox.settleWith(14, 9, server.comments[14]), []);
+  assert.equal((await outbox.list())[0].state, 'failed');
+  server.fail = null;
+  tick(RECENT_MS);
+  assert.equal((await outbox.retry('b')).result, 'sent');
+  assert.deepEqual(server.comments[14].map((c) => c.comment_text), ['Yes', 'Yes']);
+});
