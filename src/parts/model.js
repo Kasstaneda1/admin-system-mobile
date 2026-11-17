@@ -10,10 +10,10 @@ export const STAGES = ['in_transit', 'arrived', 'on_board', 'scheduled'];
 // [word, tag family, icon, group line]
 const STAGE = {
   sold: ['Sold', 'deposit', 'doc', 'the office orders the parts'],
-  in_transit: ['In Transit', 'onway', 'route', 'on the way to the office'],
-  arrived: ['Arrived', 'diagnostics', 'pin', 'at the office'],
-  on_board: ['On Board', 'done', 'car', 'in your van'],
-  scheduled: ['Scheduled', 'neutral', 'cal', 'install date set'],
+  in_transit: ['In Transit', 'onway', 'truck', 'on the way to the office'],
+  arrived: ['Arrived', 'diagnostics', 'store', 'at the office'],
+  on_board: ['On Board', 'done', 'toolbox', 'in your van'],
+  scheduled: ['Scheduled', 'neutral', 'calok', 'install date set'],
   installed: ['Installed', 'neutral', 'checkc', 'installed'],
 };
 // Groups of the All list: Arrived first (design parts-all)

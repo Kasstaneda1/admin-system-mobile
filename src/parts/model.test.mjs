@@ -37,7 +37,8 @@ test('the answer: paginated or a plain array; other stages and empty parts dropp
 
 test('stages with the words of the site, Arrived amber', () => {
   assert.deepEqual(STAGES.map(stageWord), ['In Transit', 'Arrived', 'On Board', 'Scheduled']);
-  assert.deepEqual(stageTag('arrived'), { kind: 'diagnostics', icon: 'pin', text: 'Arrived' });
+  assert.deepEqual(stageTag('arrived'), { kind: 'diagnostics', icon: 'store', text: 'Arrived' });
+  assert.deepEqual(['in_transit', 'on_board', 'scheduled'].map((s) => stageTag(s).icon), ['truck', 'toolbox', 'calok']);
   assert.equal(stageTag('in_transit').kind, 'onway');
   assert.equal(stageTag('on_board').kind, 'done');
   assert.equal(stageTag('scheduled').kind, 'neutral');
