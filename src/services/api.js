@@ -91,6 +91,12 @@ export const estimatesAPI = {
 };
 
 // Salary API
+// Parts (site js/technician-parts.js): this technician's estimates with parts in the four
+// stages; params from parts/model.js partsQuery
+export const partsAPI = {
+  list: async (params) => (await api.get('/api/estimates', { params, timeout: 15000 })).data,
+};
+
 export const salaryAPI = {
   // The technician portal's Salary (site js/technician-salary.js): the server takes the
   // technician from the login. A year: its jobs; a month (0–11): its jobs and its money —
