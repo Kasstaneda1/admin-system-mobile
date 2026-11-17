@@ -6,7 +6,11 @@
 //   time the app is open with the network (flushAll), the screen closed or not.
 //   The server takes no request id for a comment: before a message is sent again, the
 //   estimate's comments are read and a message the server already has is taken as sent
-//   (model.js settle) — the same message never lands twice.
+//   (model.js settle). A try with no answer may still be on its way to the server, so the
+//   next one waits until a minute has passed since it (RECENT_MS): the app's own repeats
+//   (flushAll, the screen opening) skip such a message, a press on «Tap to retry» waits and
+//   reads the comments again. A request that lands later still than that gives a second
+//   copy; only a request id on the server closes it (backend task).
 //   The list goes with the session (session/deviceStore.js clear): what a technician wrote
 //   is not left for the next one on this phone.
 //
@@ -19,7 +23,11 @@
 //   flushAll(userId) — every entry of this technician, estimate by estimate.
 import { commentBody, entriesOf, newEntry, sendFailure, settle, withEntry, withState, withoutKeys } from './model.js';
 
-export function makeOutbox({ queue, api, timeZone = () => null, now = () => Date.now() }) {
+// A try older than this that got no answer is taken as lost (the request times out at 15 s)
+export const RECENT_MS = 60 * 1000;
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function makeOutbox({ queue, api, timeZone = () => null, now = () => Date.now(), sleep = pause }) {
   const running = new Set(); // keys being sent right now: a second press waits for the first
 
   const list = async () => {
@@ -29,6 +37,8 @@ export function makeOutbox({ queue, api, timeZone = () => null, now = () => Date
   const change = (fn) => queue.update((b) => fn(Array.isArray(b) ? b : []), queue.mark());
 
   async function post(entry) {
+    const tried = now();
+    await change((b) => b.map((p) => (p.key === entry.key ? { ...p, tried } : p)));
     try {
       const answer = await api.post(entry.estimateId, commentBody(entry.text, timeZone()));
       await change((b) => withoutKeys(b, [entry.key]));
@@ -78,10 +88,18 @@ export function makeOutbox({ queue, api, timeZone = () => null, now = () => Date
     return 'missing';
   }
 
-  async function retry(key) {
+  const recent = (entry) => Number.isFinite(entry.tried) && now() - entry.tried < RECENT_MS;
+
+  // auto: the app's own repeat — a message tried less than a minute ago is left for later
+  async function retry(key, { auto = false } = {}) {
     return guarded(key, async () => {
       const entry = (await list()).find((p) => p.key === key);
       if (!entry) return { result: 'sent', comment: null };
+      if (recent(entry)) {
+        if (auto) return { result: 'later' };
+        await change((b) => withState(b, key, 'sending'));
+        await sleep(entry.tried + RECENT_MS - now());
+      }
       await change((b) => withState(b, key, 'sending'));
       const known = await checked(entry);
       if (known === 'delivered') return { result: 'sent', comment: null };
@@ -108,7 +126,7 @@ export function makeOutbox({ queue, api, timeZone = () => null, now = () => Date
     const results = [];
     for (const p of mine) {
       if (running.has(p.key)) continue;
-      results.push({ key: p.key, ...(await retry(p.key)) });
+      results.push({ key: p.key, ...(await retry(p.key, { auto: true })) });
     }
     return results;
   }

@@ -64,30 +64,3 @@ export const formatAuthorTime = (createdAtUtc, authorTz, createdAtRaw) => {
   }
 };
 
-/**
- * The short author time of a message (design app-estimate: «Nov 6, 10:12 AM»): the author's own
- * clock as formatAuthorTime, the year only when it is not this year (in the author's zone), the
- * zone spelled out only when the author was not in the company's zone: «Nov 6, 7:12 AM
- * (Los Angeles)». "" if nothing usable was given.
- *
- * @param {string} createdAtUtc - ISO with "Z" (created_at_utc)
- * @param {string|null} authorTz - author's IANA zone (author_tz)
- * @param {string} [createdAtRaw] - zone-less server value (created_at), UTC wall clock
- * @param {number} [nowMs] - now, for «this year»
- */
-export const formatAuthorTimeShort = (createdAtUtc, authorTz, createdAtRaw, nowMs = Date.now()) => {
-  let date = createdAtUtc ? new Date(createdAtUtc) : null;
-  if (!date || Number.isNaN(date.getTime())) date = instantFromRawUtc(createdAtRaw);
-  if (!date || Number.isNaN(date.getTime())) return '';
-
-  const zone = resolveTimeZone(authorTz);
-  try {
-    const yearOf = (d) => d.toLocaleString('en-US', { year: 'numeric', timeZone: zone });
-    const options = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: zone };
-    if (yearOf(date) !== yearOf(new Date(nowMs))) options.year = 'numeric';
-    const text = date.toLocaleString('en-US', options);
-    return zone === COMPANY_TIME_ZONE ? text : `${text} (${timeZoneLabel(zone)})`;
-  } catch (_) {
-    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  }
-};

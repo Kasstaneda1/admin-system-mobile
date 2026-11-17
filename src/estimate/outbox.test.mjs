@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeCacheQueue } from '../myDay/cacheQueue.js';
-import { makeOutbox } from './outbox.js';
+import { RECENT_MS, makeOutbox } from './outbox.js';
 
 // A stand-in store and server: comments per estimate; post fails as told
 function setup({ at = Date.UTC(2026, 10, 17, 15) } = {}) {
@@ -30,7 +30,9 @@ function setup({ at = Date.UTC(2026, 10, 17, 15) } = {}) {
       return { message: 'Comment added successfully', comment: c };
     },
   };
-  const outbox = makeOutbox({ queue, api, timeZone: () => 'America/New_York', now: () => clock });
+  // the wait before a second try passes at once; what the server does meanwhile: server.during
+  const sleep = async (ms) => { server.slept = (server.slept || 0) + ms; clock += ms; if (server.during) { server.during(); server.during = null; } };
+  const outbox = makeOutbox({ queue, api, timeZone: () => 'America/New_York', now: () => clock, sleep });
   return { outbox, server, queue, tick: (ms) => { clock += ms; } };
 }
 
@@ -73,6 +75,19 @@ test('the server wrote it but the answer was lost: retry finds it, no second cop
   assert.deepEqual(await outbox.list(), []);
 });
 
+test('a try still on its way: a press on retry waits a minute, then finds it — no second copy', async () => {
+  const { outbox, server } = setup();
+  server.fail = new Error('timeout');
+  await outbox.send({ key: 'a', estimateId: 14, userId: 9, text: 'Will be there at 11' });
+  server.fail = null;
+  // the first request lands while the app waits
+  server.during = () => server.comments[14].push({ id: 50, user_id: 9, comment_text: 'Will be there at 11', created_at_utc: new Date(Date.UTC(2026, 10, 17, 15, 0, 30)).toISOString() });
+  assert.equal((await outbox.retry('a')).result, 'sent');
+  assert.equal(server.slept, RECENT_MS);
+  assert.equal(server.comments[14].length, 1);
+  assert.equal(server.posts, 1);
+});
+
 test('retry without the comments (still offline): nothing posted, stays failed', async () => {
   const { outbox, server } = setup();
   server.fail = new Error('Network Error');
@@ -111,6 +126,10 @@ test('flushAll: this technician’s messages, oldest first; others stay', async 
   await outbox.send({ key: 'b', estimateId: 14, userId: 9, text: 'second' });
   await outbox.send({ key: 'c', estimateId: 14, userId: 3, text: 'someone else' });
   server.fail = null;
+  // tried less than a minute ago: the app's own repeat leaves them for later
+  assert.deepEqual((await outbox.flushAll(9)).map((x) => x.result), ['later', 'later']);
+  assert.equal(server.posts, 3);
+  tick(RECENT_MS);
   const r = await outbox.flushAll(9);
   assert.deepEqual(r.map((x) => [x.key, x.result]), [['a', 'sent'], ['b', 'sent']]);
   assert.deepEqual((await outbox.list()).map((p) => p.key), ['c']);

@@ -14,7 +14,7 @@
 //   Not here yet, no data on the server: Diagnosis, Visits, @mentions, dates on the path.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, AppState, Image, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text,
+  ActivityIndicator, AppState, Image, Keyboard, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -34,7 +34,7 @@ import {
   EMPTY_MESSAGES, MESSAGE_HINT, NOT_SENT, POLL_MS, SENDING, entriesOf, estimateError, estimateOf, headOf, landingOf,
   lastOtherKey, messageReady, messagesOf, newMessagesText, newSince,
 } from '../estimate/model';
-import { formatAuthorTimeShort } from '../utils/dateUtils';
+import { formatAuthorTime } from '../utils/dateUtils';
 import { logError } from '../utils/logError';
 
 const OFFLINE_TEXT = 'No connection. Your message goes out when you are back online.';
@@ -53,7 +53,8 @@ function fullDate(value) {
   return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}` : null;
 }
 const noNbsp = (text) => String(text || '').replace(/ /g, ' ');
-const formatTime = (c) => noNbsp(formatAuthorTimeShort(c.created_at_utc, c.author_tz, c.created_at));
+// the author's own time with the zone, as every comment on the site and in the app (mobile #7)
+const formatTime = (c) => noNbsp(formatAuthorTime(c.created_at_utc, c.author_tz, c.created_at));
 const offlineError = (error) => !(error && error.response);
 
 export default function EstimateScreen({ route, navigation }) {
@@ -76,6 +77,8 @@ export default function EstimateScreen({ route, navigation }) {
   const [text, setText] = useState('');
   const [fresh, setFresh] = useState(0);                  // «N new messages ↓»
   const [lit, setLit] = useState(null);                   // a message key, or 'arrived'
+  const [keyboard, setKeyboard] = useState(false);        // the field sits on the keyboard, no home-bar gap
+  const [compH, setCompH] = useState(60);                 // the field's bar: the pill sits above it
 
   const scroll = useRef(null);
   const view = useRef({ top: 0, height: 0, content: 0 });
@@ -109,7 +112,7 @@ export default function EstimateScreen({ route, navigation }) {
       await readPending();
       // a message the app was closed on goes now (never twice: outbox.retry checks first)
       const waiting = entriesOf(await outbox.list(), id, meId).filter((p) => p.state === 'sending');
-      for (const p of waiting) outbox.retry(p.key).then(readPending, readPending);
+      for (const p of waiting) outbox.retry(p.key, { auto: true }).then(readPending, readPending);
     } catch (error) {
       if (error && error.response && error.response.status === 404) { setGone(true); return; }
       if (offlineError(error)) setOffline(true);
@@ -149,6 +152,13 @@ export default function EstimateScreen({ route, navigation }) {
   }, [load, loadComments]));
 
   useEffect(() => () => { clearTimeout(restTimer.current); clearTimeout(litTimer.current); }, []);
+
+  // The keyboard: the field sits on it, without the home-bar gap
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboard(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboard(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   // ---------- where the list is ----------
   const atBottom = () => view.current.top + view.current.height >= view.current.content - NEAR_BOTTOM_PX;
@@ -229,6 +239,15 @@ export default function EstimateScreen({ route, navigation }) {
     land();
     markSoon();
   };
+  // The list gets shorter (the keyboard, the «No connection» strip): reading the newest
+  // messages, they stay in sight
+  const onViewLayout = (e) => {
+    const height = e.nativeEvent.layout.height;
+    const wasBottom = atBottom();
+    const shorter = height < view.current.height;
+    view.current.height = height;
+    if (shorter && wasBottom) setTimeout(() => toEnd(false), 0);
+  };
   const onScroll = (e) => {
     const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
     view.current = { top: contentOffset.y, height: layoutMeasurement.height, content: contentSize.height };
@@ -305,8 +324,7 @@ export default function EstimateScreen({ route, navigation }) {
           <View style={styles.flex}>
             <ScrollView ref={scroll} style={styles.page} contentContainerStyle={styles.content}
               onScroll={onScroll} scrollEventThrottle={32} onContentSizeChange={onContentSize}
-              onLayout={(e) => { view.current.height = e.nativeEvent.layout.height; }}
-              keyboardShouldPersistTaps="handled"
+              onLayout={onViewLayout} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={colors.brand} />}>
               <Head head={head} date={fullDate(estimate.date)} count={comments ? sentCount : null}
                 onJump={() => { const y = where.current.thread; if (y !== null && scroll.current) scroll.current.scrollTo({ y: Math.max(0, y - 8), animated: true }); }} />
@@ -356,13 +374,13 @@ export default function EstimateScreen({ route, navigation }) {
             </ScrollView>
 
             {fresh ? (
-              <TouchableOpacity style={styles.pill} onPress={() => { setFresh(0); toEnd(); }} accessibilityRole="button" accessibilityLabel={newMessagesText(fresh)}>
+              <TouchableOpacity style={[styles.pill, { bottom: compH + 12 }]} onPress={() => { setFresh(0); toEnd(); }} accessibilityRole="button" accessibilityLabel={newMessagesText(fresh)}>
                 <Text style={styles.pillText}>{newMessagesText(fresh).replace(' ↓', '')}</Text>
                 <Icon name="down" size={16} color={colors.fgOnFill} />
               </TouchableOpacity>
             ) : null}
 
-            <View style={[styles.comp, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+            <View style={[styles.comp, { paddingBottom: keyboard ? 8 : Math.max(insets.bottom, 8) }]} onLayout={(e) => setCompH(e.nativeEvent.layout.height)}>
               <TextInput style={[styles.input, text ? styles.inputOn : null]} value={text} onChangeText={setText} multiline
                 placeholder={MESSAGE_HINT} placeholderTextColor={colors.fgMutedField} accessibilityLabel="Message the office" />
               <TouchableOpacity style={[styles.send, !messageReady(text) && styles.sendOff]} onPress={send} disabled={!messageReady(text)}
@@ -558,7 +576,7 @@ const styles = StyleSheet.create({
   emptyTitle: { marginTop: 4, fontSize: 17, fontWeight: '700', color: colors.fgDefault, textAlign: 'center' },
   emptyText: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary, textAlign: 'center' },
 
-  pill: { position: 'absolute', alignSelf: 'center', bottom: 84, flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.brandPressed, shadowColor: colors.shadow, shadowOpacity: 0.22, shadowRadius: 8, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  pill: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.brandPressed, shadowColor: colors.shadow, shadowOpacity: 0.22, shadowRadius: 8, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   pillText: { fontSize: 15, fontWeight: '700', color: colors.fgOnFill },
 
   comp: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingTop: 8, paddingHorizontal: 12, backgroundColor: colors.bgCard, borderTopWidth: 1, borderTopColor: colors.borderDefault },
