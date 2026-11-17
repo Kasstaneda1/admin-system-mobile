@@ -6,6 +6,7 @@ import { colors } from './src/constants/colors';
 import { AppState } from 'react-native';
 import { AuthProvider, useAuth } from './src/session/AuthContext';
 import { outbox } from './src/estimate/outboxStore';
+import { approvals } from './src/approve/store';
 import { refreshUnread, setUnread } from './src/estimate/unread';
 
 // Screens
@@ -18,6 +19,7 @@ import BillScreen from './src/screens/BillScreen';
 import BillLineScreen from './src/screens/BillLineScreen';
 import BillPreviewScreen from './src/screens/BillPreviewScreen';
 import BillSendScreen from './src/screens/BillSendScreen';
+import ApproveScreen from './src/screens/ApproveScreen';
 import BillPdfScreen from './src/screens/BillPdfScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
@@ -57,13 +59,14 @@ function Screens() {
   }, [status]);
 
   // Signed in, at start and on return to the app: the messages to the office still on the phone
-  // go (estimate/outbox.js, never twice) and the Parts tab gets its count of unread estimates
+  // go (estimate/outbox.js, never twice), the customers' signatures too (approve/queue.js) and the Parts tab gets its count of unread estimates
   const userId = status === 'signedIn' && user ? user.id : null;
   const fullName = status === 'signedIn' && user ? user.fullName || null : null;
   useEffect(() => {
     if (userId === null || userId === undefined) { setUnread(0); return undefined; }
     const wake = () => {
       outbox.flushAll(userId).catch(() => {});
+      approvals.flushAll(userId).catch(() => {});
       refreshUnread(fullName, { force: true });
     };
     wake();
@@ -130,6 +133,11 @@ function Screens() {
               name="BillSend"
               component={BillSendScreen}
               options={{ headerShown: false, title: 'Send' }}
+            />
+            <Stack.Screen
+              name="Approve"
+              component={ApproveScreen}
+              options={{ headerShown: false, title: 'Approve' }}
             />
             <Stack.Screen
               name="BillPdf"
