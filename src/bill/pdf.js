@@ -9,9 +9,12 @@ import { pdfName } from './model';
 
 // Downloads the bill's PDF: { uri } or throws an error shaped as axios's (error.response.status,
 // none without the connection), so billError reads it the same way
-export async function downloadBillPdf(visitId, bill) {
-  const target = `${FileSystem.cacheDirectory}${pdfName(bill)}`;
-  const url = photoUri(`/api/my/visits/${encodeURIComponent(visitId)}/bill/pdf`);
+export const downloadBillPdf = (visitId, bill) => downloadPdf(`/api/my/visits/${encodeURIComponent(visitId)}/bill/pdf`, pdfName(bill));
+
+// A PDF of the server (the bill, the copy of an approval) into the app's cache under name
+export async function downloadPdf(path, name) {
+  const target = `${FileSystem.cacheDirectory}${name}`;
+  const url = photoUri(path);
   let result = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const headers = await session.authHeader();

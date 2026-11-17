@@ -29,7 +29,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
-import { billAPI, myDayAPI, photosAPI, session } from '../services/api';
+import { approveAPI, billAPI, myDayAPI, photosAPI, session } from '../services/api';
 import { logError } from '../utils/logError';
 import { useAuth } from '../session/AuthContext';
 import { failedText, nowWall, offlineText, skewOf, visitDay } from '../myDay/model';
@@ -47,6 +47,8 @@ import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myD
 import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
 import { billError, billTile, canBill, draftedFrom, knownOf } from '../bill/model';
 import { Box } from '../bill/parts';
+import { approveError, approveTile, canApprove } from '../approve/model';
+import { approvals } from '../approve/store';
 
 export default function VisitScreen({ route, navigation }) {
   const { id, visit: fromList = null, n = null, savedAt: listSavedAt = null, skew: skewIn = 0, fresh = null } = route.params || {};
@@ -113,6 +115,29 @@ export default function VisitScreen({ route, navigation }) {
     }
   }, [id]);
 
+  // The customer's approval before the work (src/approve): the job's approvals as GET
+  // …/authorizations answered and a signature still on this phone, for the Approve tile; read
+  // with the card. The phone's signatures go first (they may be this visit's).
+  const [approveKnown, setApproveKnown] = useState(null);
+  const [approveKept, setApproveKept] = useState(null);
+  const approveSeq = useRef(0);
+  const loadApprove = useCallback(async (visit) => {
+    if (!canApprove(visit) || userId === null) return;
+    const seq = ++approveSeq.current;
+    await approvals.flushAll(userId).catch(() => {});
+    const kept = await approvals.pendingOf(id, userId);
+    if (seq !== approveSeq.current) return;
+    setApproveKept(kept);
+    try {
+      const data = await approveAPI.list(id);
+      if (seq === approveSeq.current) setApproveKnown({ status: 'ok', list: data.authorizations || [] });
+    } catch (error) {
+      if (seq !== approveSeq.current) return;
+      if (approveError(error).kind === 'failed') logError('Error loading the approvals:', error);
+      setApproveKnown((k) => (k && k.status === 'ok' ? k : { status: 'unknown', list: [] }));
+    }
+  }, [id, userId]);
+
   const load = useCallback(async ({ pull = false } = {}) => {
     if (gone.current) return;
     const seq = ++loadSeq.current;
@@ -137,6 +162,7 @@ export default function VisitScreen({ route, navigation }) {
       seenHold.current = false;
       if (!data.visit.legacy) loadPhotos();
       loadBill(data.visit);
+      loadApprove(data.visit);
       await updateMyDay((cache) => keepCard(cache, userId, data.visit, savedAt), mark);
     } catch (error) {
       if (seq !== loadSeq.current || gone.current) return;
@@ -149,10 +175,13 @@ export default function VisitScreen({ route, navigation }) {
       setProblem(status ? 'failed' : 'offline');
       // the bill is read with the card: without it the Bill tile says so instead of waiting
       setKnown((k) => k || { status: 'unknown', bill: null });
+      setApproveKnown((k) => k || { status: 'unknown', list: [] });
+      // a signature kept on this phone shows on the tile without the connection too
+      if (keptOne) loadApprove({ ...keptOne.card, ...(fromList || {}) });
     } finally {
       if (seq === loadSeq.current) setRefreshing(false);
     }
-  }, [id, userId, fromList, leaveGone, loadPhotos, loadBill]);
+  }, [id, userId, fromList, leaveGone, loadPhotos, loadBill, loadApprove]);
 
   // on opening and every time the screen comes back
   useFocusEffect(useCallback(() => { setTick(Date.now()); load(); }, [load]));
@@ -179,6 +208,13 @@ export default function VisitScreen({ route, navigation }) {
   const updated = useMemo(() => (fresh === 'updated' && shown && before !== undefined
     ? updatedOf(shown.visit, before && before.visit, before && before.at) : null), [fresh, shown, before]);
   const tile = shown ? billTile(shown.visit, known) : null;
+  const approve = shown ? approveTile(shown.visit, approveKnown, approveKept, now.date) : null;
+  // signed (here or on this phone, not sent yet) — the brand tile with a tick; not signed or not
+  // known yet — white with a border, no tick, so «to do» never looks like «done» (Дизайнер, #44)
+  const approveDone = !!approve && (approve.kind === 'signed' || approve.kind === 'pending');
+  const openApprove = useCallback(() => {
+    if (shown) navigation.navigate('Approve', { id, visit: shown.visit });
+  }, [navigation, id, shown]);
   const drafted = tile && card && card.state === 'closed' && known && known.status === 'draft' ? draftedFrom(known.bill) : null;
   // «Open the bill»: a draft or an issued bill opens as it is; none yet: the server drafts it
   const openBill = useCallback(() => {
@@ -208,8 +244,9 @@ export default function VisitScreen({ route, navigation }) {
     setProblem(null);
     setTick(Date.now());
     loadBill(fresh);
+    loadApprove(fresh);
     await updateMyDay((cache) => keepActed(cache, userId, fresh, savedAt), mark);
-  }, [userId, loadBill]);
+  }, [userId, loadBill, loadApprove]);
 
   const send = useCallback(async ({ action, outcome = null, requestId }) => {
     if (busy.current || gone.current) return;
@@ -549,6 +586,20 @@ export default function VisitScreen({ route, navigation }) {
               })}
             </View>
 
+            {approve ? (
+              <TouchableOpacity style={[styles.billTile, !approveDone && styles.approveTodo]} onPress={openApprove} accessibilityRole="button"
+                accessibilityLabel={`${approve.title}, ${approve.line}${approve.warn ? `, ${approve.warn}` : ''}`}>
+                <Icon name={approveDone ? 'checkc' : 'doc'} size={26} color={approve.kind === 'signed' ? colors.successFg : approveDone ? colors.brandPressed : colors.fgSecondary} />
+                <View style={styles.billTileBody}>
+                  <Text style={styles.billTileTitle}>{approve.title}</Text>
+                  <Text style={[styles.billTileLine, approve.kind === 'signed' && styles.approveSigned, !approveDone && styles.approveTodoLine]}>
+                    {approve.line}
+                    {approve.warn ? <Text style={styles.billTileWarn}>{` · ${approve.warn}`}</Text> : null}
+                  </Text>
+                </View>
+                <Icon name="chev" size={20} color={colors.fgSecondary} />
+              </TouchableOpacity>
+            ) : null}
             {tile ? (
               <TouchableOpacity style={[styles.billTile, tile.kind === 'draft' && styles.billTileFill, tile.off && styles.billTileOff]}
                 onPress={openBill} disabled={tile.off} accessibilityRole="button" accessibilityLabel={`${tile.title}, ${tile.line}${tile.warn ? `, ${tile.warn}` : ''}`}
@@ -775,6 +826,9 @@ const styles = StyleSheet.create({
   billTileOnFill: { color: colors.fgOnFill },
   billTileTextOff: { color: colors.fgDisabled },
   billTileWarn: { color: colors.warningFg },
+  approveTodo: { borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  approveTodoLine: { color: colors.fgSecondary },
+  approveSigned: { color: colors.successFg },
   drafted: { marginTop: 10 },
   access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   accessBody: { flex: 1 },
