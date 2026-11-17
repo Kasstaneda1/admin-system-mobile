@@ -115,7 +115,8 @@ export function MethodTiles({ value, onPick, only = null, off = false }) {
 }
 
 // NOTE · optional and its field
-export function Field({ label, optional = false, value, onChange, placeholder, hint = null, max = 500, keyboard = 'default', big = false, prefix = null, autoFocus = false, a11y = null }) {
+// off: shown, not editable (a payment sent without an answer keeps what it sent, pay/attempts.js)
+export function Field({ label, optional = false, value, onChange, placeholder, hint = null, max = 500, keyboard = 'default', big = false, prefix = null, autoFocus = false, a11y = null, off = false }) {
   return (
     <View style={styles.field}>
       {label ? (
@@ -128,7 +129,7 @@ export function Field({ label, optional = false, value, onChange, placeholder, h
         {prefix ? <Text style={[styles.prefix, big && styles.prefixBig]}>{prefix}</Text> : null}
         <TextInput style={[styles.input, big && styles.inputBigText]} value={value} onChangeText={onChange} placeholder={placeholder}
           placeholderTextColor={colors.fgMutedField} maxLength={max} keyboardType={keyboard} autoCorrect={false} autoFocus={autoFocus}
-          returnKeyType="done" accessibilityLabel={a11y || label || placeholder} />
+          returnKeyType="done" accessibilityLabel={a11y || label || placeholder} editable={!off} />
       </View>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
     </View>

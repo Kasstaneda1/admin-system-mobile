@@ -6,29 +6,41 @@
 // and the summary (PayCardScreen); the rest are recorded here.
 // Not here yet: the photo of a check (server PR 13а-2), the company's Zelle number (the profile's
 // payment_instructions does not come with the bill yet) — the screen says «the company» instead.
-import React, { useMemo, useRef, useState } from 'react';
+// A send without an answer (pay/attempts.js): the chosen method, amount and fields stay as sent
+// until the app has looked at the bill again; the next press looks first, then sends the same
+// request or says «Already recorded».
+import React, { useMemo, useReducer, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
-import { payAPI } from '../services/api';
+import { billAPI, payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { OTHER_CHOICES, chosenMethod, dueOf, holderLine, methodWord, payError, paymentBody, recordedLine, shortPerson } from '../pay/model';
+import { OTHER_CHOICES, alreadyLine, chosenMethod, dueOf, holderLine, methodWord, paymentBody, recordedLine, shortPerson } from '../pay/model';
+import { LOOK_AGAIN, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { BigHead, Choice, Field, MethodTiles, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
 export default function PayMethodScreen({ route, navigation }) {
-  const { id, visit, bill, cents, part = false, note: partNote = '', later = null } = route.params || {};
+  const { id, visit, bill, part = false, note: partNote = '', later = null } = route.params || {};
+  // an attempt sent before without an answer (this screen left and opened again): its lines
+  const kept = attemptOf(bill.id, 'method');
+  const view = kept ? kept.view : null;
+  const cents = view ? view.cents : route.params.cents;
   const insets = useSafeAreaInsets();
-  const [tile, setTile] = useState(null);
-  const [otherKey, setOtherKey] = useState(null);
-  const [otherName, setOtherName] = useState('');
-  const [checkNumber, setCheckNumber] = useState('');
-  const [note, setNote] = useState(partNote);
+  // a card payment of this bill that went (or may have gone) to the server keeps the card
+  const cardKept = linesLocked(attemptOf(bill.id, 'card'));
+  const [tile, setTile] = useState(view ? view.tile : cardKept ? 'card' : null);
+  const [otherKey, setOtherKey] = useState(view ? view.otherKey : null);
+  const [otherName, setOtherName] = useState(view ? view.otherName : '');
+  const [checkNumber, setCheckNumber] = useState(view ? view.checkNumber : '');
+  const [note, setNote] = useState(view ? view.note : partNote);
   const [sending, setSending] = useState(false);
-  const [failed, setFailed] = useState(null);
+  const [failed, setFailed] = useState(kept && kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}` : null);
+  const [, redraw] = useReducer((n) => n + 1, 0);
+  const locked = linesLocked(attemptOf(bill.id, 'method'));
 
   const label = bill.label || `#${bill.bill_number}`;
   const company = (bill.company && (bill.company.legal_name || bill.company.name)) || 'the company';
@@ -39,32 +51,39 @@ export default function PayMethodScreen({ route, navigation }) {
   const { method, name } = chosenMethod(tile, otherKey, otherName);
   const word = method ? methodWord(method, name) : null;
 
-  // the same press again (no answer) sends the same request: the server answers it once
-  const requestId = useRef(null);
-  const sent = useRef(null);
   const built = useMemo(() => (method ? paymentBody({ cents, method, name, note, checkNumber: tile === 'check' ? checkNumber : '', later, requestId: 'x' }) : null), [cents, method, name, note, checkNumber, tile, later]);
 
   const pickTile = (m) => { setTile(m); setFailed(null); };
   const record = async () => {
     if (sending || !built) return;
-    if (built.error) { setFailed(built.error); return; }
-    if (part && !note.trim()) { setFailed('Part of the balance: the note says why.'); return; }
-    const key = JSON.stringify({ ...built.body, client_request_id: null });
-    if (sent.current !== key) { requestId.current = newRequestId(); sent.current = key; }
-    const body = { ...built.body, client_request_id: requestId.current };
+    let attempt = attemptOf(bill.id, 'method');
+    if (!attempt) {
+      if (built.error) { setFailed(built.error); return; }
+      if (part && !note.trim()) { setFailed('Part of the balance: the note says why.'); return; }
+      const rid = newRequestId();
+      attempt = startAttempt(bill.id, 'method', {
+        bill,
+        lines: [{ rid, body: { ...built.body, client_request_id: rid } }],
+        view: { cents, tile, otherKey, otherName, checkNumber, note },
+      });
+    }
     setSending(true);
     setFailed(null);
-    try {
-      const data = await payAPI.record(id, body);
-      navigation.popTo('Pay', { id, visit, bill: data.bill, recorded: { key: requestId.current, line: recordedLine(data.payment) } });
-    } catch (error) {
-      const f = payError(error);
-      if (f.kind === 'failed') logError('Error recording a payment:', error);
-      if (f.kind === 'gone') { navigation.popToTop(); return; }
-      setFailed(f.text);
-    } finally {
-      setSending(false);
+    const result = await runAttempt(attempt, { record: (body) => payAPI.record(id, body), readBill: async () => (await billAPI.get(id)).bill });
+    setSending(false);
+    redraw();
+    if (result.done) {
+      navigation.popTo('Pay', { id, visit, bill: result.data.bill, recorded: { key: attempt.lines[0].rid, line: recordedLine(result.data.payment) } });
+      return;
     }
+    if (result.already) {
+      navigation.popTo('Pay', { id, visit, bill: result.bill, recorded: { key: `already-${attempt.lines[0].rid}`, line: alreadyLine(result.already) } });
+      return;
+    }
+    const f = result.failed;
+    if (f.kind === 'failed') logError('Error recording a payment:', result.error);
+    if (f.kind === 'gone') { navigation.popToTop(); return; }
+    setFailed(noAnswer(f) ? `${f.text} ${LOOK_AGAIN}` : f.text);
   };
   const toTip = () => {
     if (part && !note.trim()) { setFailed('Part of the balance: the note says why.'); return; }
@@ -82,7 +101,7 @@ export default function PayMethodScreen({ route, navigation }) {
         <ScrollView contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
           <BigHead label={`Collect for ${label}`} big={usd(cents)} sub={sub} />
           <Section label="Pay with">
-            <MethodTiles value={tile} onPick={pickTile} off={sending} />
+            <MethodTiles value={tile} onPick={pickTile} off={sending || locked || cardKept} />
           </Section>
 
           {tile === 'cash' ? (
@@ -92,7 +111,7 @@ export default function PayMethodScreen({ route, navigation }) {
           ) : null}
           {tile === 'check' ? (
             <Section label="Check">
-              <Field label="Check number" value={checkNumber} onChange={setCheckNumber} placeholder="1042" max={30} keyboard="number-pad"
+              <Field off={locked} label="Check number" value={checkNumber} onChange={setCheckNumber} placeholder="1042" max={30} keyboard="number-pad"
                 hint={`Pay to: ${company}. A check made out to you is not accepted.`} />
             </Section>
           ) : null}
@@ -100,33 +119,33 @@ export default function PayMethodScreen({ route, navigation }) {
             <Section label="Card">
               <Box kind="info" icon="info" title="Next: the customer picks a tip"
                 text="Then this app shows the total. Charge it in the card app (Square) on this phone. Never type a card number into SEMIX." />
-              <Field label="Note" optional value={note} onChange={setNote} placeholder="Anything the office should know" max={500} />
+              <Field off={locked} label="Note" optional value={note} onChange={setNote} placeholder="Anything the office should know" max={500} />
             </Section>
           ) : null}
           {tile === 'zelle' || tile === 'venmo' ? (
             <Section label={tile === 'zelle' ? 'Zelle' : 'Venmo'}>
               <Box kind="warn" icon="warn" title={`Only to ${company}`}
                 text="To the company’s account, never to your own number or email. Ask the customer to show the sent payment." />
-              <Field label="Note" optional value={note} onChange={setNote} placeholder="Confirmation # from their app" max={500} />
+              <Field off={locked} label="Note" optional value={note} onChange={setNote} placeholder="Confirmation # from their app" max={500} />
             </Section>
           ) : null}
           {tile === 'other' ? (
             <Section label="Other · which one?" need>
               <View style={styles.choices} accessibilityRole="radiogroup">
                 {OTHER_CHOICES.map((c) => (
-                  <Choice key={c.key} on={otherKey === c.key} title={c.title} sub={c.sub} onPress={() => { setOtherKey(c.key); setFailed(null); }} off={sending} />
+                  <Choice key={c.key} on={otherKey === c.key} title={c.title} sub={c.sub} onPress={() => { setOtherKey(c.key); setFailed(null); }} off={sending || locked} />
                 ))}
               </View>
               {otherKey === 'else' ? (
-                <TextInput style={payStyles.input} value={otherName} onChangeText={setOtherName} maxLength={60} placeholder="What the customer used"
+                <TextInput style={payStyles.input} value={otherName} onChangeText={setOtherName} editable={!locked} maxLength={60} placeholder="What the customer used"
                   placeholderTextColor={colors.fgMutedField} accessibilityLabel="What the customer used" autoFocus />
               ) : null}
-              <Field label="Note" optional value={note} onChange={setNote} placeholder="Anything the office should know" max={500} />
+              <Field off={locked} label="Note" optional value={note} onChange={setNote} placeholder="Anything the office should know" max={500} />
             </Section>
           ) : null}
           {part && tile && tile !== 'card' && tile !== 'zelle' && tile !== 'venmo' && tile !== 'other' ? (
             <Section label="Note">
-              <TextInput style={payStyles.input} value={note} onChangeText={setNote} maxLength={500} placeholder="Why only part"
+              <TextInput style={payStyles.input} value={note} onChangeText={setNote} editable={!locked} maxLength={500} placeholder="Why only part"
                 placeholderTextColor={colors.fgMutedField} accessibilityLabel="Note" />
             </Section>
           ) : null}

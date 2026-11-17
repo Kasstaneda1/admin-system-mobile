@@ -5,26 +5,40 @@
 // No card numbers anywhere (the owner's В-М2). Each line has its own client_request_id, kept
 // while nothing changes: a press again after no answer sends the same lines, the server answers
 // each once — so a tip that did not go is sent again without a second payment.
-import React, { useMemo, useRef, useState } from 'react';
+// The lines live in pay/attempts.js, by bill, not in this screen: Back to Tip and Next again finds
+// the same lines and the same ids; after the first line the server took, or a send without an
+// answer, who gets the tip and the amounts do not change; after no answer the next press first
+// looks at the bill.
+import React, { useMemo, useReducer, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
-import { payAPI } from '../services/api';
+import { billAPI, payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { chargeOf, payError, paymentBody, tipForChoices, tipForLine, tipParts } from '../pay/model';
+import { alreadyLine, chargeOf, paymentBody, tipForChoices, tipForLine, tipParts } from '../pay/model';
+import { LOOK_AGAIN, answeredCount, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { Choice, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
 export default function PayCardScreen({ route, navigation }) {
-  const { id, visit, bill, cents, part = false, note = '', later = null, tipCents = 0 } = route.params || {};
+  const { id, visit, bill, part = false, note = '', later = null } = route.params || {};
+  // lines sent before (this screen opened again after Back): they are what is charged
+  const kept = attemptOf(bill.id, 'card');
+  const view = kept ? kept.view : null;
+  const cents = view ? view.cents : route.params.cents;
+  const tipCents = view ? view.tipCents : (route.params.tipCents || 0);
   const insets = useSafeAreaInsets();
-  const [forKey, setForKey] = useState('me');
+  const [forKey, setForKey] = useState(view ? view.forKey : 'me');
   const [sending, setSending] = useState(false);
-  const [failed, setFailed] = useState(null);
-  const [paidDone, setPaidDone] = useState(false);       // the payment went, a tip did not
+  const [failed, setFailed] = useState(!kept ? null : kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}`
+    : answeredCount(kept) > 0 ? 'Press to send the tip again.' : null);
+  const [, redraw] = useReducer((n) => n + 1, 0);
+  const attempt = attemptOf(bill.id, 'card');
+  const locked = linesLocked(attempt);
+  const paidDone = answeredCount(attempt) > 0;           // the payment went, a tip did not
 
   const meName = bill.technician && bill.technician.name;
   const total = cents + tipCents;
@@ -32,35 +46,43 @@ export default function PayCardScreen({ route, navigation }) {
   const choices = tipForChoices(visit, meName);
   const parts = useMemo(() => tipParts(tipCents, forKey, visit), [tipCents, forKey, visit]);
 
-  // the lines' request ids: new when who gets the tip changes
-  const ids = useRef(null);
   const record = async () => {
     if (sending) return;
-    const shape = JSON.stringify(parts);
-    if (!ids.current || ids.current.shape !== shape) {
-      ids.current = { shape, payment: ids.current ? ids.current.payment : newRequestId(), tips: parts.map(() => newRequestId()) };
+    let current = attemptOf(bill.id, 'card');
+    if (!current) {
+      const payRid = newRequestId();
+      const pay = paymentBody({ cents, method: 'card', note, later, requestId: payRid });
+      const tips = parts.map((p) => {
+        const rid = newRequestId();
+        return { rid, built: paymentBody({ kind: 'tip', cents: p.cents, method: 'card', later, tipFor: p, requestId: rid }) };
+      });
+      const bad = [pay, ...tips.map((t) => t.built)].find((b) => b.error);
+      if (bad) { setFailed(bad.error); return; }
+      current = startAttempt(bill.id, 'card', {
+        bill,
+        lines: [{ rid: payRid, body: pay.body }, ...tips.map((t) => ({ rid: t.rid, body: t.built.body }))],
+        view: { cents, tipCents, forKey },
+      });
     }
-    const pay = paymentBody({ cents, method: 'card', note, later, requestId: ids.current.payment });
-    const tips = parts.map((p, i) => paymentBody({ kind: 'tip', cents: p.cents, method: 'card', later, tipFor: p, requestId: ids.current.tips[i] }));
-    const bad = [pay, ...tips].find((b) => b.error);
-    if (bad) { setFailed(bad.error); return; }
     setSending(true);
     setFailed(null);
-    let data = null;
-    try {
-      data = await payAPI.record(id, pay.body);
-      setPaidDone(true);
-      for (const t of tips) data = await payAPI.record(id, t.body);
+    const result = await runAttempt(current, { record: (body) => payAPI.record(id, body), readBill: async () => (await billAPI.get(id)).bill });
+    setSending(false);
+    redraw();
+    const key = current.lines[0].rid;
+    if (result.done) {
       const line = `${usd(cents)} card${tipCents > 0 ? ` + ${usd(tipCents)} tip` : ''} recorded`;
-      navigation.popTo('Pay', { id, visit, bill: data.bill, recorded: { key: ids.current.payment, line } });
-    } catch (error) {
-      const f = payError(error);
-      if (f.kind === 'failed') logError('Error recording a card payment:', error);
-      if (f.kind === 'gone') { navigation.popToTop(); return; }
-      setFailed(f.text);
-    } finally {
-      setSending(false);
+      navigation.popTo('Pay', { id, visit, bill: result.data.bill, recorded: { key, line } });
+      return;
     }
+    if (result.already) {
+      navigation.popTo('Pay', { id, visit, bill: result.bill, recorded: { key: `already-${key}`, line: alreadyLine(result.already) } });
+      return;
+    }
+    const f = result.failed;
+    if (f.kind === 'failed') logError('Error recording a card payment:', result.error);
+    if (f.kind === 'gone') { navigation.popToTop(); return; }
+    setFailed(noAnswer(f) ? `${f.text} ${LOOK_AGAIN}` : f.text);
   };
 
   return (
@@ -96,7 +118,7 @@ export default function PayCardScreen({ route, navigation }) {
         {tipCents > 0 ? (
           <Section label="Tip for">
             <View style={styles.choices} accessibilityRole="radiogroup">
-              {choices.map((c) => <Choice key={c.key} on={forKey === c.key} title={c.title} sub={c.sub} onPress={() => setForKey(c.key)} off={sending || paidDone} />)}
+              {choices.map((c) => <Choice key={c.key} on={forKey === c.key} title={c.title} sub={c.sub} onPress={() => setForKey(c.key)} off={sending || locked} />)}
             </View>
           </Section>
         ) : null}
