@@ -1,5 +1,6 @@
 // Where the phone keeps the session (session.js `store`), without React Native: store.js
-// passes in expo-secure-store, AsyncStorage and My day's clearMyDay, deviceStore.test.mjs
+// passes in expo-secure-store, AsyncStorage, My day's clearMyDay and the estimate messages'
+// clearOutbox, deviceStore.test.mjs
 // passes stand-ins.
 // Both tokens and their save time in the secure store (iOS keychain, Android keystore), only
 // on this device; the profile in AsyncStorage under 'user', the shape /api/login gives,
@@ -12,7 +13,7 @@ function parse(json) {
   try { return json ? JSON.parse(json) : null; } catch { return null; }
 }
 
-export function makeDeviceStore({ SecureStore, AsyncStorage, clearMyDay }) {
+export function makeDeviceStore({ SecureStore, AsyncStorage, clearMyDay, clearOutbox = async () => {} }) {
   const OPTIONS = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
   return {
     async read() {
@@ -47,6 +48,8 @@ export function makeDeviceStore({ SecureStore, AsyncStorage, clearMyDay }) {
         // My day kept for offline (customers' names, phones, addresses) goes with the session,
         // in My day's own queue: an answer still on its way is not written back after it
         clearMyDay(),
+        // the messages to the office not yet sent (estimate/outbox.js): what this technician wrote
+        clearOutbox(),
       ]);
     },
   };

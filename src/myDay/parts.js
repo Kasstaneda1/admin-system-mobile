@@ -7,6 +7,7 @@ import { colors } from '../constants/colors';
 import Icon from './Icon';
 import { dayOfMonth, weekdayLetter, weekdayOf } from './model';
 import { FRESH_TEXT, badgeText, markLabel, tabLabel } from './fresh';
+import { useUnread } from '../estimate/unread';
 
 // ---------- tags ----------
 export const TAG_FAMILIES = {
@@ -244,17 +245,19 @@ function openTab(navigation, screen) {
   else navigation.navigate(screen);
 }
 // fresh: how many visits are NEW or UPDATED (fresh.js): a blue count on the My day icon, «9+»;
+// the same count on Parts: its estimates with messages not read (estimate/unread.js);
 // current: the tab this screen belongs to (My day, Salary); pressing it goes back to the tab's
 // first screen (Salary from a job), as tabs do on iPhone
 export function TabBar({ navigation, bottom, fresh = 0, current = 'My day' }) {
+  const unread = useUnread();
   return (
     <View style={[styles.tabbar, { paddingBottom: Math.max(bottom, 8) }]} accessibilityRole="tablist">
       {TABS.map(([icon, label, screen]) => {
         const on = label === current;
-        const count = screen === 'MyDay' && fresh > 0 ? fresh : 0;
+        const count = screen === 'MyDay' && fresh > 0 ? fresh : screen === 'Parts' && unread > 0 ? unread : 0;
         return (
           <TouchableOpacity key={label} style={styles.tb} onPress={() => openTab(navigation, screen)}
-            accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={screen === 'MyDay' ? tabLabel(count) : label}>
+            accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={screen === 'MyDay' ? tabLabel(count) : count ? `${label}, ${count} with new messages` : label}>
             <View>
               <Icon name={icon} size={24} color={on ? colors.brand : colors.fgMutedField} />
               {count ? <Text style={styles.badge}>{badgeText(count)}</Text> : null}
