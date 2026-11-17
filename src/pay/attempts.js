@@ -17,9 +17,14 @@
 //   - a clear refusal (400, 403, 409) before any line was taken lets the screen change the lines;
 //   - attempts live in memory by bill, not in the screen: Back on Card and Next again, or Back to
 //     the method screen, find the same lines. Pay forgets the bill's attempts once it has read
-//     the bill again (its history and balance show what went through);
+//     the bill again (its history and balance show what went through) — all but one without an
+//     answer: its line may still be on its way to the server, and a read that comes first would
+//     not show it; that one lives until a press settles it (the Teamlead's note 1 on #50);
+//   - the tip screen of a card attempt that is locked shows the tip that went and does not let
+//     it change (lockedTipOf; the Designer on #50);
 //   - nothing is kept across a restart of the app: Pay reads the bill when it opens.
 import { payError } from './model.js';
+import { usd } from '../bill/model.js';
 
 const attempts = new Map(); // `${billId}:${flow}` → attempt
 const keyOf = (billId, flow) => `${billId}:${flow}`;
@@ -39,9 +44,12 @@ export function dropAttempt(attempt) {
   if (attempt && attempts.get(keyOf(attempt.billId, attempt.flow)) === attempt) attempts.delete(keyOf(attempt.billId, attempt.flow));
 }
 
-// Pay read the bill again: what went through is in its history now
+// Pay read the bill again: what went through is in its history now. An attempt without an
+// answer stays: the read may have come before its line reached the server
 export function forgetBill(billId) {
-  for (const key of [...attempts.keys()]) if (key.startsWith(`${billId}:`)) attempts.delete(key);
+  for (const [key, attempt] of [...attempts.entries()]) {
+    if (key.startsWith(`${billId}:`) && !attempt.uncertain) attempts.delete(key);
+  }
 }
 
 export const answeredCount = (attempt) => (attempt ? Object.keys(attempt.answered).length : 0);
@@ -80,4 +88,22 @@ export async function runAttempt(attempt, { record }) {
 }
 
 // The words under the button for a send without an answer
-export const LOOK_AGAIN = 'Press again: the same payment goes, the server records it once.';
+export const LOOK_AGAIN = 'Press again: the same payment is sent, and the server records it only once.';
+
+// The tip screen while the card attempt is locked (the Designer on #50): the tip that went,
+// marked among the buttons (buttons: tipButtons()), and the words of the yellow box. null when
+// the card attempt may still change. → { picked, typed, cents, tipCents, title, text }
+export function lockedTipOf(attempt, buttons = []) {
+  if (!attempt || attempt.flow !== 'card' || !linesLocked(attempt) || !attempt.view) return null;
+  const { cents, tipCents } = attempt.view;
+  const button = tipCents > 0 ? buttons.find((b) => b.cents === tipCents) : null;
+  const picked = tipCents === 0 ? 'none' : button ? button.key : 'custom';
+  return {
+    picked,
+    typed: picked === 'custom' ? (tipCents / 100).toFixed(2) : '',
+    cents,
+    tipCents,
+    title: `Tip ${usd(tipCents)} is locked`,
+    text: `The card charge of ${usd(cents + tipCents)} already went out. To change the tip, void it after it is recorded.`,
+  };
+}
