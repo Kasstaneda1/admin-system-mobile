@@ -92,12 +92,11 @@ export const estimatesAPI = {
 
 // Salary API
 export const salaryAPI = {
-  getSalaryData: async (startDate, endDate) => {
-    const response = await api.get('/api/technicians/salary', {
-      params: { start_date: startDate, end_date: endDate },
-    });
-    return response.data;
-  },
+  // The technician portal's Salary (site js/technician-salary.js): the server takes the
+  // technician from the login. A year: its jobs; a month (0–11): its jobs and its money —
+  // totalPaid, totalCash, totalChecks, totalUnpaid and the balance totalToPay
+  year: async (year) => (await api.post('/api/technician-salary', { year }, { timeout: 15000 })).data,
+  month: async (year, month) => (await api.post('/api/technician-salary', { year, month }, { timeout: 15000 })).data,
 
   getPayments: async (technicianName) => {
     const response = await api.get(`/api/technicians/payments/${technicianName}`);

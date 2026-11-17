@@ -235,17 +235,19 @@ export function EmptyDay({ title, offer, onOffer, onCallOffice }) {
 }
 
 // ---------- the tab bar ----------
-const TABS = [['cal', 'My day', null], ['money', 'Salary', 'Salary'], ['box', 'Parts', 'Parts'], ['more', 'More', 'Home']];
-// fresh: how many visits are NEW or UPDATED (fresh.js): a blue count on the My day icon, «9+»
-export function TabBar({ navigation, bottom, fresh = 0 }) {
+const TABS = [['cal', 'My day', 'MyDay'], ['money', 'Salary', 'Salary'], ['box', 'Parts', 'Parts'], ['more', 'More', 'Home']];
+// fresh: how many visits are NEW or UPDATED (fresh.js): a blue count on the My day icon, «9+»;
+// current: the tab this screen belongs to (My day, Salary); pressing it goes back to the tab's
+// first screen (Salary from a job), as tabs do on iPhone
+export function TabBar({ navigation, bottom, fresh = 0, current = 'My day' }) {
   return (
     <View style={[styles.tabbar, { paddingBottom: Math.max(bottom, 8) }]} accessibilityRole="tablist">
       {TABS.map(([icon, label, screen]) => {
-        const on = screen === null;
-        const count = screen === null && fresh > 0 ? fresh : 0;
+        const on = label === current;
+        const count = screen === 'MyDay' && fresh > 0 ? fresh : 0;
         return (
-          <TouchableOpacity key={label} style={styles.tb} onPress={() => (screen ? navigation.navigate(screen) : null)}
-            accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={screen === null ? tabLabel(count) : label}>
+          <TouchableOpacity key={label} style={styles.tb} onPress={() => navigation.navigate(screen)}
+            accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={screen === 'MyDay' ? tabLabel(count) : label}>
             <View>
               <Icon name={icon} size={24} color={on ? colors.brand : colors.fgMutedField} />
               {count ? <Text style={styles.badge}>{badgeText(count)}</Text> : null}

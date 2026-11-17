@@ -18,6 +18,9 @@ import BillSendScreen from './src/screens/BillSendScreen';
 import BillPdfScreen from './src/screens/BillPdfScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
+import SalaryMonthScreen from './src/screens/SalaryMonthScreen';
+import SalaryJobsScreen from './src/screens/SalaryJobsScreen';
+import SalaryJobScreen from './src/screens/SalaryJobScreen';
 import PartsScreen from './src/screens/PartsScreen';
 import WarehouseScreen from './src/screens/WarehouseScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
@@ -127,7 +130,22 @@ function Screens() {
             <Stack.Screen
               name="Salary"
               component={SalaryScreen}
-              options={{ title: 'Salary' }}
+              options={{ headerShown: false, title: 'Salary' }}
+            />
+            <Stack.Screen
+              name="SalaryMonth"
+              component={SalaryMonthScreen}
+              options={{ headerShown: false, title: 'Month' }}
+            />
+            <Stack.Screen
+              name="SalaryJobs"
+              component={SalaryJobsScreen}
+              options={{ headerShown: false, title: 'Jobs' }}
+            />
+            <Stack.Screen
+              name="SalaryJob"
+              component={SalaryJobScreen}
+              options={{ headerShown: false, title: 'Job Details' }}
             />
             <Stack.Screen
               name="Parts"
