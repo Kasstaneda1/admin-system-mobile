@@ -143,7 +143,7 @@ export function CheckPhotoRow({ photo, onTake, off = false }) {
     return (
       <TouchableOpacity style={styles.shotAsk} onPress={onTake} disabled={off} accessibilityRole="button"
         accessibilityLabel={`${PHOTO_ASK}, optional`} accessibilityState={{ disabled: off }}>
-        <View style={styles.shotIcon}><Icon name="camera" size={24} color={colors.fgSecondary} /></View>
+        <View style={styles.shotIcon}><Icon name="camera" size={24} color={colors.brandPressed} /></View>
         <View style={styles.flex}>
           <Text style={styles.shotAskTitle}>{PHOTO_ASK}</Text>
           <Text style={styles.shotSub}>{`Optional. ${PHOTO_NOTE}`}</Text>

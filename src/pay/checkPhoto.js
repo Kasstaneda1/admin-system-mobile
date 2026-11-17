@@ -86,5 +86,5 @@ export function checkPhotoRefusal(error) {
 
 // The line of the photo on the method screen
 export const PHOTO_ADDED = 'Photo of the front added';
-export const PHOTO_ASK = 'Photo of the front';
+export const PHOTO_ASK = 'Add a photo of the front';
 export const PHOTO_NOTE = 'Not saved to your photos. Deleted by itself 90 days after the payment.';
