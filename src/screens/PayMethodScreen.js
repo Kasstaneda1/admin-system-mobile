@@ -4,8 +4,10 @@
 // server's (cash, check, other — the technician; card, Zelle, Venmo, bank transfer — the office):
 // the line under the button says it. A card goes on to the tip the customer picks (PayTipScreen)
 // and the summary (PayCardScreen); the rest are recorded here.
-// Not here yet: the photo of a check (server PR 13а-2), the company's Zelle number (the profile's
-// payment_instructions does not come with the bill yet) — the screen says «the company» instead.
+// Zelle and Venmo: «Only to SEMIX CORP: (718) 555-0100» from the profile's payment_instructions
+// (the bill answer, backend #192); without them — «Only to SEMIX CORP», «Ask the office for the
+// company’s number. Never to your own.» (the Designer, #51).
+// Not here yet: the photo of a check (server PR 13а-2).
 // A send without an answer (pay/attempts.js): the chosen method, amount and fields stay as sent;
 // the next press sends the same request (the server records it once) — «Already recorded» when it
 // had gone through.
@@ -18,7 +20,7 @@ import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { OTHER_CHOICES, alreadyLine, chosenMethod, dueOf, holderLine, methodWord, paymentBody, recordedLine, shortPerson } from '../pay/model';
+import { OTHER_CHOICES, alreadyLine, chosenMethod, dueOf, holderLine, methodWord, paymentBody, paymentInstructionsOf, recordedLine, shortPerson } from '../pay/model';
 import { LOOK_AGAIN, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { BigHead, Choice, Field, MethodTiles, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
@@ -44,6 +46,7 @@ export default function PayMethodScreen({ route, navigation }) {
 
   const label = bill.label || `#${bill.bill_number}`;
   const company = (bill.company && (bill.company.legal_name || bill.company.name)) || 'the company';
+  const instructions = paymentInstructionsOf(bill);
   const me = shortPerson(bill.technician && bill.technician.name);
   const due = dueOf(bill);
   const sub = part ? `Part of ${usd(due)} · ${usd(due - cents)} left after this`
@@ -123,8 +126,9 @@ export default function PayMethodScreen({ route, navigation }) {
           ) : null}
           {tile === 'zelle' || tile === 'venmo' ? (
             <Section label={tile === 'zelle' ? 'Zelle' : 'Venmo'}>
-              <Box kind="warn" icon="warn" title={`Only to ${company}`}
-                text="To the company’s account, never to your own number or email. Ask the customer to show the sent payment." />
+              <Box kind="warn" icon="warn" title={instructions ? `Only to ${company}: ${instructions}` : `Only to ${company}`}
+                text={instructions ? 'To the company’s account, never to your own number or email. Ask the customer to show the sent payment.'
+                  : 'Ask the office for the company’s number. Never to your own.'} />
               <Field off={locked} label="Note" optional value={note} onChange={setNote} placeholder="Confirmation # from their app" max={500} />
             </Section>
           ) : null}

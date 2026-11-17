@@ -13,7 +13,7 @@ import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { alreadyLine, holderLine, moneyCents, paymentBody, shortPerson, tipButtons, tipForChoices, tipParts } from '../pay/model';
+import { alreadyLine, holderLine, moneyCents, paymentBody, shortPerson, tipButtons, tipForChoices, tipParts, tipPresetsOf } from '../pay/model';
 import { LOOK_AGAIN, answeredCount, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { BigHead, Choice, Field, MethodTiles, Pills, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
@@ -24,7 +24,7 @@ const TIP_METHODS = ['cash', 'check', 'card', 'zelle', 'venmo'];
 export default function CashTipScreen({ route, navigation }) {
   const { id, visit, bill } = route.params || {};
   const insets = useSafeAreaInsets();
-  const buttons = tipButtons(bill.company && bill.company.tip_presets, bill.total_cents);
+  const buttons = tipButtons(tipPresetsOf(bill), bill.total_cents);
   const kept = attemptOf(bill.id, 'tip');
   const view = kept ? kept.view : null;
   const [picked, setPicked] = useState(view ? view.picked : buttons[buttons.length - 1].key);
