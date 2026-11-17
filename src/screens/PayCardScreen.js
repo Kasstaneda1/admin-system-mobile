@@ -14,7 +14,7 @@ import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { payError, paymentBody, tipForChoices, tipForLine, tipParts } from '../pay/model';
+import { chargeOf, payError, paymentBody, tipForChoices, tipForLine, tipParts } from '../pay/model';
 import { Choice, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
@@ -26,9 +26,9 @@ export default function PayCardScreen({ route, navigation }) {
   const [failed, setFailed] = useState(null);
   const [paidDone, setPaidDone] = useState(false);       // the payment went, a tip did not
 
-  const label = bill.label || `#${bill.bill_number}`;
   const meName = bill.technician && bill.technician.name;
   const total = cents + tipCents;
+  const charge = chargeOf(bill, part);
   const choices = tipForChoices(visit, meName);
   const parts = useMemo(() => tipParts(tipCents, forKey, visit), [tipCents, forKey, visit]);
 
@@ -70,10 +70,10 @@ export default function PayCardScreen({ route, navigation }) {
       <ScrollView style={billStyles.page} contentContainerStyle={payStyles.body}>
         <View style={styles.top}>
           <View style={styles.card}>
-            <View style={styles.row} accessible accessibilityLabel={`Bill ${label} ${usd(cents)}`}>
+            <View style={styles.row} accessible accessibilityLabel={`${charge.title} ${usd(cents)}, ${charge.sub}`}>
               <View style={styles.flex}>
-                <Text style={styles.name}>{`Bill ${label}`}</Text>
-                <Text style={styles.sub}>{part ? 'Part of the bill' : (bill.paid_cents || 0) > 0 ? 'The rest of the bill' : 'Total with tax'}</Text>
+                <Text style={styles.name}>{charge.title}</Text>
+                <Text style={styles.sub}>{charge.sub}</Text>
               </View>
               <Text style={styles.amount}>{usd(cents)}</Text>
             </View>

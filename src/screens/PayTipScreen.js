@@ -10,18 +10,17 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../constants/colors';
 import { firstName } from '../myDay/model';
 import { usd } from '../bill/model';
-import { moneyCents, tipButtons } from '../pay/model';
-import { Field, payStyles } from '../pay/parts';
+import { chargeOf, moneyCents, tipButtons } from '../pay/model';
+import { Field } from '../pay/parts';
 import { Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
 export default function PayTipScreen({ route, navigation }) {
   const params = route.params || {};
-  const { bill, cents } = params;
+  const { bill, cents, part = false } = params;
   const insets = useSafeAreaInsets();
   const [picked, setPicked] = useState(null);           // a button's key, 'none' or 'custom'
   const [typed, setTyped] = useState('');
 
-  const label = bill.label || `#${bill.bill_number}`;
   const buttons = tipButtons(bill.company && bill.company.tip_presets, bill.total_cents);
   const custom = moneyCents(typed);
   const tip = picked === 'none' ? 0 : picked === 'custom' ? custom : (buttons.find((b) => b.key === picked) || {}).cents;
@@ -35,8 +34,8 @@ export default function PayTipScreen({ route, navigation }) {
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.sum}>
-            <View style={styles.sumCell} accessible accessibilityLabel={`Bill ${label} ${usd(cents)}`}>
-              <Text style={styles.sumLabel}>{`BILL ${label}`.toUpperCase()}</Text>
+            <View style={styles.sumCell} accessible accessibilityLabel={`${chargeOf(bill, part).tipLabel} ${usd(cents)}`}>
+              <Text style={styles.sumLabel}>{chargeOf(bill, part).tipLabel.toUpperCase()}</Text>
               <Text style={styles.sumValue}>{usd(cents)}</Text>
             </View>
             <View style={[styles.sumCell, styles.sumNext]} accessible accessibilityLabel={`Tip ${usd(ready ? tip : 0)}`}>
@@ -73,7 +72,6 @@ export default function PayTipScreen({ route, navigation }) {
           {picked === 'custom' ? (
             <Field big prefix="$" label="Tip" value={typed} onChange={setTyped} keyboard="decimal-pad" max={9} placeholder="0.00" autoFocus />
           ) : null}
-          <Text style={payStyles.text}>The buttons are set by the office: amounts or percent.</Text>
         </ScrollView>
         <Foot bottom={insets.bottom} note={ready ? null : 'Pick one to go on, even No tip.'}>
           <MainButton text={ready ? `Next · ${usd(cents + tip)} in all` : 'Next'} icon="chev" off={!ready}

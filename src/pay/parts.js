@@ -163,7 +163,7 @@ export function History({ rows, label, onVoid, off = false }) {
 export const payStyles = StyleSheet.create({
   top: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
   gap: { marginHorizontal: 16, marginTop: 12 },
-  body: { paddingBottom: 24 },
+  body: { paddingBottom: 40 },
   sheetTitle: { fontSize: 26, fontWeight: '800', color: colors.fgDefault },
   sheetSub: { fontSize: 16, lineHeight: 21, color: colors.fgSecondary },
   sheetBody: { gap: 12 },
@@ -232,6 +232,7 @@ const styles = StyleSheet.create({
   paySub: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   struck: { textDecorationLine: 'line-through', color: colors.fgSecondary },
   voidLine: { fontSize: 14, lineHeight: 19, color: colors.dangerFg },
-  voidLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 44 },
+  // 44 pt to press, without an empty line under it: it takes the row's bottom padding
+  voidLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 44, marginTop: -4, marginBottom: -10 },
   voidText: { fontSize: 16, fontWeight: '700', color: colors.dangerFg },
 });

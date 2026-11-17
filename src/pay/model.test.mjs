@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  METHODS, OTHER_CHOICES, PART_REASONS, VOID_REASONS, amountOf, canPay, chipOf, chosenMethod, countWord, dueOf, historyOf, holderLine, inHand,
+  METHODS, OTHER_CHOICES, PART_REASONS, VOID_REASONS, amountOf, canPay, chargeOf, chipOf, chosenMethod, countWord, dueOf, historyOf, holderLine, inHand,
   laterReasonGiven, methodWord, minutesLeft, moneyCents, numbersOf, paidAt, payError, payTile, paymentBody, recordedLine, shortPerson, stageOf,
   tipButtons, tipForChoices, tipForLine, tipParts, voidBody,
 } from './model.js';
@@ -36,7 +36,7 @@ test('the Pay button says the bill\'s payment status (design pay-states)', () =>
   const tile = (bill, status = 'issued', o) => payTile(VISIT, { status, bill }, o);
   assert.deepEqual(tile({ ...ISSUED, status: 'draft' }, 'draft'), { title: 'Pay', line: 'Bill first', kind: 'wait', off: false });
   assert.equal(payTile(VISIT, { status: 'none', bill: null }).line, 'Bill first');
-  assert.equal(tile({ ...ISSUED, delivered_at: null }).line, 'Show the bill first');
+  assert.equal(tile({ ...ISSUED, delivered_at: null }).line, 'Give the bill first');
   assert.equal(tile(ISSUED).line, '$175.29 due');
   assert.equal(tile(ISSUED).kind, 'due');
   assert.equal(tile(PART).line, '$75.29 left');
@@ -96,11 +96,20 @@ test('the history: time, method, who, note; void link with the minutes left; a v
   const tip = historyOf({ payments: [{ ...CASH, kind: 'tip', tip_for_name: 'Ivan Petrov', note: null }] }, now)[0];
   assert.equal(tip.title, '2:24 PM · Tip for Ivan P. · Cash');
   assert.equal(tip.tip, true);
-  assert.equal(countWord([tip]), '0 payments');
+  assert.equal(countWord([tip]), '0 payments · 1 tip');
+  assert.equal(countWord([...rows, tip]), '2 payments · 1 tip');
+  assert.equal(countWord([...rows, tip, tip]), '2 payments · 2 tips');
   const voided = historyOf({ payments: [{ ...CASH, voided_at: '2026-11-17T19:25:00Z', voided_by_name: 'Ivan Petrov', void_reason: 'Wrong amount', can_void: false }] }, now)[0];
   assert.equal(voided.voided, true);
   assert.equal(voided.voidLine, 'Void 2:25 PM by Ivan P.: Wrong amount');
   assert.equal(historyOf({ payments: [{ ...CASH, before_delivery: true, note: null }] }, now)[0].sub, 'Ivan P. · bill sent later');
+});
+
+test('what the card charge is of the bill: whole, the rest, a part', () => {
+  assert.deepEqual(chargeOf(ISSUED, false), { tipLabel: 'Bill NY-1048', title: 'Bill NY-1048', sub: 'Total with tax' });
+  assert.deepEqual(chargeOf(PART, false), { tipLabel: 'Left on NY-1048', title: 'Rest of NY-1048', sub: 'Total $175.29 · $100.00 paid' });
+  assert.deepEqual(chargeOf(ISSUED, true), { tipLabel: 'Part of NY-1048', title: 'Part of NY-1048', sub: 'Total $175.29' });
+  assert.equal(chargeOf(PART, true).sub, 'Total $175.29 · $100.00 paid');
 });
 
 test('minutes left and short names', () => {

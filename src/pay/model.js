@@ -67,7 +67,7 @@ export function holderLine(method, { kind = 'payment', me = '' } = {}) {
 // ---------- the Pay button of the visit (design pay-states) ----------
 // The bill as the visit knows it (src/bill/model.js knownOf, or { status: 'unknown', bill } of
 // the last answer) → { title, line, kind, off } or null (no Pay for this technician):
-//   wait — no issued bill (a draft, none, void); show — issued, not given; due — unpaid;
+//   wait — no issued bill (a draft, none, void); show — issued, not given («Give the bill first»); due — unpaid;
 //   left — partly paid; paid — paid in full (green); free — nothing to pay; offline — the last
 //   known balance without the connection; loading.
 export function payTile(visit, known, { offline = false } = {}) {
@@ -85,7 +85,7 @@ export function payTile(visit, known, { offline = false } = {}) {
     return { title: 'Pay', line: `${usd(due)} due · offline`, kind: 'offline', off: false };
   }
   if (!issued.delivered_at && !paymentsOf(issued).some((p) => p.kind === 'payment' && !p.voided_at)) {
-    return { title: 'Pay', line: 'Show the bill first', kind: 'show', off: false };
+    return { title: 'Pay', line: 'Give the bill first', kind: 'show', off: false };
   }
   switch (issued.payment_status) {
     case 'no_charge': return { title: 'Pay', line: 'Nothing to pay', kind: 'free', off: false };
@@ -178,10 +178,24 @@ export function minutesLeft(until, nowMs) {
   if (!Number.isFinite(end) || !Number.isFinite(nowMs) || end <= nowMs) return 0;
   return Math.ceil((end - nowMs) / 60000);
 }
+// HISTORY · 2 PAYMENTS · 1 TIP: a tip is not a payment, it is counted on its own
 export const countWord = (rows) => {
   const n = rows.filter((r) => !r.tip).length;
-  return n === 1 ? '1 payment' : `${n} payments`;
+  const tips = rows.filter((r) => r.tip).length;
+  const payments = n === 1 ? '1 payment' : `${n} payments`;
+  return tips ? `${payments} · ${tips === 1 ? '1 tip' : `${tips} tips`}` : payments;
 };
+
+// What the card charge is of the bill (design card-tip, card-summary): the whole bill, the rest
+// after earlier payments, or a part. { tipLabel (over the amount on the tip screen), title, sub }
+export function chargeOf(bill, part) {
+  const label = bill.label || `#${bill.bill_number}`;
+  const paid = bill.paid_cents || 0;
+  const totals = `Total ${usd(bill.total_cents)}${paid > 0 ? ` · ${usd(paid)} paid` : ''}`;
+  if (part) return { tipLabel: `Part of ${label}`, title: `Part of ${label}`, sub: totals };
+  if (paid > 0) return { tipLabel: `Left on ${label}`, title: `Rest of ${label}`, sub: totals };
+  return { tipLabel: `Bill ${label}`, title: `Bill ${label}`, sub: 'Total with tax' };
+}
 
 // ---------- how much now (design pay, pay-part) ----------
 // What the technician types: '100', '100.5', '$1,250.00' → cents; null else
