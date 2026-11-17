@@ -10,7 +10,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../constants/colors';
 import { firstName } from '../myDay/model';
 import { usd } from '../bill/model';
-import { chargeOf, moneyCents, tipButtons } from '../pay/model';
+import { chargeOf, moneyCents, tipButtons, tipPresetsOf } from '../pay/model';
 import { Field } from '../pay/parts';
 import { Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
@@ -21,7 +21,7 @@ export default function PayTipScreen({ route, navigation }) {
   const [picked, setPicked] = useState(null);           // a button's key, 'none' or 'custom'
   const [typed, setTyped] = useState('');
 
-  const buttons = tipButtons(bill.company && bill.company.tip_presets, bill.total_cents);
+  const buttons = tipButtons(tipPresetsOf(bill), bill.total_cents);
   const custom = moneyCents(typed);
   const tip = picked === 'none' ? 0 : picked === 'custom' ? custom : (buttons.find((b) => b.key === picked) || {}).cents;
   const ready = picked !== null && Number.isInteger(tip) && tip >= 0 && (picked !== 'custom' || tip > 0);
