@@ -311,7 +311,7 @@ export default function ApproveScreen({ route, navigation }) {
           ) : waitingOnPhone ? (
             <PlainButton text="Back to the visit" icon="back" onPress={() => navigation.goBack()} />
           ) : (
-            <PlainButton text="The customer signs again" icon="replay" onPress={() => { setAgain(true); setDrawn(false); setSaid(null); }} />
+            <PlainButton text="The customer signs again" icon="replay" onPress={() => { setAgain(true); setDrawn(false); setEstimate(null); setSaid(null); }} />
           )}
         </Foot>
       </KeyboardAvoidingView>
