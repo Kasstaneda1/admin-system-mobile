@@ -100,6 +100,7 @@ export default function SalaryMonthScreen({ route, navigation }) {
         <View style={billStyles.section}>
           <SectionHead label="Breakdown" />
           <View style={styles.breakdown}>
+            {!breakdown.length ? <Text style={styles.none}>No jobs for this period</Text> : null}
             {breakdown.map((b) => (
               <View key={b.key} style={styles.bdRow} accessible accessibilityLabel={`${b.tag.text}, ${b.value}`}>
                 <Tag tag={b.tag} big />
@@ -134,6 +135,7 @@ const styles = StyleSheet.create({
   minus: { borderWidth: 1.5, borderColor: colors.dangerBorder, backgroundColor: colors.dangerBg },
   minusText: { color: colors.dangerFg },
   breakdown: { paddingHorizontal: 16, gap: 10 },
+  none: { fontSize: 16, color: colors.fgSecondary },
   bdRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 30 },
   bdValue: { fontSize: 16, fontWeight: '700', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
   button: { padding: 16 },

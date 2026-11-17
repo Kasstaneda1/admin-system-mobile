@@ -74,7 +74,7 @@ export const salaryStyles = StyleSheet.create({
   pad: { paddingHorizontal: 16, paddingTop: 12 },
   card: { backgroundColor: colors.bgCard, borderRadius: 14, borderWidth: 1, borderColor: colors.borderDefault, overflow: 'hidden' },
   label: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, fontSize: 13, fontWeight: '800', letterSpacing: 0.8, color: colors.fgMutedField },
-  bottomSpace: { height: 24 },
+  bottomSpace: { paddingBottom: 24 },
 });
 
 const styles = StyleSheet.create({

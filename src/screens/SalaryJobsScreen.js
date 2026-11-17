@@ -30,7 +30,7 @@ export default function SalaryJobsScreen({ route, navigation }) {
       <FlatList
         data={cards}
         keyExtractor={(item) => item.card.key}
-        ListHeaderComponent={<Text style={salaryStyles.label} accessibilityRole="header">{head}</Text>}
+        ListHeaderComponent={<Text style={[salaryStyles.label, styles.head]} accessibilityRole="header">{head}</Text>}
         ListEmptyComponent={<Text style={styles.none}>No jobs for this period</Text>}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={styles.gap} />}
@@ -68,6 +68,7 @@ export default function SalaryJobsScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingBottom: 24 },
+  head: { paddingHorizontal: 0 },
   gap: { height: 8 },
   none: { paddingVertical: 32, textAlign: 'center', fontSize: 16, color: colors.fgSecondary },
   card: { gap: 6, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },

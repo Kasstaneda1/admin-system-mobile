@@ -236,6 +236,13 @@ export function EmptyDay({ title, offer, onOffer, onCallOffice }) {
 
 // ---------- the tab bar ----------
 const TABS = [['cal', 'My day', 'MyDay'], ['money', 'Salary', 'Salary'], ['box', 'Parts', 'Parts'], ['more', 'More', 'Home']];
+// A tab already in the stack is gone back to (React Navigation 7: navigate no longer goes back
+// by itself); a tab not in it opens on top, as before
+function openTab(navigation, screen) {
+  const state = navigation.getState();
+  if (state && state.routes.some((r) => r.name === screen)) navigation.popTo(screen);
+  else navigation.navigate(screen);
+}
 // fresh: how many visits are NEW or UPDATED (fresh.js): a blue count on the My day icon, «9+»;
 // current: the tab this screen belongs to (My day, Salary); pressing it goes back to the tab's
 // first screen (Salary from a job), as tabs do on iPhone
@@ -246,7 +253,7 @@ export function TabBar({ navigation, bottom, fresh = 0, current = 'My day' }) {
         const on = label === current;
         const count = screen === 'MyDay' && fresh > 0 ? fresh : 0;
         return (
-          <TouchableOpacity key={label} style={styles.tb} onPress={() => navigation.navigate(screen)}
+          <TouchableOpacity key={label} style={styles.tb} onPress={() => openTab(navigation, screen)}
             accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={screen === 'MyDay' ? tabLabel(count) : label}>
             <View>
               <Icon name={icon} size={24} color={on ? colors.brand : colors.fgMutedField} />
