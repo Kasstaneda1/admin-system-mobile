@@ -12,7 +12,9 @@
 //   - the company's latest approval terms go by their version (terms_version_id); none
 //     published — none sent;
 //   - in NYC the customer chooses about the written estimate (§2-255): estimate_choice and its
-//     price, without them the server refuses;
+//     price, without them the server refuses. The price is the company's price book item of
+//     line_kind estimate_fee (the first, in the book's order), none — free; the technician does
+//     not type it («Архитектор ПО», 2026-11-17). The copy of the approval is the written estimate;
 //   - an approval by phone is the office's (the technician gets 403): the screen says so;
 //   - the rule of the place (NYC more than 20 %, NJ any excess) is the server's: it stops the
 //     issue of a bill over the approved amount (409 authorization_exceeded, src/bill/model.js
@@ -50,11 +52,19 @@ export function ruleText(rule) {
 export const needsEstimateChoice = (rule) => rule === 'nyc_20';
 
 // ---------- the written estimate (NYC, §2-255) ----------
+// The words are «Архитектор ПО»'s (2026-11-17); the lawyer sees them with the terms
 export const ESTIMATE_CHOICES = [
-  { choice: 'written', title: 'Wants a written estimate' },
-  { choice: 'waived', title: 'Waives the written estimate' },
+  { choice: 'written', title: 'Yes, I want a written estimate' },
+  { choice: 'waived', title: 'No, I don’t need one' },
 ];
-export const estimatePriceText = (cents) => (cents > 0 ? usd(cents) : 'free');
+// Its price: the first active price book item of line_kind estimate_fee (the server answers the
+// book in its order: position, name), none — 0
+export function estimatePriceOf(items) {
+  const item = (Array.isArray(items) ? items : []).find((it) => it && it.line_kind === 'estimate_fee');
+  const cents = item ? Number(item.unit_price_cents) : 0;
+  return Number.isInteger(cents) && cents > 0 ? cents : 0;
+}
+export const estimateText = (cents) => `You have the right to a written estimate before any repair. ${cents > 0 ? `It costs ${usd(cents)}.` : 'It is free.'}`;
 
 // ---------- the terms ----------
 // The line of the company's approval terms: { title, sub } or null when none is published

@@ -28,7 +28,7 @@ import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody, usd } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 import {
-  ESTIMATE_CHOICES, agreedOf, authBody, countText, estimatePriceText, latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf,
+  ESTIMATE_CHOICES, agreedOf, authBody, countText, estimatePriceOf, estimateText, latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf,
 } from '../approve/model';
 import { approvals } from '../approve/store';
 import { downloadApprovalPdf } from '../approve/pdf';
@@ -56,12 +56,13 @@ export default function ApproveScreen({ route, navigation }) {
     if (n !== seq.current) return;
     setPending(kept);
     try {
-      const [draft, termsAnswer, listAnswer] = await Promise.all([billAPI.draft(id), approveAPI.terms(id), approveAPI.list(id)]);
+      const [draft, termsAnswer, listAnswer, book] = await Promise.all([billAPI.draft(id), approveAPI.terms(id), approveAPI.list(id), billAPI.priceBook(id)]);
       if (n !== seq.current) return;
       setBill(draft.bill || null);
       setTerms(termsAnswer.terms || null);
       setRule(listAnswer.rule || 'none');
       setLatest(latestOf(listAnswer.authorizations));
+      setEstimatePrice(estimatePriceOf(book.price_items));
       setState({ status: 'ready' });
     } catch (error) {
       if (n !== seq.current) return;
@@ -76,7 +77,7 @@ export default function ApproveScreen({ route, navigation }) {
   const [again, setAgain] = useState(false);         // a new signature over an existing approval
   const [name, setName] = useState((visit && visit.client_name) || '');
   const [estimate, setEstimate] = useState(null);    // { choice, price }
-  const [estimatePrice] = useState(null);            // the written estimate's price: «Архитектор ПО» decides its source
+  const [estimatePrice, setEstimatePrice] = useState(0); // the written estimate's price (the price book's estimate_fee)
   const [drawn, setDrawn] = useState(false);
   const [sending, setSending] = useState(false);
   const [said, setSaid] = useState(null);            // { kind, text } of the last try
@@ -106,6 +107,13 @@ export default function ApproveScreen({ route, navigation }) {
       setAgain(false);
       setPending(null);
       setLatest(r.authorization);
+      // the copy of this approval is the written estimate the customer asked for: give it now
+      if (body.estimate_choice === 'written') {
+        Alert.alert('The written estimate', 'The copy of this approval is the customer’s written estimate: its lines and amount. Give it to them now.', [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Share the PDF', onPress: () => shareCopy(r.authorization) },
+        ]);
+      }
       return;
     }
     if (r.result === 'waiting') {
@@ -122,12 +130,12 @@ export default function ApproveScreen({ route, navigation }) {
   // ---------- the customer's copy ----------
   const [copyBusy, setCopyBusy] = useState(null);    // 'share' | 'handed'
   const [copyDone, setCopyDone] = useState(null);    // words of the last copy given
-  const giveCopy = async (via, consent = false) => {
+  const giveCopy = async (via, consent = false, auth = latest) => {
     const { body, error } = deliverBody(via, '', consent);
     if (error) { Alert.alert('The copy is not marked', error); return; }
     setCopyBusy(via === 'shared' ? 'share' : 'handed');
     try {
-      await approveAPI.copies(id, latest.id, body);
+      await approveAPI.copies(id, auth.id, body);
       setCopyDone(via === 'shared' ? 'The PDF copy went to the customer.' : 'The customer has a printed copy.');
     } catch (e) {
       const failed = billError(e);
@@ -137,17 +145,17 @@ export default function ApproveScreen({ route, navigation }) {
       setCopyBusy(null);
     }
   };
-  const shareCopy = async () => {
-    if (copyBusy || !latest) return;
+  const shareCopy = async (auth = latest) => {
+    if (copyBusy || !auth) return;
     setCopyBusy('share');
     try {
-      const file = await downloadApprovalPdf(id, latest);
+      const file = await downloadApprovalPdf(id, auth);
       const result = await Share.share({ url: file.uri, title: 'Repair approval' });
       setCopyBusy(null);
       if (result && result.action === Share.sharedAction) {
         Alert.alert('Did the customer get it?', CONSENT_WORDS, [
           { text: 'Not yet', style: 'cancel' },
-          { text: 'Yes, they agreed', onPress: () => giveCopy('shared', true) },
+          { text: 'Yes, they agreed', onPress: () => giveCopy('shared', true, auth) },
         ]);
       }
     } catch (e) {
@@ -206,7 +214,7 @@ export default function ApproveScreen({ route, navigation }) {
               <Text style={styles.note}>The customer keeps a copy of what they signed. Showing it on the phone does not count.</Text>
               {copyDone ? <Box kind="done" icon="checkc" text={copyDone} style={styles.gapTop} /> : null}
               <View style={styles.copyButtons}>
-                <PlainButton text="Share the PDF" icon="share" onPress={shareCopy} waiting={copyBusy === 'share'} off={!!copyBusy} />
+                <PlainButton text="Share the PDF" icon="share" onPress={() => shareCopy()} waiting={copyBusy === 'share'} off={!!copyBusy} />
                 <PlainButton text="Handed a printed copy" icon="doc" onPress={() => giveCopy('handed')} waiting={copyBusy === 'handed'} off={!!copyBusy} />
               </View>
             </View>
@@ -250,9 +258,9 @@ export default function ApproveScreen({ route, navigation }) {
 
               {nyc ? (
                 <View style={styles.pad}>
-                  <Text style={styles.label}>WRITTEN ESTIMATE · NYC</Text>
                   <View style={styles.card}>
-                    <Text style={styles.sub}>The customer may get a written estimate before the repair ({estimatePrice === null ? 'price from the office' : estimatePriceText(estimatePrice)}).</Text>
+                    <Text style={styles.termsTitle} accessibilityRole="header">Written estimate</Text>
+                    <Text style={styles.sub}>{estimateText(estimatePrice)}</Text>
                     {ESTIMATE_CHOICES.map((c) => (
                       <TouchableOpacity key={c.choice} style={styles.choice} onPress={() => setEstimate(c.choice)} accessibilityRole="radio" accessibilityState={{ checked: estimate === c.choice }}>
                         <View style={[styles.radio, estimate === c.choice && styles.radioOn]}>{estimate === c.choice ? <View style={styles.radioDot} /> : null}</View>
