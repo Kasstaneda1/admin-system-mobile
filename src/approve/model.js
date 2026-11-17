@@ -54,8 +54,8 @@ export const needsEstimateChoice = (rule) => rule === 'nyc_20';
 // ---------- the written estimate (NYC, §2-255) ----------
 // The words are «Архитектор ПО»'s (2026-11-17); the lawyer sees them with the terms
 export const ESTIMATE_CHOICES = [
-  { choice: 'written', title: 'Yes, I want a written estimate' },
-  { choice: 'waived', title: 'No, I don’t need one' },
+  { choice: 'written', title: 'Yes, I want a written estimate', sub: 'We write it before the repair' },
+  { choice: 'waived', title: 'No, I don’t need one', sub: 'Go ahead with the repair' },
 ];
 // Its price: the first active price book item of line_kind estimate_fee (the server answers the
 // book in its order: position, name), none — 0
@@ -64,7 +64,18 @@ export function estimatePriceOf(items) {
   const cents = item ? Number(item.unit_price_cents) : 0;
   return Number.isInteger(cents) && cents > 0 ? cents : 0;
 }
-export const estimateText = (cents) => `You have the right to a written estimate before any repair. ${cents > 0 ? `It costs ${usd(cents)}.` : 'It is free.'}`;
+// The right in plain words, then its price (the screen shows the price in bold)
+export const ESTIMATE_RIGHT = 'You have the right to a written estimate before any repair.';
+export const estimatePriceText = (cents) => (cents > 0 ? `It costs ${usd(cents)}.` : 'It is free.');
+export const estimateText = (cents) => `${ESTIMATE_RIGHT} ${estimatePriceText(cents)}`;
+// After the signature: the words of the card «Written estimate» (design approve-nyc-done), or
+// null when the customer did not ask for one
+export function writtenText(auth) {
+  if (!auth || auth.estimate_choice !== 'written') return null;
+  const cents = Number(auth.estimate_price_cents);
+  const price = Number.isInteger(cents) && cents > 0 ? usd(cents) : 'free';
+  return `The customer asked for it (${price}). The copy of this approval is the written estimate.`;
+}
 
 // ---------- the terms ----------
 // The line of the company's approval terms: { title, sub } or null when none is published

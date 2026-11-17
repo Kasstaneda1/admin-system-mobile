@@ -29,7 +29,7 @@ import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody, usd } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 import {
-  ESTIMATE_CHOICES, agreedOf, authBody, countText, estimatePriceOf, estimateText, latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf,
+  ESTIMATE_CHOICES, ESTIMATE_RIGHT, agreedOf, authBody, countText, estimatePriceOf, estimatePriceText, writtenText, latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf,
 } from '../approve/model';
 import { approvals } from '../approve/store';
 import { downloadApprovalPdf } from '../approve/pdf';
@@ -90,6 +90,8 @@ export default function ApproveScreen({ route, navigation }) {
   const termsLine = termsLineOf(terms, bill && bill.company && (bill.company.name || bill.company.legal_name));
   const nyc = needsEstimateChoice(rule);
   const signing = !latest || again || (pending && pending.failed);
+  const mustChoose = nyc && !estimate;               // NYC: the customer chooses about the written estimate before signing
+  const written = writtenText(latest);
 
   const approve = async () => {
     if (sending) return;
@@ -108,13 +110,6 @@ export default function ApproveScreen({ route, navigation }) {
       setAgain(false);
       setPending(null);
       setLatest(r.authorization);
-      // the copy of this approval is the written estimate the customer asked for: give it now
-      if (body.estimate_choice === 'written') {
-        Alert.alert('The written estimate', 'The copy of this approval is the customer’s written estimate: its lines and amount. Give it to them now.', [
-          { text: 'Later', style: 'cancel' },
-          { text: 'Share the PDF', onPress: () => shareCopy(r.authorization) },
-        ]);
-      }
       return;
     }
     if (r.result === 'waiting') {
@@ -211,11 +206,20 @@ export default function ApproveScreen({ route, navigation }) {
                 </View>
                 <Text style={styles.sub}>Before tax · {latest.signer_name}</Text>
               </View>
+              {written ? (
+                <View style={[styles.card, styles.termsRow]}>
+                  <Icon name="doc" size={22} color={colors.fgSecondary} />
+                  <View style={styles.flex}>
+                    <Text style={styles.termsTitle}>Written estimate</Text>
+                    <Text style={styles.sub}>{written}</Text>
+                  </View>
+                </View>
+              ) : null}
               <Text style={[styles.label, styles.labelGap]}>THE CUSTOMER’S COPY</Text>
               <Text style={styles.note}>The customer keeps a copy of what they signed. Showing it on the phone does not count.</Text>
               {copyDone ? <Box kind="done" icon="checkc" text={copyDone} style={styles.gapTop} /> : null}
               <View style={styles.copyButtons}>
-                <PlainButton text="Share the PDF" icon="share" onPress={() => shareCopy()} waiting={copyBusy === 'share'} off={!!copyBusy} />
+                <PlainButton text={written ? 'Share the copy' : 'Share the PDF'} icon="share" onPress={() => shareCopy()} waiting={copyBusy === 'share'} off={!!copyBusy} />
                 <PlainButton text="Handed a printed copy" icon="doc" onPress={() => giveCopy('handed')} waiting={copyBusy === 'handed'} off={!!copyBusy} />
               </View>
             </View>
@@ -258,17 +262,28 @@ export default function ApproveScreen({ route, navigation }) {
               </View>
 
               {nyc ? (
-                <View style={styles.pad}>
-                  <View style={styles.card}>
-                    <Text style={styles.termsTitle} accessibilityRole="header">Written estimate</Text>
-                    <Text style={styles.sub}>{estimateText(estimatePrice)}</Text>
-                    {ESTIMATE_CHOICES.map((c) => (
-                      <TouchableOpacity key={c.choice} style={styles.choice} onPress={() => setEstimate(c.choice)} accessibilityRole="radio" accessibilityState={{ checked: estimate === c.choice }}>
-                        <View style={[styles.radio, estimate === c.choice && styles.radioOn]}>{estimate === c.choice ? <View style={styles.radioDot} /> : null}</View>
-                        <Text style={styles.choiceText}>{c.title}</Text>
+                <View style={styles.pad} accessibilityRole="radiogroup" accessibilityLabel="Written estimate">
+                  <Text style={styles.label} accessibilityRole="header">WRITTEN ESTIMATE</Text>
+                  <Text style={styles.right}>{ESTIMATE_RIGHT} <Text style={styles.rightPrice}>{estimatePriceText(estimatePrice)}</Text></Text>
+                  {ESTIMATE_CHOICES.map((c) => {
+                    const on = estimate === c.choice;
+                    return (
+                      <TouchableOpacity key={c.choice} style={[styles.choice, on && styles.choiceOn]} onPress={() => setEstimate(c.choice)} disabled={sending}
+                        accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${c.title}. ${c.sub}`}>
+                        <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
+                        <View style={styles.flex}>
+                          <Text style={styles.choiceText}>{c.title}</Text>
+                          <Text style={styles.choiceSub}>{c.sub}</Text>
+                        </View>
                       </TouchableOpacity>
-                    ))}
-                  </View>
+                    );
+                  })}
+                  {estimate ? null : (
+                    <View style={styles.need}>
+                      <Icon name="info" size={16} color={colors.warningFg} />
+                      <Text style={styles.needText}>Choose one to sign</Text>
+                    </View>
+                  )}
                 </View>
               ) : null}
 
@@ -278,7 +293,7 @@ export default function ApproveScreen({ route, navigation }) {
                   autoCapitalize="words" autoCorrect={false} returnKeyType="done" maxLength={200} accessibilityLabel="Customer name" />
               </View>
               <View onTouchStart={() => setScroll(false)} onTouchEnd={() => setScroll(true)} onTouchCancel={() => setScroll(true)}>
-                <SignaturePad ref={pad} onDrawn={setDrawn} disabled={sending} />
+                <SignaturePad ref={pad} onDrawn={setDrawn} disabled={sending || mustChoose} />
               </View>
               <Text style={styles.rule}>{ruleText(rule)}</Text>
             </>
@@ -289,9 +304,9 @@ export default function ApproveScreen({ route, navigation }) {
           {signing && !waitingOnPhone ? (
             <>
               <MainButton text={agreed ? `Approve · ${usd(agreed.amount)}` : 'Approve'} icon="check" onPress={approve} waiting={sending}
-                off={!agreed || !drawn || !name.trim() || (nyc && !estimate)} />
+                off={!agreed || !drawn || !name.trim() || mustChoose} />
               <Text style={styles.byPhone}>Agreed by phone? The office records it.</Text>
-              {latest && again ? <TouchableOpacity onPress={() => setAgain(false)} accessibilityRole="button"><Text style={styles.cancelAgain}>Keep the approval there is</Text></TouchableOpacity> : null}
+              {latest && again ? <TouchableOpacity onPress={() => setAgain(false)} accessibilityRole="button"><Text style={styles.cancelAgain}>Keep the earlier approval</Text></TouchableOpacity> : null}
             </>
           ) : waitingOnPhone ? (
             <PlainButton text="Back to the visit" icon="back" onPress={() => navigation.goBack()} />
@@ -340,11 +355,18 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 13, fontWeight: '700', color: colors.successFg },
   note: { fontSize: 14, lineHeight: 19, color: colors.fgSecondary },
   copyButtons: { gap: 10, marginTop: 12 },
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, marginTop: 6 },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.borderControl, alignItems: 'center', justifyContent: 'center' },
-  radioOn: { borderColor: colors.brandPressed },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brandPressed },
-  choiceText: { flex: 1, fontSize: 16, color: colors.fgDefault },
+  right: { marginBottom: 12, fontSize: 15, lineHeight: 21, color: colors.fgSecondary },
+  rightPrice: { fontWeight: '800', color: colors.fgDefault },
+  // the choices (design .iv-opt): a card, the chosen one brand-soft with a brand border
+  choice: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, minHeight: 56, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  choiceOn: { borderWidth: 2, paddingHorizontal: 13.5, paddingVertical: 11.5, borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  radio: { width: 22, height: 22, marginTop: 1, borderRadius: 11, borderWidth: 2, borderColor: colors.borderStrong, backgroundColor: colors.bgCard, alignItems: 'center', justifyContent: 'center' },
+  radioOn: { borderColor: colors.brand },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brand },
+  choiceText: { fontSize: 16, lineHeight: 21, fontWeight: '700', color: colors.fgDefault },
+  choiceSub: { marginTop: 2, fontSize: 14, lineHeight: 19, color: colors.fgSecondary },
+  need: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  needText: { fontSize: 14, fontWeight: '600', color: colors.warningFg },
   field: { paddingHorizontal: 16, paddingBottom: 12 },
   input: { minHeight: 50, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.borderControl, backgroundColor: colors.bgCard, fontSize: 17, color: colors.fgDefault },
   rule: { paddingTop: 8, paddingHorizontal: 16, fontSize: 13, lineHeight: 18, color: colors.fgMutedField },

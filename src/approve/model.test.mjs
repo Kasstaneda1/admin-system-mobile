@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ESTIMATE_CHOICES, RESIGN_WORDS, agreedOf, approveError, approveTile, authBody, canApprove, copyName, countText, estimatePriceOf, estimateText,
+  ESTIMATE_CHOICES, RESIGN_WORDS, agreedOf, approveError, approveTile, authBody, canApprove, copyName, countText, estimatePriceOf, estimatePriceText, estimateText, writtenText,
   latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf,
 } from './model.js';
 
@@ -40,6 +40,14 @@ test('the rule of the place: words only, the server counts it', () => {
   assert.equal(ESTIMATE_CHOICES[0].title, 'Yes, I want a written estimate');
   assert.equal(estimateText(0), 'You have the right to a written estimate before any repair. It is free.');
   assert.equal(estimateText(2500), 'You have the right to a written estimate before any repair. It costs $25.00.');
+  assert.equal(estimatePriceText(4500), 'It costs $45.00.');
+  assert.equal(estimatePriceText(0), 'It is free.');
+  assert.deepEqual(ESTIMATE_CHOICES.map((c) => c.sub), ['We write it before the repair', 'Go ahead with the repair']);
+  assert.equal(writtenText({ estimate_choice: 'written', estimate_price_cents: 4500 }), 'The customer asked for it ($45.00). The copy of this approval is the written estimate.');
+  assert.equal(writtenText({ estimate_choice: 'written', estimate_price_cents: 0 }), 'The customer asked for it (free). The copy of this approval is the written estimate.');
+  assert.equal(writtenText({ estimate_choice: 'waived', estimate_price_cents: 4500 }), null);
+  assert.equal(writtenText({ estimate_choice: null }), null);
+  assert.equal(writtenText(null), null);
   // the price: the first item of line_kind estimate_fee in the book's order; none — free
   const book = [{ line_kind: 'labor', unit_price_cents: 18000 }, { line_kind: 'estimate_fee', unit_price_cents: 2500 }, { line_kind: 'estimate_fee', unit_price_cents: 4000 }];
   assert.equal(estimatePriceOf(book), 2500);

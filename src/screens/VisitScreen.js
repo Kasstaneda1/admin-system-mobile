@@ -209,6 +209,9 @@ export default function VisitScreen({ route, navigation }) {
     ? updatedOf(shown.visit, before && before.visit, before && before.at) : null), [fresh, shown, before]);
   const tile = shown ? billTile(shown.visit, known) : null;
   const approve = shown ? approveTile(shown.visit, approveKnown, approveKept, now.date) : null;
+  // signed (here or on this phone, not sent yet) — the brand tile with a tick; not signed or not
+  // known yet — white with a border, no tick, so «to do» never looks like «done» (Дизайнер, #44)
+  const approveDone = !!approve && (approve.kind === 'signed' || approve.kind === 'pending');
   const openApprove = useCallback(() => {
     if (shown) navigation.navigate('Approve', { id, visit: shown.visit });
   }, [navigation, id, shown]);
@@ -584,12 +587,12 @@ export default function VisitScreen({ route, navigation }) {
             </View>
 
             {approve ? (
-              <TouchableOpacity style={styles.billTile} onPress={openApprove} accessibilityRole="button"
+              <TouchableOpacity style={[styles.billTile, !approveDone && styles.approveTodo]} onPress={openApprove} accessibilityRole="button"
                 accessibilityLabel={`${approve.title}, ${approve.line}${approve.warn ? `, ${approve.warn}` : ''}`}>
-                <Icon name="checkc" size={26} color={approve.kind === 'signed' ? colors.successFg : colors.brandPressed} />
+                <Icon name={approveDone ? 'checkc' : 'doc'} size={26} color={approve.kind === 'signed' ? colors.successFg : approveDone ? colors.brandPressed : colors.fgSecondary} />
                 <View style={styles.billTileBody}>
                   <Text style={styles.billTileTitle}>{approve.title}</Text>
-                  <Text style={[styles.billTileLine, approve.kind === 'signed' && styles.approveSigned]}>
+                  <Text style={[styles.billTileLine, approve.kind === 'signed' && styles.approveSigned, !approveDone && styles.approveTodoLine]}>
                     {approve.line}
                     {approve.warn ? <Text style={styles.billTileWarn}>{` · ${approve.warn}`}</Text> : null}
                   </Text>
@@ -823,6 +826,8 @@ const styles = StyleSheet.create({
   billTileOnFill: { color: colors.fgOnFill },
   billTileTextOff: { color: colors.fgDisabled },
   billTileWarn: { color: colors.warningFg },
+  approveTodo: { borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  approveTodoLine: { color: colors.fgSecondary },
   approveSigned: { color: colors.successFg },
   drafted: { marginTop: 10 },
   access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
