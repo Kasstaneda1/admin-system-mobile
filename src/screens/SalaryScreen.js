@@ -29,7 +29,7 @@ export default function SalaryScreen({ navigation }) {
     try {
       const data = await salaryAPI.year(which);
       if (n !== seq.current) return;
-      setMonths({ year: which, months: monthsOf(data.jobs, which) });
+      setMonths({ year: which, months: monthsOf(data.jobs, which), balance: data.totalToPay });
       setProblem(null);
     } catch (error) {
       if (n !== seq.current) return;
@@ -44,7 +44,7 @@ export default function SalaryScreen({ navigation }) {
 
   const today = todayOf();
   const shown = months && months.year === year ? months.months : null;
-  const tiles = useMemo(() => (shown ? yearTiles(shown, year, today) : null), [shown, year, today.year, today.month]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tiles = useMemo(() => (shown ? yearTiles(shown, year, today, months.balance) : null), [shown, months, year, today.year, today.month]); // eslint-disable-line react-hooks/exhaustive-deps
   const next = canGoNext(year, today);
   const go = (delta) => {
     setProblem(null);
@@ -69,10 +69,10 @@ export default function SalaryScreen({ navigation }) {
         {tiles ? (
           <View style={[salaryStyles.pad, styles.grid]}>
             {tiles.map((t) => (
-              <TouchableOpacity key={t.key} style={[styles.tile, t.empty && styles.tileEmpty, t.now && styles.tileNow]}
+              <TouchableOpacity key={t.key} style={[styles.tile, t.quiet && styles.tileEmpty, t.now && styles.tileNow]}
                 onPress={() => navigation.navigate('SalaryMonth', { year, month: t.month })}
                 accessibilityRole="button" accessibilityLabel={`${t.name} ${year}, ${t.empty ? 'no jobs' : `${t.amount}, ${t.sub}`}`}>
-                <Text style={[styles.tileName, t.empty && styles.tileQuiet]}>{t.name}</Text>
+                <Text style={[styles.tileName, t.quiet && styles.tileQuiet]}>{t.name}</Text>
                 <Text style={[styles.tileAmount, t.empty && styles.tileQuiet]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t.amount}</Text>
                 <Text style={[styles.tileSub, t.empty && styles.tileQuiet]}>{t.sub}</Text>
               </TouchableOpacity>

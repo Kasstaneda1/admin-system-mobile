@@ -108,9 +108,11 @@ export default function SalaryMonthScreen({ route, navigation }) {
               </View>
             ))}
           </View>
-          <View style={styles.button}>
-            <BrandButton text="View All Jobs" onPress={() => navigation.navigate('SalaryJobs', { year, month, jobs: data.jobs || [] })} />
-          </View>
+          {(data.jobs || []).length ? (
+            <View style={styles.button}>
+              <BrandButton text="View All Jobs" onPress={() => navigation.navigate('SalaryJobs', { year, month, jobs: data.jobs })} />
+            </View>
+          ) : <View style={styles.bottomGap} />}
         </View>
       </ScrollView>
     </SalaryFrame>
@@ -139,6 +141,7 @@ const styles = StyleSheet.create({
   bdRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 30 },
   bdValue: { fontSize: 16, fontWeight: '700', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
   button: { padding: 16 },
+  bottomGap: { height: 14 },
   emptyWrap: { flexGrow: 1 },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 48, paddingHorizontal: 24 },
   emptyCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgSunken },

@@ -57,8 +57,15 @@ test('the year: jobs by month, empty months, the month of today, no year ahead',
   assert.equal(months[0].count, 1);
   assert.equal(months[11].count, 0);
   const tiles = yearTiles(months, 2026, { year: 2026, month: 10 });
-  assert.deepEqual(tiles[10], { key: 'Nov', month: 10, name: 'Nov', amount: '$785.50', sub: '10 jobs', empty: false, now: true });
-  assert.deepEqual(tiles[11], { key: 'Dec', month: 11, name: 'Dec', amount: '—', sub: 'No jobs', empty: true, now: false });
+  assert.deepEqual(tiles[10], { key: 'Nov', month: 10, name: 'Nov', amount: '$785.50', sub: '10 jobs', empty: false, quiet: false, now: true });
+  assert.deepEqual(tiles[11], { key: 'Dec', month: 11, name: 'Dec', amount: '—', sub: 'No jobs', empty: true, quiet: true, now: false });
+  // design review #38: a month without jobs is grey only when there is no money either
+  const owed = yearTiles(months, 2026, { year: 2026, month: 10 }, -62.5);
+  assert.equal(owed[11].empty, true);
+  assert.equal(owed[11].quiet, false);
+  assert.equal(owed[10].quiet, false);
+  assert.equal(yearTiles(months, 2026, { year: 2026, month: 10 }, '0.00')[11].quiet, true);
+  assert.equal(yearTiles(months, 2026, { year: 2026, month: 10 }, 0.001)[11].quiet, true);
   assert.equal(tiles[0].sub, '1 job');
   assert.equal(yearTiles(months, 2025, { year: 2026, month: 10 }).some((t) => t.now), false);
   assert.equal(canGoNext(2026, { year: 2026 }), false);

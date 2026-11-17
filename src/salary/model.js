@@ -54,9 +54,12 @@ export function monthsOf(jobs, year) {
   return months;
 }
 
-// The twelve tiles (design salary-year): a month without jobs is grey and says «No jobs»; the
-// month of today is marked. Every tile opens its month, as on the site.
-export function yearTiles(months, year, today) {
+// The twelve tiles (design salary-year): a month without jobs says «No jobs»; the month of
+// today is marked. Every tile opens its month, as on the site. Grey (quiet) only when there is
+// no money either: no jobs and the year ends with a zero balance (balance = the year's
+// totalToPay) — a month without jobs still shows a balance carried over (design review #38).
+export function yearTiles(months, year, today, balance = 0) {
+  const settled = Math.round(num(balance) * 100) === 0;
   return months.map((m, i) => ({
     key: MONTHS_SHORT[i],
     month: i,
@@ -64,6 +67,7 @@ export function yearTiles(months, year, today) {
     amount: m.count ? money(m.total) : '—',
     sub: m.count ? jobsWord(m.count) : 'No jobs',
     empty: !m.count,
+    quiet: !m.count && settled,
     now: today.year === year && today.month === i,
   }));
 }
