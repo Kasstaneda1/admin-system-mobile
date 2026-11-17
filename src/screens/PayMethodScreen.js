@@ -5,7 +5,8 @@
 // the line under the button says it. A card goes on to the tip the customer picks (PayTipScreen)
 // and the summary (PayCardScreen); the rest are recorded here.
 // Zelle and Venmo: «Only to SEMIX CORP: (718) 555-0100» from the profile's payment_instructions
-// (the bill answer, backend #192); without them — «Only to SEMIX CORP».
+// (the bill answer, backend #192); without them — «Only to SEMIX CORP», «Ask the office for the
+// company’s number. Never to your own.» (the Designer, #51).
 // Not here yet: the photo of a check (server PR 13а-2).
 import React, { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
@@ -108,7 +109,8 @@ export default function PayMethodScreen({ route, navigation }) {
           {tile === 'zelle' || tile === 'venmo' ? (
             <Section label={tile === 'zelle' ? 'Zelle' : 'Venmo'}>
               <Box kind="warn" icon="warn" title={instructions ? `Only to ${company}: ${instructions}` : `Only to ${company}`}
-                text="To the company’s account, never to your own number or email. Ask the customer to show the sent payment." />
+                text={instructions ? 'To the company’s account, never to your own number or email. Ask the customer to show the sent payment.'
+                  : 'Ask the office for the company’s number. Never to your own.'} />
               <Field label="Note" optional value={note} onChange={setNote} placeholder="Confirmation # from their app" max={500} />
             </Section>
           ) : null}
