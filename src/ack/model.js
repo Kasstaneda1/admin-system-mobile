@@ -23,10 +23,30 @@ export const REPLACED_PARTS = [
   { choice: 'none', title: 'No parts were replaced', words: null },
 ];
 export const partsOf = (choice) => REPLACED_PARTS.find((p) => p.choice === choice) || null;
-// The line under «Replaced parts», by the rule the server names for the job (locationRule)
-export const partsNote = (rule) => (rule === 'nyc_20'
-  ? 'The customer chooses. Giving them up is only in writing, after the bill (NYC).'
-  : 'The customer chooses.');
+// Does the bill the customer signs for have parts (a line of kind 'part', a warranty one too)?
+// The bill's PDF decides its parts wording by the same sign («Архитектор ПО», #46)
+export const billHasParts = (bill) => !!bill && Array.isArray(bill.lines) && bill.lines.some((l) => l && l.kind === 'part');
+// The choices the customer has, by the bill (NYC §2-259): parts on it — returned or given up;
+// none — only «No parts were replaced». The customer cannot sign that nothing was replaced when
+// the bill has parts.
+export const partsChoicesOf = (bill) => (billHasParts(bill)
+  ? REPLACED_PARTS.filter((p) => p.choice !== 'none')
+  : REPLACED_PARTS.filter((p) => p.choice === 'none'));
+// The line under «Replaced parts», by the rule the server names for the job (locationRule) and
+// whether the bill has parts
+export const partsNote = (rule, hasParts = true) => {
+  if (!hasParts) return 'This bill has no parts: nothing was replaced.';
+  return rule === 'nyc_20'
+    ? 'The customer chooses. Giving them up is only in writing, after the bill (NYC).'
+    : 'The customer chooses.';
+};
+// A tap on a choice: { parts, clear }. The customer signs under one choice: a different choice
+// after the signature is drawn wipes it (and the request id with it), the customer signs again.
+// The name is not part of it («Тимлид», «Архитектор ПО», #46)
+export function pickParts(current, next, drawn) {
+  if (next === current) return { parts: current, clear: false };
+  return { parts: next, clear: !!drawn };
+}
 
 // ---------- may the customer sign now ----------
 // By the visit's bill as GET /my/visits/:id/bill answers it:
@@ -72,10 +92,11 @@ export function ackTermsLine(terms) {
 
 // ---------- the request ----------
 // The body of POST …/bill/acknowledgment, or { error } in words before anything is sent
-export function ackBody({ name, png, parts, terms, requestId }) {
+export function ackBody({ name, png, parts, terms, requestId, bill }) {
   const signer = String(name || '').trim();
   if (!signer) return { error: 'Type the customer’s name.' };
   if (!partsOf(parts)) return { error: 'Choose what happened to the replaced parts.' };
+  if (bill !== undefined && !partsChoicesOf(bill).some((p) => p.choice === parts)) return { error: 'Choose what happened to the replaced parts.' };
   if (!png) return { error: 'The customer signs in the box first.' };
   const body = { signer_name: signer.slice(0, 200), signature_png: png, replaced_parts: parts, client_request_id: requestId };
   if (terms) body.terms_version_id = terms.id;

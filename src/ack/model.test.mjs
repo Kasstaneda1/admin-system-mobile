@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  REPLACED_PARTS, ackBody, ackTermsLine, ackCopyName, ackError, ackStage, billHeadOf, partsNote, partsOf, signedLine, stageText,
+  REPLACED_PARTS, ackBody, ackTermsLine, billHasParts, partsChoicesOf, pickParts, ackCopyName, ackError, ackStage, billHeadOf, partsNote, partsOf, signedLine, stageText,
 } from './model.js';
 
 const BILL = { id: 77, status: 'issued', label: 'NY-1048', bill_number: 1048, total_cents: 25041, delivered_at: '2026-11-17T17:42:00Z' };
@@ -88,4 +88,33 @@ test('the acknowledgment terms: their title or a plain one, none when the compan
   assert.equal(ackTermsLine(null), null);
   assert.deepEqual(ackTermsLine({ id: 4, version: 2, title: 'Receipt terms' }), { title: 'Receipt terms', sub: 'Version 2 · the customer gets a copy' });
   assert.deepEqual(ackTermsLine({ id: 4, version: 1, title: '  ' }), { title: 'Bill acknowledgment terms', sub: 'Version 1 · the customer gets a copy' });
+});
+
+test('the choices follow the bill: parts on it — returned or given up; none — only «no parts»', () => {
+  const withPart = { ...BILL, lines: [{ kind: 'labor' }, { kind: 'part', warranty: false }] };
+  const withWarrantyPart = { ...BILL, lines: [{ kind: 'part', warranty: true }] };
+  const noPart = { ...BILL, lines: [{ kind: 'labor' }, { kind: 'diagnostics_credit' }, { kind: 'extra' }] };
+  assert.equal(billHasParts(withPart), true);
+  assert.equal(billHasParts(withWarrantyPart), true);
+  assert.equal(billHasParts(noPart), false);
+  assert.equal(billHasParts({ ...BILL, lines: undefined }), false);
+  assert.equal(billHasParts(null), false);
+  assert.deepEqual(partsChoicesOf(withPart).map((p) => p.choice), ['returned', 'waived']);
+  assert.deepEqual(partsChoicesOf(withWarrantyPart).map((p) => p.choice), ['returned', 'waived']);
+  assert.deepEqual(partsChoicesOf(noPart).map((p) => p.choice), ['none']);
+  assert.equal(partsNote('nyc_20', false), 'This bill has no parts: nothing was replaced.');
+  assert.equal(partsNote('nyc_20', true), 'The customer chooses. Giving them up is only in writing, after the bill (NYC).');
+  // the request refuses a choice the bill does not allow
+  const sign = { name: 'Sanjay Patel', png: 'data:image/png;base64,AAAA', requestId: 'r1' };
+  assert.equal(ackBody({ ...sign, parts: 'none', bill: withPart }).error, 'Choose what happened to the replaced parts.');
+  assert.equal(ackBody({ ...sign, parts: 'returned', bill: noPart }).error, 'Choose what happened to the replaced parts.');
+  assert.equal(ackBody({ ...sign, parts: 'waived', bill: withPart }).body.replaced_parts, 'waived');
+  assert.equal(ackBody({ ...sign, parts: 'none', bill: noPart }).body.replaced_parts, 'none');
+});
+
+test('a different choice after the signature is drawn wipes it: the customer signs again', () => {
+  assert.deepEqual(pickParts(null, 'returned', false), { parts: 'returned', clear: false });
+  assert.deepEqual(pickParts('returned', 'waived', true), { parts: 'waived', clear: true });
+  assert.deepEqual(pickParts('returned', 'waived', false), { parts: 'waived', clear: false });
+  assert.deepEqual(pickParts('returned', 'returned', true), { parts: 'returned', clear: false });
 });

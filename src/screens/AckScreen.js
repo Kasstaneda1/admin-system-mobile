@@ -4,6 +4,9 @@
 // src/ack/model.js has the rules; the server keeps and checks them.
 //   - One signature per bill. A bill that is not issued, not delivered or void cannot be signed
 //     for: the screen says what comes first.
+//   - Replaced parts by the bill's lines (§2-259): parts on it — returned or given up; none —
+//     only «No parts were replaced». The customer signs under one choice: a different choice
+//     after the signature is drawn wipes it, they sign again.
 //   - The company's acknowledgment terms (latest version), if it has any — Read shows them; their
 //     version goes with the signature. None — nothing is sent about them.
 //   - No queue on the phone: without the connection «Try again online» and the signature stays
@@ -23,7 +26,7 @@ import { nowWall } from '../myDay/model';
 import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
-import { REPLACED_PARTS, ackBody, ackError, ackStage, ackTermsLine, billHeadOf, partsNote, partsOf, signedLine, stageText } from '../ack/model';
+import { ackBody, ackError, ackStage, ackTermsLine, billHasParts, billHeadOf, partsChoicesOf, partsNote, partsOf, pickParts, signedLine, stageText } from '../ack/model';
 import { downloadAckPdf } from '../ack/pdf';
 import SignaturePad from '../approve/SignaturePad';
 
@@ -77,12 +80,23 @@ export default function AckScreen({ route, navigation }) {
     setDrawn(false);
     requestId.current = null;
   };
+  // a choice: another one after the signature is drawn wipes the signature
+  const choose = (next) => {
+    const { parts: chosenNow, clear } = pickParts(parts, next, drawn);
+    setParts(chosenNow);
+    if (clear) {
+      startOver();
+      setSaid({ kind: 'resign', text: 'The choice changed: the customer signs again.' });
+    } else {
+      setSaid(null);
+    }
+  };
 
   const sign = async () => {
     if (sending) return;
     const png = pad.current ? await pad.current.png() : null;
     if (!requestId.current) requestId.current = newRequestId();
-    const { body, error } = ackBody({ name, png, parts, terms, requestId: requestId.current });
+    const { body, error } = ackBody({ name, png, parts, terms, requestId: requestId.current, bill });
     if (error) { setSaid({ kind: 'refused', text: error }); return; }
     setSending(true);
     setSaid(null);
@@ -170,7 +184,9 @@ export default function AckScreen({ route, navigation }) {
   const head = billHeadOf(bill, today);
   const termsLine = ackTermsLine(terms);
   const signing = !ack && stage === 'open';
-  const chosen = partsOf(parts);
+  const hasParts = billHasParts(bill);
+  const choices = partsChoicesOf(bill);
+  const chosen = choices.find((p) => p.choice === parts) || null;
   const mustChoose = !chosen;
   const signedParts = ack ? partsOf(ack.replaced_parts) : null;
 
@@ -252,11 +268,11 @@ export default function AckScreen({ route, navigation }) {
 
               <View style={styles.pad} accessibilityRole="radiogroup" accessibilityLabel="Replaced parts">
                 <Text style={styles.label} accessibilityRole="header">REPLACED PARTS</Text>
-                <Text style={styles.right}>{partsNote(rule)}</Text>
-                {REPLACED_PARTS.map((p) => {
+                <Text style={styles.right}>{partsNote(rule, hasParts)}</Text>
+                {choices.map((p) => {
                   const on = parts === p.choice;
                   return (
-                    <TouchableOpacity key={p.choice} style={[styles.choice, on && styles.choiceOn]} onPress={() => { setParts(p.choice); setSaid(null); }} disabled={sending}
+                    <TouchableOpacity key={p.choice} style={[styles.choice, on && styles.choiceOn]} onPress={() => choose(p.choice)} disabled={sending}
                       accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={p.words ? `${p.title}. ${p.words}` : p.title}>
                       <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
                       <View style={styles.flex}>
