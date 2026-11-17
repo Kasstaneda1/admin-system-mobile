@@ -1,300 +1,59 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { salaryAPI } from '../services/api';
+// Salary, Paid → Payments (design-mockups/app-salary-parts salary-payments; site
+// technician-payments.js): Total Payments of the month, «November 2026 · 2 payments», the payouts
+// by date, the newest first. route params { year, month, from? } — the month of the Paid row;
+// opened from More without a month: this month. Data: salary/money.js paymentsOf.
+import React, { useCallback, useMemo } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../constants/colors';
-import LoadingScreen from '../components/LoadingScreen';
-import ErrorMessage from '../components/ErrorMessage';
-import YearSelector from '../components/YearSelector';
-import StatusBadge from '../components/StatusBadge';
-import EmptyState from '../components/EmptyState';
-import { parseLocalDate } from '../utils/dateUtils';
-import { logError } from '../utils/logError';
+import { useAuth } from '../session/AuthContext';
+import Icon from '../myDay/Icon';
+import { SectionHead, TopBar, billStyles } from '../bill/parts';
+import { salaryMoneyAPI } from '../services/api';
+import { NO_PAYMENTS, monthOfParams, paymentsOf } from '../salary/money';
+import { useAnswer } from '../salary/useAnswer';
+import { NoData, SalaryFrame, salaryStyles } from '../salary/parts';
+import { EmptyNote, moneyStyles } from '../salary/moneyParts';
 
-export default function PaymentsScreen() {
-  const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [loading, setLoading] = useState(true);
-  const [allPayments, setAllPayments] = useState([]);
-  const [yearPayments, setYearPayments] = useState([]);
-  const [yearTotal, setYearTotal] = useState(0);
-  const [error, setError] = useState(null);
-
-  const years = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
-
-  useEffect(() => {
-    loadPayments();
-  }, []);
-
-  useEffect(() => {
-    if (allPayments.length > 0) {
-      const filtered = allPayments.filter(payment => {
-        const paymentYear = parseLocalDate(payment.payment_date).getFullYear();
-        return paymentYear === selectedYear;
-      });
-      setYearPayments(filtered);
-      const total = filtered.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-      setYearTotal(total);
-    } else {
-      setYearPayments([]);
-      setYearTotal(0);
-    }
-  }, [selectedYear, allPayments]);
-
-  const loadPayments = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const userJson = await AsyncStorage.getItem('user');
-      const user = JSON.parse(userJson);
-      const technicianName = user?.fullName;
-
-      if (!technicianName) {
-        setError('Unable to load technician name');
-        setLoading(false);
-        return;
-      }
-
-      const data = await salaryAPI.getPayments(technicianName);
-      setAllPayments(data.payments || []);
-    } catch (err) {
-      logError('Error loading payments:', err);
-      const message = err.response?.data?.error || 'Failed to load payments. Please check your connection.';
-      setError(message);
-      Alert.alert('Error', message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  const groupPaymentsByMonth = (payments) => {
-    const groups = {};
-    payments.forEach(payment => {
-      const date = parseLocalDate(payment.payment_date);
-      const month = date.getMonth();
-      if (!groups[month]) {
-        groups[month] = [];
-      }
-      groups[month].push(payment);
-    });
-    // Sort months descending (most recent first)
-    return Object.keys(groups)
-      .map(Number)
-      .sort((a, b) => b - a)
-      .map(month => ({
-        month,
-        name: monthNames[month],
-        payments: groups[month],
-        total: groups[month].reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
-      }));
-  };
-
-  const renderPayment = (payment) => {
-    const date = parseLocalDate(payment.payment_date).toLocaleDateString();
-    const amount = parseFloat(payment.amount || 0).toFixed(2);
-
-    return (
-      <View key={payment.id} style={styles.paymentCard}>
-        <View style={styles.paymentMainRow}>
-          <Text style={styles.paymentDate}>{date}</Text>
-          <Text style={styles.paymentAmount}>${amount}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  const renderMonthGroup = (group) => {
-    return (
-      <View key={group.month} style={styles.monthGroup}>
-        <View style={styles.monthHeader}>
-          <View style={styles.monthHeaderLine} />
-          <View style={styles.monthHeaderContent}>
-            <Text style={styles.monthName}>{group.name}</Text>
-            <Text style={styles.monthTotal}>${group.total.toFixed(2)}</Text>
-          </View>
-          <View style={styles.monthHeaderLine} />
-        </View>
-        <Text style={styles.monthCount}>
-          {group.payments.length} {group.payments.length === 1 ? 'payment' : 'payments'}
-        </Text>
-        {group.payments.map(payment => renderPayment(payment))}
-      </View>
-    );
-  };
-
-  if (loading) {
-    return <LoadingScreen message="Loading payments..." />;
-  }
-
-  if (error) {
-    return <ErrorMessage message={error} onRetry={loadPayments} />;
-  }
+export default function PaymentsScreen({ route, navigation }) {
+  const params = route.params || {};
+  const { year, month } = useMemo(() => monthOfParams(params), [params]);
+  const { user } = useAuth();
+  const name = user?.fullName || null;
+  const load = useCallback(() => salaryMoneyAPI.payments(name), [name]);
+  const { answer, problem, refreshing, reload } = useAnswer(load, 'Payments');
+  const p = useMemo(() => (answer ? paymentsOf(answer, year, month) : null), [answer, year, month]);
 
   return (
-    <View style={styles.container}>
-      <YearSelector
-        years={years}
-        selectedYear={selectedYear}
-        onYearChange={setSelectedYear}
-      />
-
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.content}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Total Payments {selectedYear}</Text>
-            <Text style={styles.summaryAmount}>${yearTotal.toFixed(2)}</Text>
-            <Text style={styles.summaryCount}>
-              {yearPayments.length} {yearPayments.length === 1 ? 'payment' : 'payments'}
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionIcon}>💰</Text>
-              <Text style={styles.sectionTitle}>Payment History</Text>
-              <StatusBadge count={yearPayments.length} variant="primary" />
+    <SalaryFrame navigation={navigation} top={<TopBar back={params.from || 'Salary'} title="Payments" onBack={() => navigation.goBack()} />}>
+      {!p ? <NoData problem={problem} onRetry={() => reload()} /> : (
+        <ScrollView contentContainerStyle={salaryStyles.bottomSpace}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => reload({ pull: true })} tintColor={colors.brand} />}>
+          <View style={moneyStyles.head}>
+            <View style={[salaryStyles.card, moneyStyles.total]} accessible accessibilityLabel={`Total Payments ${p.total}, ${p.line}`}>
+              <Text style={moneyStyles.totalLabel}>TOTAL PAYMENTS</Text>
+              <Text style={moneyStyles.totalBig} numberOfLines={1} adjustsFontSizeToFit>{p.total}</Text>
+              <Text style={moneyStyles.totalSub}>{p.line}</Text>
             </View>
-
-            {yearPayments.length > 0 ? (
-              groupPaymentsByMonth(yearPayments).map(group => renderMonthGroup(group))
-            ) : (
-              <EmptyState message={`No payments for ${selectedYear}`} />
-            )}
           </View>
-        </View>
-      </ScrollView>
-    </View>
+          <View style={[billStyles.section, moneyStyles.firstSection]}>
+            <SectionHead label="Payments" />
+            {p.rows.length ? p.rows.map((r) => (
+              <View key={r.key} style={styles.pay} accessible accessibilityLabel={`${r.date}, ${r.amount}`}>
+                <View style={styles.ico}><Icon name="wallet" size={22} color={colors.successFg} /></View>
+                <Text style={styles.date}>{r.date}</Text>
+                <Text style={styles.amount}>{r.amount}</Text>
+              </View>
+            )) : <EmptyNote icon="wallet" title={NO_PAYMENTS.title} text={NO_PAYMENTS.text} />}
+          </View>
+        </ScrollView>
+      )}
+    </SalaryFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 16,
-  },
-  summaryCard: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: colors.whiteTransparent90,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  summaryAmount: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 4,
-  },
-  summaryCount: {
-    fontSize: 14,
-    color: colors.whiteTransparent80,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionIcon: {
-    fontSize: 24,
-    marginRight: 8,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.textDark,
-    marginRight: 8,
-    flex: 1,
-  },
-  monthGroup: {
-    marginBottom: 8,
-  },
-  monthHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-    marginTop: 4,
-  },
-  monthHeaderLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  monthHeaderContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 10,
-  },
-  monthName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textDark,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  monthTotal: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  monthCount: {
-    fontSize: 12,
-    color: colors.textLight,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  paymentCard: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.success,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  paymentMainRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  paymentDate: {
-    fontSize: 14,
-    color: colors.textMedium,
-  },
-  paymentAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.success,
-  },
+  pay: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: colors.borderSubtle, backgroundColor: colors.bgCard },
+  ico: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.successBg },
+  date: { flex: 1, fontSize: 16, color: colors.fgDefault },
+  amount: { fontSize: 16, fontWeight: '800', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
 });

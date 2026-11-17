@@ -166,17 +166,17 @@ function Screens() {
             <Stack.Screen
               name="Payments"
               component={PaymentsScreen}
-              options={{ title: 'Payments' }}
+              options={{ headerShown: false, title: 'Payments' }}
             />
             <Stack.Screen
               name="Receipts"
               component={ReceiptsScreen}
-              options={{ title: 'Receipts' }}
+              options={{ headerShown: false, title: 'Receipts' }}
             />
             <Stack.Screen
               name="Unpaid"
               component={UnpaidScreen}
-              options={{ title: 'Unpaid Records' }}
+              options={{ headerShown: false, title: 'Unpaid Clients' }}
             />
           </>
         )}

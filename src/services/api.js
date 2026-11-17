@@ -103,27 +103,19 @@ export const salaryAPI = {
   // totalPaid, totalCash, totalChecks, totalUnpaid and the balance totalToPay
   year: async (year) => (await api.post('/api/technician-salary', { year }, { timeout: 15000 })).data,
   month: async (year, month) => (await api.post('/api/technician-salary', { year, month }, { timeout: 15000 })).data,
-
-  getPayments: async (technicianName) => {
-    const response = await api.get(`/api/technicians/payments/${technicianName}`);
-    return response.data;
-  },
 };
 
-// Unpaid Records API
-export const unpaidAPI = {
-  getUnpaidRecords: async (technicianName) => {
-    const response = await api.get(`/api/technician-unpaid/unpaid/${technicianName}`);
-    return response.data;
-  },
-};
-
-// Receipts API
-export const receiptsAPI = {
-  getMyReceipts: async () => {
-    const response = await api.get('/api/my-receipts');
-    return response.data;
-  },
+// The rows of a Salary month that open their own screen (salary/money.js reads the answers);
+// the server takes the technician from the login, the name in the address is not trusted
+// (the site's technician portal sends it the same way).
+//   payments — { payments: [{ id, payment_date, amount }] }, every payout, the newest first;
+//   receipts — [{ id, date, client_name, work_status, check_amount }], checks not handed in;
+//   unpaid — { pending: [...], declined: [...] } of the unpaid records.
+const named = (name) => encodeURIComponent(name || 'me');
+export const salaryMoneyAPI = {
+  payments: async (name) => (await api.get(`/api/technician-payments/${named(name)}`, { timeout: 15000 })).data,
+  receipts: async () => (await api.get('/api/my-receipts', { timeout: 15000 })).data,
+  unpaid: async (name) => (await api.get(`/api/technician-unpaid/unpaid/${named(name)}`, { timeout: 15000 })).data,
 };
 
 // Warehouse API

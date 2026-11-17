@@ -50,6 +50,7 @@ const ICONS = {
   trash: require('../../assets/icons/trash.png'),
   truck: require('../../assets/icons/truck.png'),
   undo: require('../../assets/icons/undo.png'),
+  wallet: require('../../assets/icons/wallet.png'),
   warn: require('../../assets/icons/warn.png'),
   wifioff: require('../../assets/icons/wifioff.png'),
   wrench: require('../../assets/icons/wrench.png'),
