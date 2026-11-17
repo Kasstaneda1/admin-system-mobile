@@ -44,7 +44,7 @@ export default function SalaryScreen({ navigation }) {
 
   const today = todayOf();
   const shown = months && months.year === year ? months.months : null;
-  const tiles = useMemo(() => (shown ? yearTiles(shown, year, today, months.balance) : null), [shown, year, today.year, today.month]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tiles = useMemo(() => (shown ? yearTiles(shown, year, today, months.balance) : null), [shown, months, year, today.year, today.month]); // eslint-disable-line react-hooks/exhaustive-deps
   const next = canGoNext(year, today);
   const go = (delta) => {
     setProblem(null);
