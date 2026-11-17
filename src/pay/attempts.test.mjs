@@ -133,3 +133,12 @@ test('Pay read the bill again: its attempts are forgotten, other bills keep thei
   forgetBill(78);
   assert.equal(linesLocked(null), false);
 });
+
+test('card: the payment went, the tip was refused — the attempt stays, the layout does not change', async () => {
+  const a = startAttempt(77, 'card', { bill: BILL, lines: [line('pay-9'), line('tip-9', { kind: 'tip' })], view: { forKey: 'me' } });
+  const s = fakeServer([ok(90), server(400, { error: 'tip_for_user_id must be a technician of the visit' }), ok(91)]);
+  const result = await runAttempt(a, s);
+  assert.deepEqual([result.failed.kind, attemptOf(77, 'card'), linesLocked(a), a.uncertain], ['refused', a, true, false]);
+  const again = await runAttempt(a, s);
+  assert.deepEqual([again.done, s.sent, s.reads], [true, ['pay-9', 'tip-9', 'tip-9'], 0], 'only the tip goes again, no look needed');
+});
