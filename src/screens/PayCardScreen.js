@@ -73,7 +73,7 @@ export default function PayCardScreen({ route, navigation }) {
             <View style={styles.row} accessible accessibilityLabel={`Bill ${label} ${usd(cents)}`}>
               <View style={styles.flex}>
                 <Text style={styles.name}>{`Bill ${label}`}</Text>
-                <Text style={styles.sub}>{part ? 'Part of the bill' : 'Total with tax'}</Text>
+                <Text style={styles.sub}>{part ? 'Part of the bill' : (bill.paid_cents || 0) > 0 ? 'The rest of the bill' : 'Total with tax'}</Text>
               </View>
               <Text style={styles.amount}>{usd(cents)}</Text>
             </View>
@@ -106,7 +106,7 @@ export default function PayCardScreen({ route, navigation }) {
         ) : null}
       </ScrollView>
       <Foot bottom={insets.bottom}
-        note={tipCents > 0 ? `${parts.length + 1} lines: payment ${usd(cents)} and tip ${usd(tipCents)}. The bill and its tax stay as they are.` : 'Money on hand: the office. Nothing to turn in.'}>
+        note={tipCents > 0 ? `${parts.length + 1 === 2 ? 'Two' : 'Three'} lines: payment ${usd(cents)} and tip ${usd(tipCents)}. The bill and its tax stay as they are.` : 'Money on hand: the office. Nothing to turn in.'}>
         <MainButton text={paidDone ? 'Record the tip again' : `Charged · record ${usd(total)}`} icon="check" waiting={sending} onPress={record} />
       </Foot>
     </SafeAreaView>
