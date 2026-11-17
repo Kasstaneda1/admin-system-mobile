@@ -12,7 +12,8 @@
 //     connection — «Signed · saved on this phone», it goes by itself. The draft or the terms
 //     changed meanwhile — the server refuses, the customer sees the new and signs again.
 //   - By phone: the office records it (the technician cannot), the screen says so.
-//   - A visit with an approval opens on it: its copy, and «The customer signs again».
+//   - A visit with an approval opens on it: its copy, and «The customer signs again»; from a
+//     refused issue (over the approved amount) it opens on the new signature at once.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -35,7 +36,7 @@ import { downloadApprovalPdf } from '../approve/pdf';
 import SignaturePad from '../approve/SignaturePad';
 
 export default function ApproveScreen({ route, navigation }) {
-  const { id, visit } = route.params || {};
+  const { id, visit, again: askAgain = false } = route.params || {};
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -74,7 +75,7 @@ export default function ApproveScreen({ route, navigation }) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // ---------- the form ----------
-  const [again, setAgain] = useState(false);         // a new signature over an existing approval
+  const [again, setAgain] = useState(askAgain);      // a new signature over an existing approval (the issue asked for it)
   const [name, setName] = useState((visit && visit.client_name) || '');
   const [estimate, setEstimate] = useState(null);    // { choice, price }
   const [estimatePrice, setEstimatePrice] = useState(0); // the written estimate's price (the price book's estimate_fee)
@@ -195,10 +196,10 @@ export default function ApproveScreen({ route, navigation }) {
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.body} scrollEnabled={scroll} canCancelContentTouches={scroll} keyboardShouldPersistTaps="handled">
           {waitingOnPhone ? (
-            <Box kind="done" icon="checkc" title="Signed · saved on this phone" text="No connection. The signature goes to the office by itself when the phone is back online. You can start the repair." style={styles.pad} />
+            <Box kind="done" icon="checkc" title="Signed · saved on this phone" text="No connection. The signature goes to the office by itself when the phone is back online. You can start the repair." style={styles.boxGap} />
           ) : null}
-          {pending && pending.failed ? <Box kind="warn" icon="warn" title="The signature was not accepted" text={pending.failed.text} style={styles.pad} /> : null}
-          {said && !(pending && pending.failed && said.text === pending.failed.text) ? <Box kind="warn" icon="warn" text={said.text} style={styles.pad} /> : null}
+          {pending && pending.failed ? <Box kind="warn" icon="warn" title="The signature was not accepted" text={pending.failed.text} style={styles.boxGap} /> : null}
+          {said && !(pending && pending.failed && said.text === pending.failed.text) ? <Box kind="warn" icon="warn" text={said.text} style={styles.boxGap} /> : null}
 
           {!signing && latest && !waitingOnPhone ? (
             <View style={styles.pad}>
@@ -320,6 +321,7 @@ const styles = StyleSheet.create({
   gapTop: { marginTop: 10 },
   body: { paddingTop: 12, paddingBottom: 24 },
   pad: { paddingHorizontal: 16, paddingBottom: 12 },
+  boxGap: { marginHorizontal: 16, marginBottom: 12 },
   flex: { flex: 1 },
   label: { marginBottom: 8, fontSize: 13, fontWeight: '800', letterSpacing: 1.1, color: colors.fgSecondary },
   labelGap: { marginTop: 16 },

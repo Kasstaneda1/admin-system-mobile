@@ -74,7 +74,7 @@ export default function BillPreviewScreen({ route, navigation }) {
         // the customer approves the new amount on the Approve screen (src/approve)
         Alert.alert('The bill is not issued', failed.text, [
           { text: 'Not now', style: 'cancel' },
-          { text: 'Approve again', onPress: () => navigation.navigate('Approve', { id, visit }) },
+          { text: 'Approve again', onPress: () => navigation.navigate('Approve', { id, visit, again: true }) },
         ]);
         load();
         return;

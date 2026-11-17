@@ -176,6 +176,8 @@ export default function VisitScreen({ route, navigation }) {
       // the bill is read with the card: without it the Bill tile says so instead of waiting
       setKnown((k) => k || { status: 'unknown', bill: null });
       setApproveKnown((k) => k || { status: 'unknown', list: [] });
+      // a signature kept on this phone shows on the tile without the connection too
+      if (keptOne) loadApprove({ ...keptOne.card, ...(fromList || {}) });
     } finally {
       if (seq === loadSeq.current) setRefreshing(false);
     }
