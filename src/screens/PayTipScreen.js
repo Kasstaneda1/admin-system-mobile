@@ -14,7 +14,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { firstName } from '../myDay/model';
 import { usd } from '../bill/model';
-import { chargeOf, moneyCents, tipButtons } from '../pay/model';
+import { chargeOf, moneyCents, tipButtons, tipPresetsOf } from '../pay/model';
 import { Field } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 import { attemptOf, lockedTipOf } from '../pay/attempts';
@@ -27,7 +27,7 @@ export default function PayTipScreen({ route, navigation }) {
   const [entered, setTyped] = useState('');
   useIsFocused();                                        // back from the card: look at its attempt again
 
-  const buttons = tipButtons(bill.company && bill.company.tip_presets, bill.total_cents);
+  const buttons = tipButtons(tipPresetsOf(bill), bill.total_cents);
   const lock = lockedTipOf(attemptOf(bill.id, 'card'), buttons);
   const picked = lock ? lock.picked : chosen;
   const typed = lock ? lock.typed : entered;
