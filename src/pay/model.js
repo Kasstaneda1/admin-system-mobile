@@ -314,11 +314,21 @@ export function paymentBody({ kind = 'payment', cents, method, name = null, note
   return { body };
 }
 // The green banner after a record: '$100.00 cash recorded · 2:24 PM'
+function paymentWhat(payment) {
+  return payment.kind === 'tip' ? `${usd(payment.amount_cents)} tip` : `${usd(payment.amount_cents)} ${methodWord(payment.method, payment.method_note)}`;
+}
+const paymentAt = (payment) => {
+  const at = momentWall(payment.received_at);
+  return at ? ` · ${clock(at.minutes)}` : '';
+};
 export function recordedLine(payment) {
   if (!payment) return null;
-  const at = momentWall(payment.received_at);
-  const what = payment.kind === 'tip' ? `${usd(payment.amount_cents)} tip` : `${usd(payment.amount_cents)} ${methodWord(payment.method, payment.method_note)}`;
-  return `${what} recorded${at ? ` · ${clock(at.minutes)}` : ''}`;
+  return `${paymentWhat(payment)} recorded${paymentAt(payment)}`;
+}
+// Lines that went through without an answer and were found on the bill (pay/attempts.js):
+// «Already recorded: $60.00 cash · 11:31», several joined with «, »
+export function alreadyLine(payments) {
+  return `Already recorded: ${payments.map((p) => `${paymentWhat(p)}${paymentAt(p)}`).join(', ')}`;
 }
 
 // ---------- voiding one's own record (design void) ----------

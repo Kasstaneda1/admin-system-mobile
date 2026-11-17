@@ -2,7 +2,10 @@
 // customer gives later — from the paid bill's «Add a cash tip». The company's buttons and
 // Custom, who it is for, how it was given. Not part of the bill: the bill, its tax and its
 // balance do not change (kind tip, BILLS_MV_DESIGN.md §3.7). A split is two lines.
-import React, { useRef, useState } from 'react';
+// The lines live in pay/attempts.js by bill: after the first line the server took, or a send
+// without an answer, the amount, who it is for and how stay as sent (also after Back and «Add a
+// cash tip» again, until Pay has read the bill); the next press sends the same lines.
+import React, { useReducer, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +13,8 @@ import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { holderLine, moneyCents, payError, paymentBody, shortPerson, tipButtons, tipForChoices, tipParts, tipPresetsOf } from '../pay/model';
+import { alreadyLine, holderLine, moneyCents, paymentBody, shortPerson, tipButtons, tipForChoices, tipParts, tipPresetsOf } from '../pay/model';
+import { LOOK_AGAIN, answeredCount, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { BigHead, Choice, Field, MethodTiles, Pills, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
@@ -21,13 +25,18 @@ export default function CashTipScreen({ route, navigation }) {
   const { id, visit, bill } = route.params || {};
   const insets = useSafeAreaInsets();
   const buttons = tipButtons(tipPresetsOf(bill), bill.total_cents);
-  const [picked, setPicked] = useState(buttons[buttons.length - 1].key);
-  const [typed, setTyped] = useState('');
-  const [forKey, setForKey] = useState('me');
-  const [method, setMethod] = useState('cash');
+  const kept = attemptOf(bill.id, 'tip');
+  const view = kept ? kept.view : null;
+  const [picked, setPicked] = useState(view ? view.picked : buttons[buttons.length - 1].key);
+  const [typed, setTyped] = useState(view ? view.typed : '');
+  const [forKey, setForKey] = useState(view ? view.forKey : 'me');
+  const [method, setMethod] = useState(view ? view.method : 'cash');
   const [sending, setSending] = useState(false);
-  const [failed, setFailed] = useState(null);
-  const [done, setDone] = useState(0);                   // lines already recorded (a split)
+  const [failed, setFailed] = useState(kept && kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}` : null);
+  const [, redraw] = useReducer((n) => n + 1, 0);
+  const attempt = attemptOf(bill.id, 'tip');
+  const locked = linesLocked(attempt);
+  const done = answeredCount(attempt);                   // lines already recorded (a split)
 
   const label = bill.label || `#${bill.bill_number}`;
   const meName = bill.technician && bill.technician.name;
@@ -35,31 +44,36 @@ export default function CashTipScreen({ route, navigation }) {
   const ok = Number.isInteger(cents) && cents > 0;
   const parts = ok ? tipParts(cents, forKey, visit) : [];
 
-  const ids = useRef(null);
   const record = async () => {
     if (sending || !ok) return;
-    const shape = JSON.stringify({ parts, method });
-    if (!ids.current || ids.current.shape !== shape) ids.current = { shape, list: parts.map(() => newRequestId()) };
-    const bodies = parts.map((p, i) => paymentBody({ kind: 'tip', cents: p.cents, method, tipFor: p, requestId: ids.current.list[i] }));
-    const bad = bodies.find((b) => b.error);
-    if (bad) { setFailed(bad.error); return; }
+    let current = attemptOf(bill.id, 'tip');
+    if (!current) {
+      const lines = parts.map((p) => {
+        const rid = newRequestId();
+        return { rid, built: paymentBody({ kind: 'tip', cents: p.cents, method, tipFor: p, requestId: rid }) };
+      });
+      const bad = lines.find((l) => l.built.error);
+      if (bad) { setFailed(bad.built.error); return; }
+      current = startAttempt(bill.id, 'tip', { lines: lines.map((l) => ({ rid: l.rid, body: l.built.body })), view: { picked, typed, forKey, method } });
+    }
     setSending(true);
     setFailed(null);
-    try {
-      let data = null;
-      for (let i = 0; i < bodies.length; i += 1) {
-        data = await payAPI.record(id, bodies[i].body);
-        setDone(i + 1);
-      }
-      navigation.popTo('Pay', { id, visit, bill: data.bill, recorded: { key: ids.current.list[0], line: `${usd(cents)} tip recorded` } });
-    } catch (error) {
-      const f = payError(error);
-      if (f.kind === 'failed') logError('Error recording a tip:', error);
-      if (f.kind === 'gone') { navigation.popToTop(); return; }
-      setFailed(f.text);
-    } finally {
-      setSending(false);
+    const result = await runAttempt(current, { record: (body) => payAPI.record(id, body) });
+    setSending(false);
+    redraw();
+    const key = current.lines[0].rid;
+    if (result.done) {
+      navigation.popTo('Pay', { id, visit, bill: result.data.bill, recorded: { key, line: `${usd(cents)} tip recorded` } });
+      return;
     }
+    if (result.already) {
+      navigation.popTo('Pay', { id, visit, bill: result.bill, recorded: { key: `already-${key}`, line: alreadyLine(result.already) } });
+      return;
+    }
+    const f = result.failed;
+    if (f.kind === 'failed') logError('Error recording a tip:', result.error);
+    if (f.kind === 'gone') { navigation.popToTop(); return; }
+    setFailed(noAnswer(f) ? `${f.text} ${LOOK_AGAIN}` : f.text);
   };
 
   return (
@@ -71,16 +85,16 @@ export default function CashTipScreen({ route, navigation }) {
           <BigHead label={`Tip · not part of ${label}`} big={usd(ok ? cents : 0)} sub="No tax. The bill and its balance do not change." />
           <Section label="How much">
             <Pills items={[...buttons.map((b) => ({ key: b.key, label: b.sub ? `${b.label} · ${b.sub}` : b.label })), { key: 'custom', label: 'Custom' }]}
-              value={picked} onPick={(k) => k && setPicked(k)} off={sending || done > 0} />
-            {picked === 'custom' ? <Field big prefix="$" label={null} value={typed} onChange={setTyped} keyboard="decimal-pad" max={9} placeholder="0.00" a11y="Tip amount" autoFocus /> : null}
+              value={picked} onPick={(k) => k && setPicked(k)} off={sending || locked} />
+            {picked === 'custom' ? <Field off={locked} big prefix="$" label={null} value={typed} onChange={setTyped} keyboard="decimal-pad" max={9} placeholder="0.00" a11y="Tip amount" autoFocus /> : null}
           </Section>
           <Section label="For">
             <View style={{ gap: 8 }} accessibilityRole="radiogroup">
-              {tipForChoices(visit, meName).map((c) => <Choice key={c.key} on={forKey === c.key} title={c.title} sub={c.sub} onPress={() => setForKey(c.key)} off={sending || done > 0} />)}
+              {tipForChoices(visit, meName).map((c) => <Choice key={c.key} on={forKey === c.key} title={c.title} sub={c.sub} onPress={() => setForKey(c.key)} off={sending || locked} />)}
             </View>
           </Section>
           <Section label="Pay with">
-            <MethodTiles value={method} onPick={setMethod} only={TIP_METHODS} off={sending || done > 0} />
+            <MethodTiles value={method} onPick={setMethod} only={TIP_METHODS} off={sending || locked} />
           </Section>
           {failed ? <Box kind="danger" icon="warn" style={payStyles.gap} text={done > 0 ? `${done} of ${parts.length} lines recorded. ${failed}` : failed} /> : null}
         </ScrollView>
