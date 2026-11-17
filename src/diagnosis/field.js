@@ -7,12 +7,13 @@ import Icon from '../myDay/Icon';
 import { DIAGNOSIS_HINT, DIAGNOSIS_MAX } from './model';
 
 // The field in «How did it end?» (design app-finish): «Diagnosis · optional» for now (Д-2 makes
-// it required with D2-BE), the text of the visit to start with. failure: its save got no answer
-export function FinishDiagnosisField({ text, failure, sending, onChangeText }) {
+// it required with D2-BE), the text of the visit to start with. failure: its save got no answer;
+// onFocus: the sheet scrolls the field into view above the keyboard
+export function FinishDiagnosisField({ text, failure, sending, onChangeText, onFocus }) {
   return (
     <View style={s.finish}>
       <Text style={s.finishLabel}>Diagnosis<Text style={s.finishOpt}> · optional</Text></Text>
-      <TextInput style={s.finishField} value={text} onChangeText={onChangeText} multiline editable={!sending}
+      <TextInput style={s.finishField} value={text} onChangeText={onChangeText} onFocus={onFocus} multiline editable={!sending}
         maxLength={DIAGNOSIS_MAX} placeholder={DIAGNOSIS_HINT} placeholderTextColor={colors.fgMutedField}
         textAlignVertical="top" accessibilityLabel="Diagnosis, printed on the bill" />
       {failure ? (

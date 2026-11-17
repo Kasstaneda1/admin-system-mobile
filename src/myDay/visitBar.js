@@ -1,7 +1,7 @@
 // The bottom of the visit (design A3 final-visit-onway / sched / closed) and its sheets
 // (final-finish, final-noaccess). What shows comes from actions.js barOf; nothing here
 // decides what may be pressed. Sizes in pt, colours only tokens.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from './Icon';
@@ -142,9 +142,12 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
   useEffect(() => { if (visible) setChosen(initial); }, [visible, initial]);
   const field = !!diagnosis && diagnosis.asks(chosen);
   const saving = !!diagnosis && diagnosis.sending;
+  // the field is under the choices: once the keyboard is up, bring it into view (simulator check)
+  const scroll = useRef(null);
+  const toField = () => setTimeout(() => scroll.current && scroll.current.scrollToEnd({ animated: true }), 300);
   return (
     <Sheet visible={visible} onClose={saving ? () => {} : onClose} bottom={bottom} keyboard={!!diagnosis}>
-      <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollBody} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scroll} style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollBody} keyboardShouldPersistTaps="handled">
       <Text style={styles.title} accessibilityRole="header">How did it end?</Text>
       <Text style={styles.sub}>{subtitle}</Text>
       <View style={styles.choices} accessibilityRole="radiogroup">
@@ -166,7 +169,7 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
           );
         })}
       </View>
-      {field ? <FinishDiagnosisField text={diagnosis.text} failure={diagnosis.failure} sending={saving} onChangeText={diagnosis.onChangeText} /> : null}
+      {field ? <FinishDiagnosisField text={diagnosis.text} failure={diagnosis.failure} sending={saving} onChangeText={diagnosis.onChangeText} onFocus={toField} /> : null}
       </ScrollView>
       <TouchableOpacity style={[styles.main, saving && styles.off]} disabled={saving} onPress={() => onFinish(chosen, field)} accessibilityRole="button"
         accessibilityState={{ disabled: saving, busy: saving }}>
