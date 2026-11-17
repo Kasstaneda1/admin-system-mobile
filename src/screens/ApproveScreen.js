@@ -119,7 +119,8 @@ export default function ApproveScreen({ route, navigation }) {
     }
     setPending(await approvals.pendingOf(id, userId));
     setSaid(r.failed);
-    if (r.result === 'resign' || r.result === 'refused') { pad.current && pad.current.clear(); load(); }
+    // a new signature is a new choice about the written estimate («Архитектор ПО», #44)
+    if (r.result === 'resign' || r.result === 'refused') { pad.current && pad.current.clear(); setEstimate(null); load(); }
     if (r.result === 'gone') Alert.alert('The visit changed', r.failed.text, [{ text: 'OK', onPress: () => navigation.goBack() }]);
   };
 
