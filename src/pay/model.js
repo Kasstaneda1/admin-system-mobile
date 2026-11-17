@@ -218,9 +218,10 @@ export function amountOf({ full, typed, note }, due) {
 }
 
 // ---------- tips (design card-tip, tip; BILLS_MV_DESIGN.md §3.7) ----------
-// The company's buttons (pd_company_profiles.tip_presets: { mode: amount | percent, values });
-// until the bill brings them — $5, $10, $20 (the owner's choice). Percent of the total with tax,
-// half away from zero. → [{ key, label, sub, cents }]
+// The company's buttons (pd_company_profiles.tip_presets: { mode: amount | percent, values }),
+// which the bill answer brings at its top (backend #192, tipPresetsOf); a broken or missing
+// setting — $5, $10, $20 (the owner's choice). Percent of the total with tax, half away from
+// zero. → [{ key, label, sub, cents }]
 export const DEFAULT_TIPS = { mode: 'amount', values: [500, 1000, 2000] };
 export function tipButtons(presets, totalCents) {
   const ok = presets && (presets.mode === 'amount' || presets.mode === 'percent') && Array.isArray(presets.values)
@@ -240,10 +241,26 @@ const percentWord = (milli) => {
   return `${whole}${rest ? `.${rest}` : ''}%`;
 };
 // Who the tip is for: [{ key, title, sub }]; split only with a helper on the visit
-export function tipForChoices(visit, meName) {
+// The tip buttons of the bill's company: the bill answer's tip_presets (backend #192), null
+// without them (tipButtons then gives the default)
+export const tipPresetsOf = (bill) => (bill && bill.tip_presets && typeof bill.tip_presets === 'object' ? bill.tip_presets : null);
+
+// How to pay the company (its Zelle number…): the bill answer's payment_instructions, trimmed;
+// null when the profile has none
+export function paymentInstructionsOf(bill) {
+  const text = bill && typeof bill.payment_instructions === 'string' ? bill.payment_instructions.trim() : '';
+  return text || null;
+}
+
+// «Split with the helper» waits for the owner's decision on sharing tips: hidden until then.
+// The helper as a user of the company comes on the visit card (helper_id, backend #192).
+export const SPLIT_WITH_HELPER = false;
+export const helperIdOf = (visit) => (visit && Number.isInteger(visit.helper_id) && visit.helper_id > 0 ? visit.helper_id : null);
+
+export function tipForChoices(visit, meName, { split = SPLIT_WITH_HELPER } = {}) {
   const me = shortPerson(meName) || firstName(meName) || 'You';
   const out = [{ key: 'me', title: `${me} · you`, sub: 'The main technician of this visit' }];
-  if (visit && visit.second_technician_id) out.push({ key: 'split', title: 'Split with the helper', sub: `Two lines, one for you and one for ${firstName(visit.helper_name) || 'the helper'}` });
+  if (split && helperIdOf(visit)) out.push({ key: 'split', title: 'Split with the helper', sub: `Two lines, one for you and one for ${firstName(visit.helper_name) || 'the helper'}` });
   out.push({ key: 'team', title: 'The whole team', sub: 'The office shares it' });
   return out;
 }
@@ -252,10 +269,10 @@ export function tipForChoices(visit, meName) {
 export function tipParts(cents, forKey, visit) {
   if (!(cents > 0)) return [];
   if (forKey === 'team') return [{ cents, tip_for_user_id: null }];
-  if (forKey === 'split' && visit && visit.second_technician_id) {
+  if (forKey === 'split' && helperIdOf(visit)) {
     const helper = Math.floor(cents / 2);
     const mine = cents - helper;
-    return [{ cents: mine }, ...(helper > 0 ? [{ cents: helper, tip_for_user_id: Number(visit.second_technician_id) }] : [])];
+    return [{ cents: mine }, ...(helper > 0 ? [{ cents: helper, tip_for_user_id: helperIdOf(visit) }] : [])];
   }
   return [{ cents }];
 }

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {
   METHODS, OTHER_CHOICES, PART_REASONS, VOID_REASONS, amountOf, canPay, chargeOf, chipOf, chosenMethod, countWord, dueOf, historyOf, holderLine, inHand,
   laterReasonGiven, methodWord, minutesLeft, moneyCents, numbersOf, paidAt, payError, payTile, paymentBody, recordedLine, shortPerson, stageOf,
-  tipButtons, tipForChoices, tipForLine, tipParts, voidBody,
+  tipButtons, tipForChoices, tipForLine, tipParts, voidBody, tipPresetsOf, paymentInstructionsOf, helperIdOf, SPLIT_WITH_HELPER,
 } from './model.js';
 
 // The design's bill (design-mockups/payments): NY-1048, $175.29, Ivan Petrov; $100.00 cash at
 // 2:24 PM (19:24Z on Nov 17), then $75.29 by check #1042 at 2:26 PM
-const VISIT = { id: 31, role: 'main', status: 'closed', legacy: false, second_technician_id: 7, helper_name: 'Mike Torres' };
+const VISIT = { id: 31, role: 'main', status: 'closed', legacy: false, helper_id: 7, helper_name: 'Mike Torres' };
 const ISSUED = {
   id: 5, status: 'issued', label: 'NY-1048', bill_number: 1048, total_cents: 17529, deposits_applied_cents: 0,
   issued_at: '2026-11-17T19:20:00Z', delivered_at: '2026-11-17T19:22:00Z',
@@ -165,13 +165,19 @@ test('tip buttons: the company\'s amounts or percent of the total with tax; $5 $
 });
 
 test('who the tip is for: you, split with the helper (odd cent yours), the team', () => {
-  assert.deepEqual(tipForChoices(VISIT, 'Ivan Petrov').map((c) => c.key), ['me', 'split', 'team']);
+  // «Split with the helper» is hidden until the owner decides (8б): not even with a helper
+  assert.equal(SPLIT_WITH_HELPER, false);
+  assert.deepEqual(tipForChoices(VISIT, 'Ivan Petrov').map((c) => c.key), ['me', 'team']);
+  assert.deepEqual(tipForChoices(VISIT, 'Ivan Petrov', { split: true }).map((c) => c.key), ['me', 'split', 'team']);
   assert.equal(tipForChoices(VISIT, 'Ivan Petrov')[0].title, 'Ivan P. · you');
-  assert.deepEqual(tipForChoices({ ...VISIT, second_technician_id: null }, 'Ivan Petrov').map((c) => c.key), ['me', 'team']);
+  assert.deepEqual(tipForChoices({ ...VISIT, helper_id: null }, 'Ivan Petrov', { split: true }).map((c) => c.key), ['me', 'team']);
+  // the helper's id is the card's helper_id (backend #192), not the office's second_technician_id
+  assert.deepEqual(tipForChoices({ ...VISIT, helper_id: undefined, second_technician_id: 7 }, 'Ivan Petrov', { split: true }).map((c) => c.key), ['me', 'team']);
+  assert.deepEqual([helperIdOf(VISIT), helperIdOf({ helper_id: '7' }), helperIdOf({ helper_id: 0 }), helperIdOf(null)], [7, null, null, null]);
   assert.deepEqual(tipParts(1000, 'me', VISIT), [{ cents: 1000 }]);
   assert.deepEqual(tipParts(1001, 'split', VISIT), [{ cents: 501 }, { cents: 500, tip_for_user_id: 7 }]);
   assert.deepEqual(tipParts(1, 'split', VISIT), [{ cents: 1 }]);
-  assert.deepEqual(tipParts(1000, 'split', { ...VISIT, second_technician_id: null }), [{ cents: 1000 }]);
+  assert.deepEqual(tipParts(1000, 'split', { ...VISIT, helper_id: null }), [{ cents: 1000 }]);
   assert.deepEqual(tipParts(1000, 'team', VISIT), [{ cents: 1000, tip_for_user_id: null }]);
   assert.deepEqual(tipParts(0, 'me', VISIT), []);
   assert.equal(tipForLine('me', VISIT, 'Ivan Petrov'), 'For Ivan P. · no tax');
@@ -231,4 +237,15 @@ test('the server\'s refusals in words', () => {
   assert.equal(payError(err(404, { error: 'Visit not found' })).kind, 'gone');
   assert.equal(payError(err(400, { error: 'method is required: cash, check' })).text, 'method is required: cash, check.');
   assert.equal(payError(err(500)).kind, 'failed');
+});
+
+test('the company\'s settings from the bill answer: tip buttons and how to pay (backend #192)', () => {
+  const presets = { mode: 'percent', values: [15000, 20000] };
+  assert.deepEqual(tipPresetsOf({ tip_presets: presets }), presets);
+  assert.equal(tipPresetsOf({ company: { tip_presets: presets } }), null, 'at the top of the answer, not in company');
+  assert.deepEqual([tipPresetsOf({}), tipPresetsOf(null), tipPresetsOf({ tip_presets: 'x' })], [null, null, null]);
+  assert.deepEqual(tipButtons(tipPresetsOf({ tip_presets: presets, total_cents: 10000 }), 10000).map((b) => [b.label, b.cents]), [['15%', 1500], ['20%', 2000]]);
+  assert.equal(paymentInstructionsOf({ payment_instructions: '  Zelle (718) 555-0100 ' }), 'Zelle (718) 555-0100');
+  assert.deepEqual([paymentInstructionsOf({ payment_instructions: '   ' }), paymentInstructionsOf({ payment_instructions: null }), paymentInstructionsOf({}), paymentInstructionsOf(null)],
+    [null, null, null, null]);
 });

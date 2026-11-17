@@ -10,7 +10,7 @@ import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { holderLine, moneyCents, payError, paymentBody, shortPerson, tipButtons, tipForChoices, tipParts } from '../pay/model';
+import { holderLine, moneyCents, payError, paymentBody, shortPerson, tipButtons, tipForChoices, tipParts, tipPresetsOf } from '../pay/model';
 import { BigHead, Choice, Field, MethodTiles, Pills, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
@@ -20,7 +20,7 @@ const TIP_METHODS = ['cash', 'check', 'card', 'zelle', 'venmo'];
 export default function CashTipScreen({ route, navigation }) {
   const { id, visit, bill } = route.params || {};
   const insets = useSafeAreaInsets();
-  const buttons = tipButtons(bill.company && bill.company.tip_presets, bill.total_cents);
+  const buttons = tipButtons(tipPresetsOf(bill), bill.total_cents);
   const [picked, setPicked] = useState(buttons[buttons.length - 1].key);
   const [typed, setTyped] = useState('');
   const [forKey, setForKey] = useState('me');
