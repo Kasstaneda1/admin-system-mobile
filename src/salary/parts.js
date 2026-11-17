@@ -9,15 +9,15 @@ import { colors } from '../constants/colors';
 import { TabBar } from '../myDay/parts';
 import { PlainButton } from '../bill/parts';
 
-// A Salary screen: its top (the tab title or a back bar), what it shows, the tab bar
-export function SalaryFrame({ navigation, top, children }) {
+// A Salary (or Parts: tab) screen: its top (the tab title or a back bar), what it shows, the tab bar
+export function SalaryFrame({ navigation, top, children, tab = 'Salary' }) {
   const insets = useSafeAreaInsets();
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <StatusBar style="dark" />
       {top}
       <View style={styles.page}>{children}</View>
-      <TabBar navigation={navigation} bottom={insets.bottom} current="Salary" />
+      <TabBar navigation={navigation} bottom={insets.bottom} current={tab} />
     </SafeAreaView>
   );
 }

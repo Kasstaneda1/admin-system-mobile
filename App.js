@@ -22,6 +22,7 @@ import SalaryMonthScreen from './src/screens/SalaryMonthScreen';
 import SalaryJobsScreen from './src/screens/SalaryJobsScreen';
 import SalaryJobScreen from './src/screens/SalaryJobScreen';
 import PartsScreen from './src/screens/PartsScreen';
+import PartsEstimateScreen from './src/screens/PartsEstimateScreen';
 import WarehouseScreen from './src/screens/WarehouseScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
 import ReceiptsScreen from './src/screens/ReceiptsScreen';
@@ -150,7 +151,12 @@ function Screens() {
             <Stack.Screen
               name="Parts"
               component={PartsScreen}
-              options={{ title: 'Parts' }}
+              options={{ headerShown: false, title: 'Parts' }}
+            />
+            <Stack.Screen
+              name="PartsEstimate"
+              component={PartsEstimateScreen}
+              options={{ headerShown: false, title: 'Estimate' }}
             />
             <Stack.Screen
               name="Warehouse"
