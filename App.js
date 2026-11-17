@@ -20,6 +20,7 @@ import BillLineScreen from './src/screens/BillLineScreen';
 import BillPreviewScreen from './src/screens/BillPreviewScreen';
 import BillSendScreen from './src/screens/BillSendScreen';
 import ApproveScreen from './src/screens/ApproveScreen';
+import AckScreen from './src/screens/AckScreen';
 import BillPdfScreen from './src/screens/BillPdfScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
@@ -138,6 +139,11 @@ function Screens() {
               name="Approve"
               component={ApproveScreen}
               options={{ headerShown: false, title: 'Approve' }}
+            />
+            <Stack.Screen
+              name="Ack"
+              component={AckScreen}
+              options={{ headerShown: false, title: 'Customer signs for the bill' }}
             />
             <Stack.Screen
               name="BillPdf"

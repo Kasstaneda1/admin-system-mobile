@@ -8,25 +8,28 @@
 //     customer's consent to electronic documents (a box to tick, the server keeps its words);
 //     once per bill (POST …/bill/delivered). A share that went out offers the mark at once.
 // Showing the bill on the phone does not count: the customer must keep a copy.
+// Delivered: the customer signs that they got it (AckScreen), or the line of their signature.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
-import { billAPI } from '../services/api';
+import { ackAPI, billAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { nowWall, clock, momentWall } from '../myDay/model';
 import { Sheet } from '../myDay/visitBar';
 import { CONSENT_WORDS, DELIVERY_CHOICES, billError, deliverBody, deliveryOf, emailOf, pdfName } from '../bill/model';
 import { downloadBillPdf } from '../bill/pdf';
+import { signedLine } from '../ack/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 
 export default function BillSendScreen({ route, navigation }) {
-  const { id } = route.params || {};
+  const { id, visit } = route.params || {};
   const insets = useSafeAreaInsets();
   const [bill, setBill] = useState(null);
+  const [ack, setAck] = useState(null);               // the customer's signature for the bill, once they signed
   const [problem, setProblem] = useState(null);
   const seq = useRef(0);
 
@@ -35,6 +38,11 @@ export default function BillSendScreen({ route, navigation }) {
     try {
       const data = await billAPI.get(id);
       if (n === seq.current) { setBill(data.bill); setProblem(null); }
+      // the signature for it: only a delivered bill has one; not read — the button opens the screen that reads it
+      if (data.bill && data.bill.delivered_at) {
+        const signed = await ackAPI.get(id).catch(() => null);
+        if (n === seq.current && signed) setAck(signed.acknowledgment || null);
+      }
     } catch (error) {
       if (n !== seq.current) return;
       const failed = billError(error);
@@ -194,6 +202,8 @@ export default function BillSendScreen({ route, navigation }) {
 
       <Foot bottom={insets.bottom} note={delivered ? null : 'Shown on your phone only does not count: the customer must keep a copy.'}>
         {delivered ? null : <MainButton text="Mark as delivered…" icon="check" onPress={() => openMark(null)} />}
+        {delivered && !ack ? <MainButton text="Customer signs for the bill" icon="check" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
+        {delivered && ack ? <PlainButton text={signedLine(ack, now.date)} icon="checkc" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
         <PlainButton text="Share the PDF" icon="share" waiting={pdfBusy === 'share'} onPress={sharePdf} />
       </Foot>
 
