@@ -252,6 +252,11 @@ const payPath = (id) => `/api/my/visits/${encodeURIComponent(id)}/payments`;
 export const payAPI = {
   record: async (id, body) => (await api.post(payPath(id), body, { timeout: 30000 })).data,
   void: async (id, paymentId, reason) => (await api.post(`${payPath(id)}/${encodeURIComponent(paymentId)}/void`, { reason }, { timeout: 15000 })).data,
+  // The photo of a check, before its payment (backend #191): the JPEG bytes themselves (an
+  // ArrayBuffer, not JSON), up to 2 MB; 201 { photo: { file_id, mime, size_bytes, sha256 } }
+  checkPhoto: async (id, bytes) => (await api.post(`/api/my/visits/${encodeURIComponent(id)}/check-photos`, bytes.buffer, {
+    headers: { 'Content-Type': 'image/jpeg' }, timeout: 60000,
+  })).data,
 };
 
 // The visit's photos (backend routes/scheduler/photos.js; a technician only on their own

@@ -2,10 +2,11 @@
 // bill's iv-*): the chip and TOTAL / PAID / DUE at the top, the pill choices, a radio card,
 // the six method tiles, a labelled field, the history of payments. Colours only tokens.
 import React from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from '../myDay/Icon';
 import { METHODS } from './model';
+import { PHOTO_ADDED, PHOTO_ASK, PHOTO_NOTE } from './checkPhoto';
 
 // The chip over the numbers: given (green), issued not given (amber), draft or void (grey)
 const CHIP = {
@@ -135,6 +136,35 @@ export function Field({ label, optional = false, value, onChange, placeholder, h
   );
 }
 
+// The photo of a check (design method-check, «pp-shot»): not taken — a row with the camera, the
+// photo is optional; taken — green, a thumbnail of it, «Retake». photo: { uri } or null
+export function CheckPhotoRow({ photo, onTake, off = false }) {
+  if (!photo) {
+    return (
+      <TouchableOpacity style={styles.shotAsk} onPress={onTake} disabled={off} accessibilityRole="button"
+        accessibilityLabel={`${PHOTO_ASK}, optional`} accessibilityState={{ disabled: off }}>
+        <View style={styles.shotIcon}><Icon name="camera" size={24} color={colors.fgSecondary} /></View>
+        <View style={styles.flex}>
+          <Text style={styles.shotAskTitle}>{PHOTO_ASK}</Text>
+          <Text style={styles.shotSub}>{`Optional. ${PHOTO_NOTE}`}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+  return (
+    <View style={styles.shot}>
+      <Image source={{ uri: photo.uri }} style={styles.shotThumb} accessibilityIgnoresInvertColors accessible={false} />
+      <View style={styles.flex}>
+        <Text style={styles.shotTitle}>{PHOTO_ADDED}</Text>
+        <Text style={styles.shotSub}>{PHOTO_NOTE}</Text>
+      </View>
+      <TouchableOpacity style={styles.shotLink} onPress={onTake} disabled={off} accessibilityRole="button" accessibilityLabel="Retake the photo of the check">
+        <Text style={styles.shotLinkText}>Retake</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 // HISTORY · 2 PAYMENTS: the rows of model.historyOf; a void link on one's own fresh record
 export function History({ rows, label, onVoid, off = false }) {
   return (
@@ -180,6 +210,15 @@ export const payStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  shotAsk: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  shotIcon: { width: 52, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 1, borderColor: colors.borderDefault },
+  shotAskTitle: { fontSize: 16, fontWeight: '700', color: colors.fgDefault },
+  shot: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8, paddingLeft: 10, paddingRight: 4, borderRadius: 12, borderWidth: 1.5, borderColor: colors.successBorder, backgroundColor: colors.successBg },
+  shotThumb: { width: 52, height: 40, borderRadius: 6, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  shotTitle: { fontSize: 15, fontWeight: '700', color: colors.successFg },
+  shotSub: { fontSize: 13, lineHeight: 17, color: colors.fgSecondary },
+  shotLink: { minHeight: 44, minWidth: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  shotLinkText: { fontSize: 15, fontWeight: '700', color: colors.brandPressed },
   chip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, maxWidth: '100%', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, borderWidth: 1 },
   chipText: { flexShrink: 1, fontSize: 15, fontWeight: '700' },
   numbers: { flexDirection: 'row', borderRadius: 14, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },

@@ -4,19 +4,24 @@
 // server's (cash, check, other — the technician; card, Zelle, Venmo, bank transfer — the office):
 // the line under the button says it. A card goes on to the tip the customer picks (PayTipScreen)
 // and the summary (PayCardScreen); the rest are recorded here.
-// Not here yet: the photo of a check (server PR 13а-2), the company's Zelle number (the profile's
-// payment_instructions does not come with the bill yet) — the screen says «the company» instead.
+// Not here yet: the company's Zelle number (the profile's payment_instructions does not come with
+// the bill yet) — the screen says «the company» instead.
+// A check: its photo, optional (pay/checkPhoto.js, backend #191) — taken here, uploaded by itself
+// when Record is pressed, then the payment names it (check_photo_file_id). Once uploaded the same
+// file goes with every repeat of the press, so the request stays the same.
 import React, { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 import { payAPI } from '../services/api';
+import { checkPhotoRefusal } from '../pay/checkPhoto';
+import { takeCheckPhoto } from '../pay/takeCheckPhoto';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
 import { OTHER_CHOICES, chosenMethod, dueOf, holderLine, methodWord, payError, paymentBody, recordedLine, shortPerson } from '../pay/model';
-import { BigHead, Choice, Field, MethodTiles, Section, payStyles } from '../pay/parts';
+import { BigHead, CheckPhotoRow, Choice, Field, MethodTiles, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
 export default function PayMethodScreen({ route, navigation }) {
@@ -29,6 +34,10 @@ export default function PayMethodScreen({ route, navigation }) {
   const [note, setNote] = useState(partNote);
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(null);
+  const [photo, setPhoto] = useState(null);             // the check's photo: { uri, bytes, fileId }
+  const [shooting, setShooting] = useState(false);
+  // a press without an answer: the photo already named stays (a new one would make a new request)
+  const [unsure, setUnsure] = useState(false);
 
   const label = bill.label || `#${bill.bill_number}`;
   const company = (bill.company && (bill.company.legal_name || bill.company.name)) || 'the company';
@@ -45,22 +54,71 @@ export default function PayMethodScreen({ route, navigation }) {
   const built = useMemo(() => (method ? paymentBody({ cents, method, name, note, checkNumber: tile === 'check' ? checkNumber : '', later, requestId: 'x' }) : null), [cents, method, name, note, checkNumber, tile, later]);
 
   const pickTile = (m) => { setTile(m); setFailed(null); };
+  const takePhoto = async () => {
+    if (shooting || sending) return;
+    setShooting(true);
+    try {
+      const taken = await takeCheckPhoto();
+      if (!taken) return;
+      if (taken.error) { setFailed(taken.error); return; }
+      setPhoto({ uri: taken.uri, bytes: taken.bytes, fileId: null });
+      setFailed(null);
+    } finally {
+      setShooting(false);
+    }
+  };
+  // The photo's file on the server, uploaded now if it is not yet: { fileId } or { stop } (shown)
+  const photoFile = async () => {
+    if (tile !== 'check' || !photo) return { fileId: null };
+    if (photo.fileId) return { fileId: photo.fileId };
+    try {
+      const data = await payAPI.checkPhoto(id, photo.bytes);
+      const fileId = data && data.photo ? data.photo.file_id : null;
+      setPhoto((p) => (p === photo ? { ...p, fileId } : p));
+      return { fileId };
+    } catch (error) {
+      const refused = checkPhotoRefusal(error);
+      if (refused) {
+        if (refused.again) setPhoto(null);
+        return { stop: refused.text };
+      }
+      const f = payError(error);
+      if (f.kind === 'failed') logError('Error uploading a check photo:', error);
+      if (f.kind === 'gone') { navigation.popToTop(); return { stop: null }; }
+      return { stop: `The photo of the check did not go. ${f.text}` };
+    }
+  };
   const record = async () => {
-    if (sending || !built) return;
+    if (sending || shooting || !built) return;
     if (built.error) { setFailed(built.error); return; }
     if (part && !note.trim()) { setFailed('Part of the balance: the note says why.'); return; }
-    const key = JSON.stringify({ ...built.body, client_request_id: null });
-    if (sent.current !== key) { requestId.current = newRequestId(); sent.current = key; }
-    const body = { ...built.body, client_request_id: requestId.current };
     setSending(true);
     setFailed(null);
+    const file = await photoFile();
+    if (file.stop !== undefined) {
+      setSending(false);
+      if (file.stop) setFailed(file.stop);
+      return;
+    }
+    const withPhoto = file.fileId ? paymentBody({ cents, method, name, note, checkNumber: tile === 'check' ? checkNumber : '', checkPhotoFileId: file.fileId, later, requestId: 'x' }) : built;
+    const key = JSON.stringify({ ...withPhoto.body, client_request_id: null });
+    if (sent.current !== key) { requestId.current = newRequestId(); sent.current = key; }
+    const body = { ...withPhoto.body, client_request_id: requestId.current };
     try {
       const data = await payAPI.record(id, body);
       navigation.popTo('Pay', { id, visit, bill: data.bill, recorded: { key: requestId.current, line: recordedLine(data.payment) } });
     } catch (error) {
+      // the server did not take the photo with the payment: take it again (the payment is not written)
+      const refused = checkPhotoRefusal(error);
+      if (refused && refused.again && file.fileId) {
+        setPhoto(null);
+        setFailed(refused.text);
+        return;
+      }
       const f = payError(error);
       if (f.kind === 'failed') logError('Error recording a payment:', error);
       if (f.kind === 'gone') { navigation.popToTop(); return; }
+      if ((f.kind === 'offline' || f.kind === 'failed') && file.fileId) setUnsure(true);
       setFailed(f.text);
     } finally {
       setSending(false);
@@ -94,6 +152,7 @@ export default function PayMethodScreen({ route, navigation }) {
             <Section label="Check">
               <Field label="Check number" value={checkNumber} onChange={setCheckNumber} placeholder="1042" max={30} keyboard="number-pad"
                 hint={`Pay to: ${company}. A check made out to you is not accepted.`} />
+              <CheckPhotoRow photo={photo} onTake={takePhoto} off={sending || shooting || unsure} />
             </Section>
           ) : null}
           {tile === 'card' ? (
