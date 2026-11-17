@@ -49,6 +49,7 @@ test('unpaid: two tabs with counts, the manager’s notes, the site’s empty wo
   assert.equal(u.pending[1].note, null);
   assert.equal(u.none, false);
   assert.equal(unpaidOf({ declined: [{ amount: 1 }] }).declined[0].status, 'Declined');
+  assert.equal(unpaidOf({ pending: [], declined: [{ amount: 1 }] }).none, false);
   assert.equal(unpaidOf(null).none, true);
   assert.equal(NO_UNPAID, 'No unpaid clients');
   assert.equal(UNPAID_EMPTY.pending.title, 'All Clear!');
