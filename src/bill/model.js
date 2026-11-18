@@ -13,6 +13,7 @@
 // later (BILLS_PLAN.md, PR 11–13).
 import { clock, kindWord, momentWall, parseWall, stateOf, firstName } from '../myDay/model.js';
 import { monthDay, unitText } from '../myDay/visit.js';
+import { textPatch } from './lineText.js';
 
 export const CHARGE_KINDS = ['diagnostics', 'service_call', 'labor', 'part', 'installation', 'shop_supplies', 'estimate_fee', 'extra'];
 const DEDUCTION_KINDS = ['discount', 'diagnostics_credit'];
@@ -347,6 +348,8 @@ export function patchOf(line, edit) {
   const cents = priceCents(edit.price);
   if (cents !== null && cents !== line.unit_price_cents) body.unit_price_cents = cents;
   if (edit.qty !== (qtyMilli(line.quantity) || 1000)) body.quantity = qtyText(edit.qty);
+  const text = textPatch(line, edit.description);
+  if (text !== undefined) body.description = text;
   return body;
 }
 // POST body of a new line of the technician's own
@@ -354,6 +357,8 @@ export function newLineBody(edit) {
   const body = { kind: edit.kind, name: edit.name.trim(), unit_price_cents: priceCents(edit.price), quantity: qtyText(edit.qty) };
   if (edit.unit && edit.kind !== 'part') body.unit = edit.unit;
   if (edit.kind === 'part') body.part_condition = 'new';
+  const text = typeof edit.description === 'string' ? edit.description.trim() : '';
+  if (text) body.description = text;
   return body;
 }
 // The words under the fields: the price book's price, and that the office sees the change
