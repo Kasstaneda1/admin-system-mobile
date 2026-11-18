@@ -51,8 +51,8 @@ export function qtyText(milli) {
   const rest = String(milli % 1000).padStart(3, '0').replace(/0+$/, '');
   return `${Math.floor(milli / 1000)}${rest ? `.${rest}` : ''}`;
 }
-// What the technician types as a price: '120', '120.5', '$120.00', '1,250.00' → cents; null
-// else. A comma only between thousands: '25,00' and '0,500' are refused (src/utils/money.js)
+// What the technician types as a price: '120', '120.5', '$120.00', '1,250.00', '120,50' →
+// cents; null else (src/utils/money.js: one comma with 1–2 digits is the cents)
 export const priceCents = (text) => parseMoney(text);
 // 12000 → '120.00': the price in the field
 export const priceText = (cents) => (Number.isFinite(cents) ? (cents / 100).toFixed(2) : '');
