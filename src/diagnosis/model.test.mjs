@@ -209,3 +209,23 @@ test('what the customer gets: the text, «— technician, day», the additions a
   const issued = { status: 'issued', technician: { name: 'Ivan Petrov' }, diagnosis: D({ text: 'Now' }), printed_diagnosis: { text: 'Then', addenda: [] } };
   assert.equal(previewDiagnosis(issued, v).text, 'Then');
 });
+
+// Д-2 in the Finish sheet (be#211): a diagnostics visit, or Estimate needed, needs the text
+test('finishNeedsDiagnosis and finishWaitsForDiagnosis: «required», Finish waits for a text', async () => {
+  const { finishNeedsDiagnosis, finishWaitsForDiagnosis, finishAsksDiagnosis, DIAGNOSIS_REQUIRED_HINT } = await import('./model.js');
+  const empty = { text: null, version: 0, by_name: null, at: null, locked: false, addenda: [] };
+  const diag = { id: 1, visit_kind: 'diagnostics', role: 'main', status: 'in_progress', legacy: false, diagnosis: empty };
+  const repair = { ...diag, visit_kind: 'repair' };
+  assert.equal(finishNeedsDiagnosis(diag, 'done'), true);
+  assert.equal(finishNeedsDiagnosis(repair, 'estimate_needed'), true);
+  assert.equal(finishNeedsDiagnosis(repair, 'diagnostics_only'), false);
+  assert.equal(finishNeedsDiagnosis(null, 'estimate_needed'), false);
+  assert.equal(finishAsksDiagnosis(repair, 'estimate_needed'), true);
+  assert.equal(finishWaitsForDiagnosis(diag, 'diagnostics_only', ''), true);
+  assert.equal(finishWaitsForDiagnosis(diag, 'diagnostics_only', '   '), true);
+  assert.equal(finishWaitsForDiagnosis(diag, 'diagnostics_only', 'Relay failed'), false);
+  assert.equal(finishWaitsForDiagnosis(repair, 'estimate_needed', ''), true);
+  assert.equal(finishWaitsForDiagnosis(repair, 'diagnostics_only', ''), false);   // asked, not required
+  assert.equal(finishWaitsForDiagnosis(repair, 'done', ''), false);
+  assert.equal(DIAGNOSIS_REQUIRED_HINT, 'Write what you found — it is printed on the bill, and the office prices the estimate from it.');
+});

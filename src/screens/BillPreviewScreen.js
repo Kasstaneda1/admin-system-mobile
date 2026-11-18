@@ -17,7 +17,7 @@ import { colors } from '../constants/colors';
 import { billAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { nowWall } from '../myDay/model';
-import { billError, blockersOf, previewOf, retryTax } from '../bill/model';
+import { billError, blockersOf, issueAsk, previewOf, retryTax } from '../bill/model';
 import { previewDiagnosis } from '../diagnosis/model';
 import { Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 
@@ -89,7 +89,8 @@ export default function BillPreviewScreen({ route, navigation }) {
   }, [bill, issuing, id, visit, navigation, load]);
 
   const askIssue = () => {
-    Alert.alert('Issue the bill?', 'It gets its number and its PDF and is frozen. To change it later, the office voids and reissues it.', [
+    const ask = issueAsk(bill);
+    Alert.alert(ask.title, ask.text, [
       { text: 'Not yet', style: 'cancel' },
       { text: 'Issue', onPress: issue },
     ]);

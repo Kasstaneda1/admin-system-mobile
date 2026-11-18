@@ -185,13 +185,25 @@ export function conflictOf(theirs) {
 
 // ---------- «How did it end?» ----------
 // Does the Finish sheet show the diagnosis field for this outcome? On a diagnostics visit at
-// every outcome; on the rest at Diagnostics only and Deposit taken (spec §3.2). Not required
-// yet (Д-2 comes with D2-BE). Only where the technician may write the text itself.
+// every outcome; on the rest at Diagnostics only, Estimate needed and Deposit taken (spec §3.2).
+// Required where finishNeedsDiagnosis. Only where the technician may write the text itself.
 export function finishAsksDiagnosis(visit, outcome) {
   if (!canWriteDiagnosis(visit)) return false;
   const d = diagnosisOf(visit);
   if (d.locked) return false;
   return visit.visit_kind === 'diagnostics' || FINISH_ASKS.includes(outcome);
+}
+
+// Д-2 (VISIT_DIAGNOSIS_DESIGN.md §3.8, the server since D2-BE): a diagnostics visit, or one
+// closed as Estimate needed, is not finished without the diagnosis — the field says «required»
+// and Finish waits for a text (the server refuses it too: 409 diagnosis_required)
+export const DIAGNOSIS_REQUIRED_HINT = 'Write what you found — it is printed on the bill, and the office prices the estimate from it.';
+export function finishNeedsDiagnosis(visit, outcome) {
+  return !!visit && (visit.visit_kind === 'diagnostics' || outcome === 'estimate_needed');
+}
+// Finish waits: the outcome needs the diagnosis and the field in the sheet is empty
+export function finishWaitsForDiagnosis(visit, outcome, text) {
+  return finishAsksDiagnosis(visit, outcome) && finishNeedsDiagnosis(visit, outcome) && !diagnosisToSend(text);
 }
 
 // The field's text in the Finish sheet differs from the visit's: save it before the finish
