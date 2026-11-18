@@ -11,10 +11,9 @@
 //   The list goes with the session (session/store.js): a signature is not left for the next
 //   technician on this phone.
 //   The moment the customer signed (PR 13г): the entry keeps it (at); each send adds it to the
-//   body as signed_at (model.js withSignedAt) — kept apart from the body, so a signature kept by
-//   an older version of the app goes with its moment too. signedAtFirst: false sends the first
-//   try without it (the server's receipt is the moment then) and only the sends from the queue
-//   with it. The server refusing the moment (400 signed_at_out_of_bounds, kind 'clock') marks
+//   body as signed_at (model.js withSignedAt) on the sends from the queue — kept apart from the
+//   body, so a signature kept by an older version of the app goes with its moment too. The first
+//   try goes without it (SIGNED_AT_FIRST_SEND: the server's receipt is the moment then). The server refusing the moment (400 signed_at_out_of_bounds, kind 'clock') marks
 //   the entry like any refusal: it never goes again without its moment.
 //
 // makeApproveQueue({ queue, api: { sign(visitId, body) } }):
@@ -28,8 +27,12 @@
 //   drop(visitId, userId) — forgets the visit's entry.
 import { approveError, withSignedAt } from './model.js';
 
-// Whether the first try carries signed_at too (BILLS_MV_DESIGN.md §5а: yes)
-export const SIGNED_AT_FIRST_SEND = true;
+// Whether the first try carries signed_at too. No (the lead, 17.11, variant A): a signature sent
+// at once is taken at the moment the server gets it, as before 13г; only a signature that waited
+// on the phone carries its moment. The server's lower bound (an hour before On my way, else
+// before the window) would refuse an honest signature of a technician who came early without
+// On my way — the server widens it in its own PR (variant B).
+export const SIGNED_AT_FIRST_SEND = false;
 
 export function makeApproveQueue({ queue, api, signedAtFirst = SIGNED_AT_FIRST_SEND }) {
   const running = new Set(); // keys being sent right now
