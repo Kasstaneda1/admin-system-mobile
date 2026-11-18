@@ -84,6 +84,16 @@ export function checkPhotoRefusal(error) {
   return null;
 }
 
+// After the photo's upload on Record (the Architect on #52): the technician may have left the
+// screen meanwhile (Back, the swipe) — then no payment starts, nothing is recorded (the uploaded
+// file stays unused; the server forgets it). file: photoFile's { fileId } or { stop }.
+// → { go: true, fileId } · { go: false, text } (shown, or null) · { go: false, left: true } (quiet)
+export function afterPhotoUpload(file, { left = false } = {}) {
+  if (left) return { go: false, left: true };
+  if (file && file.stop !== undefined) return { go: false, text: file.stop || null };
+  return { go: true, fileId: file ? file.fileId : null };
+}
+
 // The line of the photo on the method screen
 export const PHOTO_ADDED = 'Photo of the front added';
 export const PHOTO_ASK = 'Add a photo of the front';

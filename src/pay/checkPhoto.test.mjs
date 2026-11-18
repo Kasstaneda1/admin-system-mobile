@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CHECK_PHOTO_MAX_BYTES, base64Bytes, checkPhotoRefusal, isJpeg, photoBytes, resizeFor } from './checkPhoto.js';
+import { CHECK_PHOTO_MAX_BYTES, afterPhotoUpload, base64Bytes, checkPhotoRefusal, isJpeg, photoBytes, resizeFor } from './checkPhoto.js';
 import { paymentBody } from './model.js';
 
 test('the long side is made 2000 px; a small or unknown photo stays', () => {
@@ -49,6 +49,9 @@ test('the server refuses the photo: take it again; anything else is not a photo 
   }
   assert.deepEqual(checkPhotoRefusal(server(400, { error: 'The file is not a PNG or JPEG image' })), { again: true, text: 'This photo could not be sent. Take it again.' });
   assert.equal(checkPhotoRefusal(server(409, { code: 'over_balance' })), null);
+  // a 400 that is not about the photo stays the payment's (payError), not «take the photo again»
+  assert.equal(checkPhotoRefusal(server(400, { error: 'note is required for part of the balance', code: 'note_required' })), null);
+  assert.equal(checkPhotoRefusal(server(400, {})), null);
   assert.equal(checkPhotoRefusal(server(500)), null);
   assert.equal(checkPhotoRefusal({ message: 'Network Error' }), null, 'no answer: payError says it');
 });
@@ -60,4 +63,13 @@ test('the payment by check names the photo; no other method does', () => {
   assert.equal('check_photo_file_id' in paymentBody({ ...base, method: 'cash', checkPhotoFileId: 55 }).body, false);
   assert.equal('check_photo_file_id' in paymentBody({ ...base, method: 'check', checkPhotoFileId: '55' }).body, false);
   assert.equal('check_photo_file_id' in paymentBody({ ...base, method: 'check', checkPhotoFileId: 0 }).body, false);
+});
+
+test('Back while the photo goes up: no payment starts (the Architect on #52)', () => {
+  assert.deepEqual(afterPhotoUpload({ fileId: 'f1' }, { left: true }), { go: false, left: true });
+  assert.deepEqual(afterPhotoUpload({ stop: 'The photo of the check did not go.' }, { left: true }), { go: false, left: true });
+  assert.deepEqual(afterPhotoUpload({ fileId: 'f1' }), { go: true, fileId: 'f1' });
+  assert.deepEqual(afterPhotoUpload({ fileId: null }), { go: true, fileId: null });
+  assert.deepEqual(afterPhotoUpload({ stop: 'The photo of the check did not go.' }), { go: false, text: 'The photo of the check did not go.' });
+  assert.deepEqual(afterPhotoUpload({ stop: null }), { go: false, text: null });
 });
