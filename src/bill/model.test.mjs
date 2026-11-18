@@ -331,3 +331,14 @@ test('the issue over the approved amount (authorization_exceeded): in words, and
     'The bill grew over what the customer approved. The customer signs again, or make the bill smaller.');
   assert.equal(billError({ response: { status: 409, data: { code: 'total_changed', total_cents: 100 } } }).reapprove, undefined);
 });
+
+// Д-2 at the issue (be#211)
+test('issue: 409 diagnosis_missing in words; a bill without a diagnosis where it is optional asks first', async () => {
+  const { issueAsk, ISSUE_TEXT } = await import('./model.js');
+  const err = { response: { status: 409, data: { error: 'Write the diagnosis first', code: 'diagnosis_missing' } } };
+  assert.equal(billError(err, { issue: true }).text, 'Write the diagnosis first: it is printed on the bill. Add it above the lines.');
+  assert.equal(billError(err, { issue: true }).kind, 'refused');
+  assert.deepEqual(issueAsk({ warnings: [{ code: 'diagnosis_missing', message: 'No diagnosis on this bill' }] }), { title: 'No diagnosis on this bill. Issue anyway?', text: ISSUE_TEXT });
+  assert.deepEqual(issueAsk({ warnings: [{ code: 'credit_not_paid' }] }), { title: 'Issue the bill?', text: ISSUE_TEXT });
+  assert.deepEqual(issueAsk({}), { title: 'Issue the bill?', text: ISSUE_TEXT });
+});

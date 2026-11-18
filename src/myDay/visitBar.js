@@ -2,11 +2,12 @@
 // (final-finish, final-noaccess). What shows comes from actions.js barOf; nothing here
 // decides what may be pressed. Sizes in pt, colours only tokens.
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from './Icon';
 import { TAG_FAMILIES } from './parts';
 import { FinishDiagnosisField } from '../diagnosis/field';
+import { PART_NAME_MAX, PART_NUMBER_MAX } from './actions';
 
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
 // when it got no answer (Try again sends the same request); blocked: why nothing can be
@@ -135,13 +136,20 @@ export function Sheet({ visible, onClose, children, bottom, keyboard = false, on
 
 // «How did it end?»: choices (actions.js finishChoices), one marked, then Finish visit.
 // diagnosis (D1-APP, design visit-diagnosis app-finish): the visit's diagnosis under the choices
-// where the outcome asks for it — { asks(outcome), text, failure, sending, onChangeText } — or
-// null; the screen saves a changed text before the finish (onFinish waits for it)
+// where the outcome asks for it — { asks(outcome), needs(outcome), text, failure, sending,
+// onChangeText } — or null; «required» where needs (Д-2): empty, Finish waits. The screen saves a
+// changed text before the finish (onFinish waits for it). Estimate needed (D3) adds Part needed
+// and Part #, both optional: onFinish(outcome, field, part)
 export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFinish, onClose, diagnosis = null }) {
   const [chosen, setChosen] = useState(initial);
-  useEffect(() => { if (visible) setChosen(initial); }, [visible, initial]);
+  const [partName, setPartName] = useState('');
+  const [partNumber, setPartNumber] = useState('');
+  useEffect(() => { if (visible) { setChosen(initial); setPartName(''); setPartNumber(''); } }, [visible, initial]);
   const field = !!diagnosis && diagnosis.asks(chosen);
+  const required = field && !!diagnosis.needs && diagnosis.needs(chosen);
+  const waits = required && !String(diagnosis.text || '').trim();
   const saving = !!diagnosis && diagnosis.sending;
+  const askPart = chosen === 'estimate_needed';
   // the field is under the choices: once the keyboard is up, bring it into view (simulator check)
   const scroll = useRef(null);
   const toField = () => setTimeout(() => scroll.current && scroll.current.scrollToEnd({ animated: true }), 300);
@@ -169,14 +177,30 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
           );
         })}
       </View>
-      {field ? <FinishDiagnosisField text={diagnosis.text} failure={diagnosis.failure} sending={saving} onChangeText={diagnosis.onChangeText} onFocus={toField} /> : null}
+      {field ? <FinishDiagnosisField text={diagnosis.text} failure={diagnosis.failure} sending={saving} required={required} onChangeText={diagnosis.onChangeText} onFocus={toField} /> : null}
+      {askPart ? (
+        <View style={styles.partRow}>
+          <View style={styles.partCell}>
+            <Text style={styles.partLabel}>Part needed<Text style={styles.partOpt}> · optional</Text></Text>
+            <TextInput style={styles.partField} value={partName} onChangeText={setPartName} onFocus={toField} editable={!saving}
+              maxLength={PART_NAME_MAX} placeholder="Start relay" placeholderTextColor={colors.fgMutedField} accessibilityLabel="Part needed, optional" />
+          </View>
+          <View style={styles.partCell}>
+            <Text style={styles.partLabel}>Part #<Text style={styles.partOpt}> · optional</Text></Text>
+            <TextInput style={styles.partField} value={partNumber} onChangeText={setPartNumber} onFocus={toField} editable={!saving}
+              maxLength={PART_NUMBER_MAX} autoCapitalize="characters" autoCorrect={false} placeholder="W10613606" placeholderTextColor={colors.fgMutedField}
+              accessibilityLabel="Part number, optional" />
+          </View>
+        </View>
+      ) : null}
       </ScrollView>
-      <TouchableOpacity style={[styles.main, saving && styles.off]} disabled={saving} onPress={() => onFinish(chosen, field)} accessibilityRole="button"
-        accessibilityState={{ disabled: saving, busy: saving }}>
+      <TouchableOpacity style={[styles.main, saving && styles.off, waits && styles.mainWaits]} disabled={saving || waits}
+        onPress={() => onFinish(chosen, field, askPart ? { name: partName, number: partNumber } : null)} accessibilityRole="button"
+        accessibilityState={{ disabled: saving || waits, busy: saving }}>
         {saving ? <ActivityIndicator color={colors.onAccent} /> : (
           <>
-            <Icon name="check" size={24} color={colors.onAccent} />
-            <Text style={styles.mainText}>Finish visit</Text>
+            <Icon name="check" size={24} color={waits ? colors.fgDisabled : colors.onAccent} />
+            <Text style={[styles.mainText, waits && styles.mainTextWaits]}>Finish visit</Text>
           </>
         )}
       </TouchableOpacity>
@@ -248,6 +272,14 @@ const styles = StyleSheet.create({
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim },
   sheet: { maxHeight: '94%', paddingHorizontal: 16, paddingTop: 8, gap: 10, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: colors.bgCard },
   sheetScroll: { flexGrow: 0, flexShrink: 1 },
+  // Part needed · Part # (design app-finish .vd-pr)
+  partRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  partCell: { flex: 1, minWidth: 0, gap: 6 },
+  partLabel: { fontSize: 14, fontWeight: '700', color: colors.fgSecondary },
+  partOpt: { fontWeight: '500', color: colors.fgMutedField },
+  partField: { minHeight: 52, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.borderControl, fontSize: 16, color: colors.fgDefault, backgroundColor: colors.bgCard },
+  mainWaits: { backgroundColor: colors.bgSunken },
+  mainTextWaits: { color: colors.fgDisabled },
   sheetScrollBody: { gap: 10 },
   grab: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, marginBottom: 6, backgroundColor: colors.borderStrong },
   step: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },

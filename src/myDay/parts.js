@@ -14,6 +14,7 @@ export const TAG_FAMILIES = {
   done: [colors.successFg, colors.successBg, colors.successBorder],
   diagnostics: [colors.warningFg, colors.warningBg, colors.warningBorder],
   deposit: [colors.indigoFg, colors.indigoBg, colors.indigoBorder],
+  estimate: [colors.indigoFg, colors.indigoBg, colors.indigoBorder],
   installation: [colors.brandSoftFg, colors.brandSoft, colors.brand],
   recall: [colors.infoFg, colors.infoBg, colors.infoBorder],
   onway: [colors.infoFg, colors.infoBg, colors.infoBorder],

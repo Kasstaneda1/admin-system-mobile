@@ -478,7 +478,16 @@ const ISSUE_WORDS = {
   company_missing: 'The job has no company. Ask the office to set one, then issue.',
   no_lines: 'The bill has nothing to charge for. Add a service or a part.',
   credit_changed: 'The diagnostics credit changed meanwhile. Check the bill and issue again.',
+  // Д-2 (be#211): a diagnostics visit or Estimate needed — no bill without its diagnosis
+  diagnosis_missing: 'Write the diagnosis first: it is printed on the bill. Add it above the lines.',
 };
+// «Issue the bill?» before the issue: { title, text }. A bill without a diagnosis where it is
+// not required (the server's warning diagnosis_missing, Д-2) asks first, as the spec says
+export const ISSUE_TEXT = 'It gets its number and its PDF and is frozen. To change it later, the office voids and reissues it.';
+export function issueAsk(bill) {
+  const missing = bill && Array.isArray(bill.warnings) && bill.warnings.some((w) => w && w.code === 'diagnosis_missing');
+  return missing ? { title: 'No diagnosis on this bill. Issue anyway?', text: ISSUE_TEXT } : { title: 'Issue the bill?', text: ISSUE_TEXT };
+}
 // A failed request on the bill: { kind, text, total? }
 //   offline — no answer (the same request may go again); none — the visit has no bill yet;
 //   gone — the visit is no longer this technician's; refused — the server's reason, in words;

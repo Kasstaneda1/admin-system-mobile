@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   newRequestId, finishChoices, defaultOutcome, finishSubtitle, outcomesText, noAccessWords, barOf, actionBody, actionError, keepActed, UNDO_MINUTES,
+  PART_NAME_MAX, PART_NUMBER_MAX,
 } from './actions.js';
 import { keepWeek, keptWeek } from './model.js';
 import { keepCard, keptCard } from './visit.js';
@@ -189,4 +190,32 @@ test('after an answer the phone keeps the card and the visit in its week', () =>
   assert.equal(keptCard(after, 7, 4).card.diagnosis.text, 'Relay failed.');
   // another technician's phone cache: only their own card, nothing of the first
   assert.equal(keptCard(keepActed(cache, 8, acted, savedAt), 7, 4), null);
+});
+
+// D3 (VISIT_DIAGNOSIS_DESIGN.md §5): Estimate needed and the part it asks for
+test('Estimate needed: offered where the server lists it, in its order; never from the app\'s own list', () => {
+  const diagnostics = visit({ visit_kind: 'diagnostics', finish_outcomes: ['diagnostics_only', 'estimate_needed', 'done', 'deposit'] });
+  assert.deepEqual(finishChoices(diagnostics).map((c) => c.outcome), ['diagnostics_only', 'estimate_needed', 'done', 'deposit']);
+  assert.deepEqual(finishChoices(diagnostics)[1], { outcome: 'estimate_needed', title: 'Estimate needed', hint: 'Couldn\'t price it on site — the office will', icon: 'doc', kind: 'estimate' });
+  assert.equal(defaultOutcome(diagnostics), 'diagnostics_only');
+  for (const list of [undefined, [], ['teleport']]) {
+    assert.equal(finishChoices(visit({ finish_outcomes: list })).some((c) => c.outcome === 'estimate_needed'), false);
+  }
+  assert.equal(outcomesText(['done', 'estimate_needed']), 'Finish it as: Repaired or Estimate needed.');
+});
+
+test('actionBody: the part goes only with Estimate needed, only what is filled, cut to the server\'s limits', () => {
+  assert.deepEqual(actionBody('finish', 'estimate_needed', 'app-x-3', { name: ' Start relay ', number: ' W10613606 ' }),
+    { action: 'finish', outcome: 'estimate_needed', client_request_id: 'app-x-3', part_name: 'Start relay', part_number: 'W10613606' });
+  assert.deepEqual(actionBody('finish', 'estimate_needed', 'app-x-4', { name: 'Start relay', number: '  ' }),
+    { action: 'finish', outcome: 'estimate_needed', client_request_id: 'app-x-4', part_name: 'Start relay' });
+  assert.deepEqual(actionBody('finish', 'estimate_needed', 'app-x-5', null), { action: 'finish', outcome: 'estimate_needed', client_request_id: 'app-x-5' });
+  assert.deepEqual(actionBody('finish', 'estimate_needed', 'app-x-6', { name: '', number: '' }), { action: 'finish', outcome: 'estimate_needed', client_request_id: 'app-x-6' });
+  // another outcome: never (the server refuses part_* with it)
+  assert.deepEqual(actionBody('finish', 'diagnostics_only', 'app-x-7', { name: 'Start relay', number: 'W1' }), { action: 'finish', outcome: 'diagnostics_only', client_request_id: 'app-x-7' });
+  assert.deepEqual(actionBody('omw', 'estimate_needed', 'app-x-8', { name: 'x' }), { action: 'omw', client_request_id: 'app-x-8' });
+  const long = actionBody('finish', 'estimate_needed', 'app-x-9', { name: 'n'.repeat(600), number: 'x'.repeat(150) });
+  assert.equal(long.part_name.length, PART_NAME_MAX);
+  assert.equal(long.part_number.length, PART_NUMBER_MAX);
+  assert.deepEqual([PART_NAME_MAX, PART_NUMBER_MAX], [500, 100]);
 });

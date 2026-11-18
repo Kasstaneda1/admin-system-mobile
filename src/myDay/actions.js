@@ -25,6 +25,9 @@ const CHOICES = {
   deposit: { title: 'Deposit taken', hint: 'Parts on order, deposit received', icon: 'money', kind: 'deposit' },
   installation: { title: 'Installation done', hint: 'New unit is in and working', icon: 'install', kind: 'installation' },
   recall: { title: 'Recall checked', hint: 'The earlier work was checked', icon: 'replay', kind: 'recall' },
+  // D3 (VISIT_DIAGNOSIS_DESIGN.md §5): the technician could not price it on site, the office
+  // will — the finish makes or finds the job's estimate (the server's), with the part if named
+  estimate_needed: { title: 'Estimate needed', hint: 'Couldn\'t price it on site — the office will', icon: 'doc', kind: 'estimate' },
 };
 // «How did it end?»: the outcomes the server allows for this kind of visit, in its order, the
 // first one marked (backend #145: visit.finish_outcomes; the owner's table is in the server's
@@ -32,6 +35,8 @@ const CHOICES = {
 // the list (kept on the phone before the server had it) offers every outcome, the kind's own
 // marked, and the server checks the press: a refused outcome comes back with the list
 // (actionError kind 'outcome') and the sheet opens again with it.
+// Estimate needed is not among them: it comes only when the server lists it (D3-BE), so the app
+// does not offer it to a server that does not know it yet
 const ALL_OUTCOMES = ['done', 'diagnostics_only', 'deposit', 'installation', 'recall'];
 const KIND_OUTCOME = { repair: 'done', diagnostics: 'diagnostics_only', installation: 'installation', recall: 'recall' };
 function allowedOutcomes(list) {
@@ -149,8 +154,21 @@ export function barOf(visit, nowMs) {
 }
 
 // What a press asks the server: { action, outcome } (outcome only with finish)
-export function actionBody(action, outcome, requestId) {
-  return action === 'finish' ? { action, outcome, client_request_id: requestId } : { action, client_request_id: requestId };
+// part: { name, number } typed in «How did it end?» at Estimate needed — sent only with that
+// outcome and only what is filled (the server takes part_name up to 500, part_number up to 100,
+// and refuses them with another outcome)
+export const PART_NAME_MAX = 500;
+export const PART_NUMBER_MAX = 100;
+export function actionBody(action, outcome, requestId, part = null) {
+  if (action !== 'finish') return { action, client_request_id: requestId };
+  const body = { action, outcome, client_request_id: requestId };
+  if (outcome === 'estimate_needed' && part) {
+    const name = typeof part.name === 'string' ? part.name.trim().slice(0, PART_NAME_MAX) : '';
+    const number = typeof part.number === 'string' ? part.number.trim().slice(0, PART_NUMBER_MAX) : '';
+    if (name) body.part_name = name;
+    if (number) body.part_number = number;
+  }
+  return body;
 }
 
 // A failed press, as the screen handles it: { kind, text, visit, retry }

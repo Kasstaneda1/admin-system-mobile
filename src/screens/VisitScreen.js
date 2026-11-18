@@ -54,7 +54,8 @@ import { Box } from '../bill/parts';
 import { approveError, approveTile, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
 import { approvals } from '../approve/store';
-import { diagnosisBlock, diagnosisOf, finishAsksDiagnosis, finishDiagnosisChanged } from '../diagnosis/model';
+import { diagnosisBlock, diagnosisOf, finishAsksDiagnosis, finishDiagnosisChanged, finishNeedsDiagnosis, finishWaitsForDiagnosis } from '../diagnosis/model';
+import { estimateRequestOf } from '../myDay/estimateRequest';
 import { DiagnosisBody, DiagnosisHead, DiagnosisSheet } from '../diagnosis/parts';
 import { useDiagnosis } from '../diagnosis/useDiagnosis';
 
@@ -224,6 +225,8 @@ export default function VisitScreen({ route, navigation }) {
     if (shown) navigation.navigate('Approve', { id, visit: shown.visit });
   }, [navigation, id, shown]);
   const drafted = tile && card && card.state === 'closed' && known && known.status === 'draft' ? draftedFrom(known.bill) : null;
+  // D3: the estimate this visit asked for (Estimate needed), when the technician may open it
+  const estimateRequest = shown ? estimateRequestOf(shown.visit) : null;
   // «Open the bill»: a draft or an issued bill opens as it is; none yet: the server drafts it
   const openBill = useCallback(() => {
     if (!shown) return;
@@ -262,15 +265,15 @@ export default function VisitScreen({ route, navigation }) {
     await updateMyDay((cache) => keepActed(cache, userId, fresh, savedAt), mark);
   }, [userId, loadBill, loadApprove]);
 
-  const send = useCallback(async ({ action, outcome = null, requestId }) => {
+  const send = useCallback(async ({ action, outcome = null, part = null, requestId }) => {
     if (busy.current || gone.current) return;
     busy.current = true;
     const mark = myDayMark();
-    setPending({ action, outcome, requestId });
+    setPending({ action, outcome, part, requestId });
     setFailure(null);
     const keep = (fresh) => keepFresh(fresh, mark);
     try {
-      const data = await myDayAPI.act(id, actionBody(action, outcome, requestId));
+      const data = await myDayAPI.act(id, actionBody(action, outcome, requestId, part));
       setPending(null);
       if (data && data.visit) await keep(data.visit);
     } catch (error) {
@@ -323,7 +326,9 @@ export default function VisitScreen({ route, navigation }) {
   // Finish: a changed diagnosis is saved first (the finish carries no text, VISIT_DIAGNOSIS_DESIGN
   // Р-4); no answer — the sheet stays with Try again; their text meanwhile — the sheet goes and
   // the diagnosis sheet shows both texts, Finish again after
-  const finishVisit = useCallback(async (outcome, field) => {
+  const finishVisit = useCallback(async (outcome, field, part = null) => {
+    // Д-2: a diagnosis is needed and the field is empty — the button is off; this is the guard
+    if (shown && finishWaitsForDiagnosis(shown.visit, outcome, finishText)) return;
     if (field && shown && finishDiagnosisChanged(shown.visit, finishText)) {
       setFinishFailure(null);
       const saved = await diag.saveForFinish(finishText);
@@ -339,7 +344,7 @@ export default function VisitScreen({ route, navigation }) {
       }
     }
     setFinishOpen(false);
-    send({ action: 'finish', outcome, requestId: newRequestId(Date.now() + skew.current) });
+    send({ action: 'finish', outcome, part, requestId: newRequestId(Date.now() + skew.current) });
   }, [shown, finishText, diag, send]);
 
   // a new press: a new request id; Finish and No access ask first
@@ -685,6 +690,17 @@ export default function VisitScreen({ route, navigation }) {
               </TouchableOpacity>
             ) : null}
             {drafted ? <Box kind="info" icon="doc" title={drafted.title} text={drafted.text} style={styles.drafted} /> : null}
+            {estimateRequest ? (
+              <TouchableOpacity style={styles.estReq} onPress={() => navigation.navigate('Estimate', { id: estimateRequest.id, from: 'Visit' })}
+                accessibilityRole="button" accessibilityLabel={`${estimateRequest.title}, ${estimateRequest.line}`}>
+                <Icon name="doc" size={22} color={colors.indigoFg} />
+                <View style={styles.billTileBody}>
+                  <Text style={styles.estReqTitle}>{estimateRequest.title}</Text>
+                  <Text style={styles.estReqLine}>{estimateRequest.line}</Text>
+                </View>
+                <Icon name="chev" size={20} color={colors.indigoFg} />
+              </TouchableOpacity>
+            ) : null}
 
             {card.access ? (
               <View style={styles.access}>
@@ -815,6 +831,7 @@ export default function VisitScreen({ route, navigation }) {
             onFinish={finishVisit}
             diagnosis={diagCurrent ? {
               asks: (outcome) => finishAsksDiagnosis(shown.visit, outcome),
+              needs: (outcome) => finishNeedsDiagnosis(shown.visit, outcome),
               text: finishText, failure: finishFailure, sending: diag.sheet.sending,
               onChangeText: (t) => { setFinishText(t); setFinishFailure(null); },
             } : null} />
@@ -905,6 +922,10 @@ const styles = StyleSheet.create({
   billTileFill: { backgroundColor: colors.brandPressed },
   billTileOff: { borderColor: colors.borderDefault, backgroundColor: colors.bgSunken },
   billTileBody: { flex: 1 },
+  // «Estimate requested · EST-…» (design visit-diagnosis .vd-est: indigo, as Sold)
+  estReq: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.indigoBorder, backgroundColor: colors.indigoBg },
+  estReqTitle: { fontSize: 17, fontWeight: '800', color: colors.indigoFg },
+  estReqLine: { fontSize: 14, fontWeight: '600', color: colors.indigoFg },
   billTileTitle: { fontSize: 18, fontWeight: '800', color: colors.fgDefault },
   billTileLine: { fontSize: 15, fontWeight: '700', color: colors.brandPressed },
   billTileOnFill: { color: colors.fgOnFill },
