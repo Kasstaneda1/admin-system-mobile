@@ -1,10 +1,11 @@
 // Edit line / New line (design-mockups/app-invoice line-edit): the name on the bill, the
-// terms of the price book's item (folded to three lines), the price with its unit, the
+// text under the line (QUEUE 8-5: written or edited for this bill only, Reset to default for a
+// price book line — src/bill/lineText.js, LineTextParts.js), the price with its unit, the
 // quantity − 1.5 +, the tax (the office's: shown, not changed here), the line's total, what
 // the office will see, Delete this line. Done saves (PATCH only what changed, or POST a new
 // line) and goes back to the bill, which reads itself again. A discount is taken as the price
 // book gives it: only Delete. The words and the numbers are src/bill/model.js.
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +19,8 @@ import {
   patchOf, percentText, qtyStep, qtyText, showQty, unitWord, usd,
 } from '../bill/model';
 import { Box, TopBar, billStyles } from '../bill/parts';
+import { bookItemOf, defaultTextOf, textSourceOf } from '../bill/lineText';
+import { LineTextBlock, LineTextEditor } from '../bill/LineTextParts';
 
 export default function BillLineScreen({ route, navigation }) {
   const { id, mode = 'edit', line = null, kind = 'labor', tax = null } = route.params || {};
@@ -27,13 +30,29 @@ export default function BillLineScreen({ route, navigation }) {
   const [edit, setEdit] = useState(() => (isNew ? newEdit(kind) : editOf(line)));
   const [saving, setSaving] = useState(null);           // 'save' | 'delete'
   const [failed, setFailed] = useState(null);
-  const [termsOpen, setTermsOpen] = useState(false);
+  const [writing, setWriting] = useState(false);       // the text editor is open
+  const [book, setBook] = useState(null);               // the price book, for Reset to default
   const discount = !isNew && line.kind === 'discount';
+  // A price book line: its item's text as the book has it now (quietly: without it the editor
+  // still works, only Reset to default is not offered)
+  useEffect(() => {
+    if (isNew || discount || !line || !line.price_item_id) return undefined;
+    let live = true;
+    billAPI.priceBook(id).then((data) => { if (live) setBook({ items: Array.isArray(data.price_items) ? data.price_items : [] }); }).catch(() => {});
+    return () => { live = false; };
+  }, [id, isNew, discount, line]);
+  const item = bookItemOf(isNew ? null : line, book);
+  // Reset to default replaces the technician's own words: asked first
+  const resetText = () => Alert.alert('Reset to the price book text?', 'Your text for this line is replaced.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Reset', style: 'destructive', onPress: () => set({ description: defaultTextOf(item) }) },
+  ]);
+  const source = textSourceOf(isNew ? null : line, edit.description, item);
 
   const total = editTotal(edit);
   const problem = editError(edit);
   const changes = useMemo(() => (isNew || discount ? null : patchOf(line, edit)), [isNew, discount, line, edit]);
-  const dirty = isNew ? !!(edit.name.trim() || edit.price.trim()) : !!changes && Object.keys(changes).length > 0;
+  const dirty = isNew ? !!(edit.name.trim() || edit.price.trim() || edit.description.trim()) : !!changes && Object.keys(changes).length > 0;
   const set = (patch) => { setFailed(null); setEdit((e) => ({ ...e, ...patch })); };
 
   const leave = () => {
@@ -130,21 +149,9 @@ export default function BillLineScreen({ route, navigation }) {
                 placeholder={edit.kind === 'part' ? 'Drain hose' : 'Repair labor'} placeholderTextColor={colors.fgMutedField}
                 accessibilityLabel="Name on the bill" />
 
-              {edit.description ? (
-                <>
-                  <Text style={styles.label}>TERMS ON THE BILL</Text>
-                  <View style={styles.terms}>
-                    <Text style={styles.termsText} numberOfLines={termsOpen ? undefined : 3}>{edit.description}</Text>
-                    <View style={styles.termsFoot}>
-                      <Text style={styles.termsFrom}>{edit.fromBook ? `From the price book${edit.version ? ` · version ${edit.version}` : ''}` : 'Written for this line'}</Text>
-                      <TouchableOpacity style={styles.showAll} onPress={() => setTermsOpen((o) => !o)} accessibilityRole="button">
-                        <Text style={styles.showAllText}>{termsOpen ? 'Show less' : 'Show all'}</Text>
-                        <Icon name="chevd" size={18} color={colors.brandPressed} style={termsOpen ? styles.flip : null} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </>
-              ) : null}
+              <Text style={styles.label}>TEXT UNDER THE LINE</Text>
+              <LineTextBlock text={edit.description} source={source} off={!!saving}
+                onEdit={() => setWriting(true)} onReset={resetText} />
 
               <View style={styles.pair}>
                 <View style={styles.half}>
@@ -204,6 +211,10 @@ export default function BillLineScreen({ route, navigation }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      {!discount ? (
+        <LineTextEditor visible={writing} text={edit.description} lineName={edit.name.trim()}
+          onDone={(t) => { set({ description: t.trim() }); setWriting(false); }} onClose={() => setWriting(false)} />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -223,13 +234,6 @@ const styles = StyleSheet.create({
   kindOn: { borderWidth: 2, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
   kindText: { fontSize: 15, fontWeight: '600', color: colors.fgDefault },
   kindTextOn: { fontWeight: '800', color: colors.brandPressed },
-  terms: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgSubtle, gap: 10 },
-  termsText: { fontSize: 15, lineHeight: 21, color: colors.fgSecondary },
-  termsFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  termsFrom: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.fgSecondary },
-  showAll: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44 },
-  showAllText: { fontSize: 16, fontWeight: '700', color: colors.brandPressed },
-  flip: { transform: [{ rotate: '180deg' }] },
   pair: { flexDirection: 'row', gap: 12 },
   half: { flex: 1, gap: 8 },
   priceBox: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.borderControl },
