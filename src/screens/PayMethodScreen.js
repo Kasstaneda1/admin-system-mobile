@@ -7,22 +7,27 @@
 // Zelle and Venmo: «Only to SEMIX CORP: (718) 555-0100» from the profile's payment_instructions
 // (the bill answer, backend #192); without them — «Only to SEMIX CORP», «Ask the office for the
 // company’s number. Never to your own.» (the Designer, #51).
-// Not here yet: the photo of a check (server PR 13а-2).
-// A send without an answer (pay/attempts.js): the chosen method, amount and fields stay as sent;
-// the next press sends the same request (the server records it once) — «Already recorded» when it
-// had gone through.
+// A check: its photo, optional (pay/checkPhoto.js, backend #191) — taken here and uploaded by
+// itself when Record is pressed, BEFORE the attempt starts: the payment's line names it
+// (check_photo_file_id), so every repeat of the line carries the same file (the Teamlead on #52).
+// A send without an answer (pay/attempts.js): the chosen method, amount, fields and the photo stay
+// as sent (Retake too: linesLocked); the next press sends the same request (the server records it
+// once) — «Already recorded» when it had gone through. The server refusing the photo (photo_*,
+// 413) before anything was recorded drops the attempt: a new photo, a new attempt.
 import React, { useMemo, useReducer, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 import { payAPI } from '../services/api';
+import { checkPhotoRefusal } from '../pay/checkPhoto';
+import { takeCheckPhoto } from '../pay/takeCheckPhoto';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { OTHER_CHOICES, alreadyLine, chosenMethod, dueOf, holderLine, methodWord, paymentBody, paymentInstructionsOf, recordedLine, shortPerson } from '../pay/model';
+import { OTHER_CHOICES, alreadyLine, chosenMethod, dueOf, holderLine, methodWord, payError, paymentBody, paymentInstructionsOf, recordedLine, shortPerson } from '../pay/model';
 import { LOOK_AGAIN, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
-import { BigHead, Choice, Field, MethodTiles, Section, payStyles } from '../pay/parts';
+import { BigHead, CheckPhotoRow, Choice, Field, MethodTiles, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
 export default function PayMethodScreen({ route, navigation }) {
@@ -43,6 +48,9 @@ export default function PayMethodScreen({ route, navigation }) {
   const [failed, setFailed] = useState(kept && kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}` : null);
   const [, redraw] = useReducer((n) => n + 1, 0);
   const locked = linesLocked(attemptOf(bill.id, 'method'));
+  // the check's photo: { uri, bytes, fileId } — an attempt kept from before brings its own
+  const [photo, setPhoto] = useState(view ? view.photo || null : null);
+  const [shooting, setShooting] = useState(false);
 
   const label = bill.label || `#${bill.bill_number}`;
   const company = (bill.company && (bill.company.legal_name || bill.company.name)) || 'the company';
@@ -57,16 +65,62 @@ export default function PayMethodScreen({ route, navigation }) {
   const built = useMemo(() => (method ? paymentBody({ cents, method, name, note, checkNumber: tile === 'check' ? checkNumber : '', later, requestId: 'x' }) : null), [cents, method, name, note, checkNumber, tile, later]);
 
   const pickTile = (m) => { setTile(m); setFailed(null); };
+  const takePhoto = async () => {
+    if (shooting || sending || locked) return;
+    setShooting(true);
+    try {
+      const taken = await takeCheckPhoto();
+      if (!taken) return;
+      if (taken.error) { setFailed(taken.error); return; }
+      setPhoto({ uri: taken.uri, bytes: taken.bytes, fileId: null });
+      setFailed(null);
+    } finally {
+      setShooting(false);
+    }
+  };
+  // The photo's file on the server, uploaded now if it is not yet: { fileId } or { stop } (shown)
+  const photoFile = async () => {
+    if (tile !== 'check' || !photo) return { fileId: null };
+    if (photo.fileId) return { fileId: photo.fileId };
+    try {
+      const data = await payAPI.checkPhoto(id, photo.bytes);
+      const fileId = data && data.photo ? data.photo.file_id : null;
+      setPhoto((p) => (p === photo ? { ...p, fileId } : p));
+      return { fileId };
+    } catch (error) {
+      const refused = checkPhotoRefusal(error);
+      if (refused) {
+        if (refused.again) setPhoto(null);
+        return { stop: refused.text };
+      }
+      const f = payError(error);
+      if (f.kind === 'failed') logError('Error uploading a check photo:', error);
+      if (f.kind === 'gone') { navigation.popToTop(); return { stop: null }; }
+      return { stop: `The photo of the check did not go. ${f.text}` };
+    }
+  };
   const record = async () => {
-    if (sending || !built) return;
+    if (sending || shooting || !built) return;
     let attempt = attemptOf(bill.id, 'method');
     if (!attempt) {
       if (built.error) { setFailed(built.error); return; }
       if (part && !note.trim()) { setFailed('Part of the balance: the note says why.'); return; }
+      // the photo first: the attempt's line names its file, the same on every repeat
+      setSending(true);
+      setFailed(null);
+      const file = await photoFile();
+      if (file.stop !== undefined) {
+        setSending(false);
+        if (file.stop) setFailed(file.stop);
+        return;
+      }
+      const body = file.fileId
+        ? paymentBody({ cents, method, name, note, checkNumber: tile === 'check' ? checkNumber : '', checkPhotoFileId: file.fileId, later, requestId: 'x' }).body
+        : built.body;
       const rid = newRequestId();
       attempt = startAttempt(bill.id, 'method', {
-        lines: [{ rid, body: { ...built.body, client_request_id: rid } }],
-        view: { cents, tile, otherKey, otherName, checkNumber, note },
+        lines: [{ rid, body: { ...body, client_request_id: rid } }],
+        view: { cents, tile, otherKey, otherName, checkNumber, note, photo: photo && file.fileId ? { ...photo, fileId: file.fileId } : null },
       });
     }
     setSending(true);
@@ -80,6 +134,13 @@ export default function PayMethodScreen({ route, navigation }) {
     }
     if (result.already) {
       navigation.popTo('Pay', { id, visit, bill: result.bill, recorded: { key: `already-${attempt.lines[0].rid}`, line: alreadyLine(result.already) } });
+      return;
+    }
+    // the server did not take the photo with the payment (nothing recorded: the attempt is gone)
+    const refused = checkPhotoRefusal(result.error);
+    if (refused && refused.again && !attemptOf(bill.id, 'method')) {
+      setPhoto(null);
+      setFailed(refused.text);
       return;
     }
     const f = result.failed;
@@ -115,6 +176,7 @@ export default function PayMethodScreen({ route, navigation }) {
             <Section label="Check">
               <Field off={locked} label="Check number" value={checkNumber} onChange={setCheckNumber} placeholder="1042" max={30} keyboard="number-pad"
                 hint={`Pay to: ${company}. A check made out to you is not accepted.`} />
+              <CheckPhotoRow photo={photo} onTake={takePhoto} off={sending || shooting || locked} />
             </Section>
           ) : null}
           {tile === 'card' ? (

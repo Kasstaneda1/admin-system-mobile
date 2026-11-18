@@ -288,7 +288,8 @@ export function tipForLine(forKey, visit, meName) {
 // The body of POST …/payments, or { error } in words.
 //   kind payment | tip; cents; method (+ name for other); note; checkNumber; later: { reason } —
 //   the bill is sent later (before_delivery); tipFor: { tip_for_user_id? } of tipParts.
-export function paymentBody({ kind = 'payment', cents, method, name = null, note = '', checkNumber = '', later = null, tipFor = null, requestId }) {
+// checkPhotoFileId: the photo of the check uploaded first (POST …/check-photos, pay/checkPhoto.js)
+export function paymentBody({ kind = 'payment', cents, method, name = null, note = '', checkNumber = '', checkPhotoFileId = null, later = null, tipFor = null, requestId }) {
   if (!(Number.isInteger(cents) && cents > 0)) return { error: 'The amount is more than $0.00.' };
   if (!TITLES[method]) return { error: 'Choose how the customer pays.' };
   const body = { kind, amount_cents: cents, method, client_request_id: requestId };
@@ -306,6 +307,7 @@ export function paymentBody({ kind = 'payment', cents, method, name = null, note
     if (number.length > 30) return { error: 'The check number: at most 30 characters.' };
     body.check_number = number;
   }
+  if (method === 'check' && Number.isInteger(checkPhotoFileId) && checkPhotoFileId > 0) body.check_photo_file_id = checkPhotoFileId;
   if (later) {
     const reason = String(later.reason || '').trim();
     if (!reason) return { error: 'Say why the bill is sent later.' };
