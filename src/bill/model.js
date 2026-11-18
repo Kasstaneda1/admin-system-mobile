@@ -8,11 +8,12 @@
 // What the technician may do (the server checks it again): add a line from the price book or
 // their own, change the name, the price and the quantity of a line, delete it; a discount only
 // from the price book, as it is; the diagnostics credit and the deposits are the server's
-// (locked); the tax is the office's — the technician sees it and does not change it (no
-// Taxable switch here). Payments, the approve signature and the technician's signature come
+// (locked); the tax: the technician with the office's leave (can_change_tax) picks the rate
+// and switches Taxable off (src/bill/tax.js), else sees it set by the office. Payments, the approve signature and the technician's signature come
 // later (BILLS_PLAN.md, PR 11–13).
 import { clock, kindWord, momentWall, parseWall, stateOf, firstName } from '../myDay/model.js';
 import { monthDay, unitText } from '../myDay/visit.js';
+import { moneyError, parseMoney } from '../utils/money.js';
 
 export const CHARGE_KINDS = ['diagnostics', 'service_call', 'labor', 'part', 'installation', 'shop_supplies', 'estimate_fee', 'extra'];
 const DEDUCTION_KINDS = ['discount', 'diagnostics_credit'];
@@ -50,12 +51,9 @@ export function qtyText(milli) {
   const rest = String(milli % 1000).padStart(3, '0').replace(/0+$/, '');
   return `${Math.floor(milli / 1000)}${rest ? `.${rest}` : ''}`;
 }
-// What the technician types as a price: '120', '120.5', '$120.00', '1,250.00' → cents; null else
-export function priceCents(text) {
-  const m = /^\$?\s*(\d{1,3}(?:,\d{3})+|\d{1,7})(?:\.(\d{0,2}))?$/.exec(String(text || '').trim());
-  if (!m) return null;
-  return Number(m[1].replace(/,/g, '')) * 100 + Number((m[2] || '').padEnd(2, '0'));
-}
+// What the technician types as a price: '120', '120.5', '$120.00', '1,250.00', '120,50' →
+// cents; null else (src/utils/money.js: one comma with 1–2 digits is the cents)
+export const priceCents = (text) => parseMoney(text);
 // 12000 → '120.00': the price in the field
 export const priceText = (cents) => (Number.isFinite(cents) ? (cents / 100).toFixed(2) : '');
 // round(price × quantity), half up, in integers (as the server's lineAmount)
@@ -142,13 +140,20 @@ export function sectionsOf(bill, userId = null) {
 }
 
 // ---------- the totals ----------
-// The tax as the technician sees it (set by the office, by the job's company):
-// { label: 'Sales tax · 8.875%', sub: 'Queens County, NY · by the job’s company' } or none
+// The tax of the bill as the totals show it (TAX-APP, design-mockups/payments app-fee-draft-off,
+// app-tax-off): { label, sub, none, off } — 'Tax NY (8.875%)' 'On $161.00'; Taxable switched off
+// 'Tax · turned off' ($0.00); none — the company has no tax and none is picked. The rate is the
+// bill's (the company's default or the one picked in it: src/bill/tax.js), as the server counts it.
+export function rateName(name, rateMilli) {
+  return `${(typeof name === 'string' && name.trim()) || 'Sales tax'} (${percentText(rateMilli)})`;
+}
+const taxIsOff = (bill) => bill.tax_off === true || !!(bill.tax && bill.tax.source === 'off');
 export function taxOf(bill) {
+  if (taxIsOff(bill)) return { label: 'Tax · turned off', sub: null, none: false, off: true };
   if (bill.tax_rate === null || bill.tax_rate === undefined) {
-    return { label: 'Sales tax', sub: 'None: the company has no default tax', none: true };
+    return { label: 'Sales tax', sub: 'None: the company has no default tax', none: true, off: false };
   }
-  return { label: `Sales tax · ${percentText(bill.tax_rate)}`, sub: [bill.tax_name, 'by the job’s company'].filter(Boolean).join(' · '), none: false };
+  return { label: rateName(bill.tax_name, bill.tax_rate), sub: `On ${usd(bill.taxable_cents || 0)}`, none: false, off: false };
 }
 // [{ key, label, sub?, value, kind: 'plain' | 'deduction' | 'total' | 'balance' }]
 export function totalsOf(bill) {
@@ -164,8 +169,9 @@ export function totalsOf(bill) {
 }
 export const balanceOf = (bill) => (Number.isFinite(bill.balance_cents) ? bill.balance_cents : (bill.total_cents || 0) - (bill.deposits_applied_cents || 0));
 // The line over the main button: 'Total $250.41 · balance due' and '$150.41'
+// switched-off tax says so instead (design app-tax-off «Total · no tax»): 'No tax · balance due'
 export function footOf(bill) {
-  return { text: `Total ${usd(bill.total_cents)} · balance due`, big: usd(balanceOf(bill)) };
+  return { text: taxIsOff(bill) ? 'No tax · balance due' : `Total ${usd(bill.total_cents)} · balance due`, big: usd(balanceOf(bill)) };
 }
 
 // ---------- the head of the bill ----------
@@ -327,7 +333,7 @@ export function editTotal(edit) {
 // Why it cannot be saved yet, or null
 export function editError(edit) {
   if (!edit.name.trim()) return 'Name the line as the customer will read it.';
-  if (priceCents(edit.price) === null) return 'Price: dollars and cents, like 120.00.';
+  if (priceCents(edit.price) === null) return moneyError(edit.price, 'Price: dollars and cents, like 120.00.');
   if (!(edit.qty > 0)) return 'Quantity is more than 0.';
   return null;
 }
@@ -415,9 +421,11 @@ export function previewOf(bill, visit, today) {
   const totals = [{ label: 'Subtotal', value: usd(bill.subtotal_cents) }];
   if (bill.discount_cents > 0) totals.push({ label: 'Discounts', value: usd(-bill.discount_cents) });
   if (bill.credit_cents > 0) totals.push({ label: 'Diagnostics credit', value: usd(-bill.credit_cents) });
-  totals.push(bill.tax_rate !== null && bill.tax_rate !== undefined
-    ? { label: `Sales tax · ${[bill.tax_name, percentText(bill.tax_rate)].filter(Boolean).join(' ')}`, value: usd(bill.tax_cents || 0) }
-    : { label: 'Tax', value: 'none' });
+  // as the PDF prints it (backend billPdf.js): the rate by name, switched off «not charged»
+  totals.push(taxIsOff(bill) ? { label: 'Sales tax · not charged', value: usd(0) }
+    : bill.tax_rate !== null && bill.tax_rate !== undefined
+      ? { label: `Sales tax · ${rateName(bill.tax_name, bill.tax_rate)}`, value: usd(bill.tax_cents || 0) }
+      : { label: 'Tax', value: 'none' });
   return {
     stamp: issued ? null : 'DRAFT',
     company: {

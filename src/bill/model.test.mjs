@@ -110,15 +110,20 @@ test('totals: the design\'s numbers, the tax is the company\'s', () => {
   assert.deepEqual(rows.map((r) => [r.label, r.value]), [
     ['Subtotal', '$325.00'],
     ['Diagnostics credit', '−$95.00'],
-    ['Sales tax · 8.875%', '$20.41'],
+    ['Queens County, NY (8.875%)', '$20.41'],
     ['Total', '$250.41'],
     ['Balance due', '$250.41'],
   ]);
-  assert.equal(rows[2].sub, 'Queens County, NY · by the job’s company');
+  assert.equal(rows[2].sub, 'On $230.00');
   const withDeposit = totalsOf({ ...BILL, deposits_applied_cents: 10000, balance_cents: 15041, discount_cents: 500 });
-  assert.deepEqual(withDeposit.map((r) => r.label), ['Subtotal', 'Discounts', 'Diagnostics credit', 'Sales tax · 8.875%', 'Total', 'Deposits applied', 'Balance due']);
+  assert.deepEqual(withDeposit.map((r) => r.label), ['Subtotal', 'Discounts', 'Diagnostics credit', 'Queens County, NY (8.875%)', 'Total', 'Deposits applied', 'Balance due']);
   assert.equal(withDeposit.at(-1).value, '$150.41');
-  assert.deepEqual(taxOf({ ...BILL, tax_rate: null, tax_name: null }), { label: 'Sales tax', sub: 'None: the company has no default tax', none: true });
+  assert.deepEqual(taxOf({ ...BILL, tax_rate: null, tax_name: null }), { label: 'Sales tax', sub: 'None: the company has no default tax', none: true, off: false });
+  // TAX-APP: Taxable switched off — 'Tax · turned off' $0.00, the foot says no tax
+  const off = { ...BILL, tax_off: true, tax: { source: 'off', tax_id: null, name: null, rate_milli: null }, tax_name: null, tax_rate: null, tax_cents: 0, total_cents: 23000, balance_cents: 23000 };
+  assert.deepEqual(totalsOf(off).find((r) => r.key === 'tax'), { key: 'tax', label: 'Tax · turned off', sub: null, value: '$0.00', kind: 'plain' });
+  assert.deepEqual(footOf(off), { text: 'No tax · balance due', big: '$230.00' });
+  assert.equal(taxOf({ ...BILL, tax_name: '  ' }).label, 'Sales tax (8.875%)');
   assert.equal(balanceOf({ total_cents: 25041, deposits_applied_cents: 10000 }), 15041);
   assert.deepEqual(footOf({ ...BILL, balance_cents: 15041 }), { text: 'Total $250.41 · balance due', big: '$150.41' });
 });
@@ -251,7 +256,7 @@ test('previewOf: the document as the PDF prints it', () => {
   assert.deepEqual(doc.groups.map((g) => g.title), ['Service call & labor', 'Parts', 'Credits & discounts']);
   assert.deepEqual(doc.groups[1].rows[0], { key: 'l12', name: 'Drain pump', tag: 'New', sub: 'Part # DC31-00178A · 1 × $145.00', amount: '$145.00', deduction: false });
   assert.deepEqual(doc.totals.map((t) => [t.label, t.value]), [
-    ['Subtotal', '$325.00'], ['Diagnostics credit', '−$95.00'], ['Sales tax · Queens County, NY 8.875%', '$20.41'],
+    ['Subtotal', '$325.00'], ['Diagnostics credit', '−$95.00'], ['Sales tax · Queens County, NY (8.875%)', '$20.41'],
   ]);
   assert.equal(doc.total, '$250.41');
   assert.equal(doc.deposits, null);
@@ -261,6 +266,8 @@ test('previewOf: the document as the PDF prints it', () => {
   assert.equal(issued.stamp, null);
   assert.deepEqual(issued.facts.slice(0, 3).map((f) => f.value), ['NY-1048', '20871', 'Nov 11, 2026']);
   assert.deepEqual(previewOf({ ...BILL, tax_rate: null, tax_name: null }, null, '2026-11-11').totals.at(-1), { label: 'Tax', value: 'none' });
+  // as billPdf.js prints a bill with the tax switched off
+  assert.deepEqual(previewOf({ ...BILL, tax_off: true, tax_rate: null, tax_name: null, tax_cents: 0 }, null, '2026-11-11').totals.at(-1), { label: 'Sales tax · not charged', value: '$0.00' });
   assert.equal(dateText('2026-01-05'), 'Jan 5, 2026');
   assert.deepEqual(visitDates(null), []);
 });

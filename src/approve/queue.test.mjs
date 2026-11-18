@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeApproveQueue } from './queue.js';
+import { SIGNED_AT_FIRST_SEND, makeApproveQueue } from './queue.js';
 import { makeCacheQueue } from '../myDay/cacheQueue.js';
 
 // The phone's store in memory, as storeQueue.js keeps it
@@ -78,4 +78,58 @@ test('two sends of the same signature at once: one request', async () => {
   assert.equal((await first).result, 'sent');
   assert.equal(second, undefined);
   assert.deepEqual(calls, ['r1']);
+});
+
+// ---------- the moment of the signature (PR 13г) ----------
+const AT = Date.parse('2026-11-17T15:00:00.000Z');
+
+test('signed_at (signedAtFirst true): the moment of the press goes with the first try and with every send from the queue', async () => {
+  let up = false;
+  const sent = [];
+  const q = makeApproveQueue({ signedAtFirst: true, queue: memoryQueue(), api: { sign: async (v, b) => { sent.push(b); if (!up) throw offline(); return { authorization: { id: 9 } }; } } });
+  await q.sign({ visitId: 31, userId: 2, body: body('r1'), at: AT });
+  up = true;
+  await q.flushAll(2);
+  assert.deepEqual(sent.map((b) => [b.client_request_id, b.signed_at]), [['r1', '2026-11-17T15:00:00.000Z'], ['r1', '2026-11-17T15:00:00.000Z']]);
+  // kept apart from the body: the phone's store keeps the body as it was signed
+  assert.equal('signed_at' in body('r1'), false);
+});
+
+test('signed_at: a signature kept by an older app (no signed_at in its body) goes with the moment it was kept', async () => {
+  const store = memoryQueue();
+  await store.update(() => [{ key: 'old', visitId: '31', userId: '2', body: body('old'), at: AT, failed: null }], store.mark());
+  const sent = [];
+  const q = makeApproveQueue({ queue: store, api: { sign: async (v, b) => { sent.push(b); return { authorization: { id: 10 } }; } } });
+  await q.flushAll(2);
+  assert.equal(sent[0].signed_at, '2026-11-17T15:00:00.000Z');
+});
+
+test('signed_at refused (400 out of bounds): marked «clock», kept, never sent again by itself — and never without its moment', async () => {
+  const sent = [];
+  let up = false;
+  const q = makeApproveQueue({ queue: memoryQueue(), api: { sign: async (v, b) => { sent.push(b); if (!up) throw offline(); throw err(400, { code: 'signed_at_out_of_bounds', error: 'signed_at is out of bounds' }); } } });
+  await q.sign({ visitId: 31, userId: 2, body: body('r1'), at: AT });
+  up = true;
+  await q.flushAll(2);
+  const r = { result: (await q.pendingOf(31, 2)).failed.kind };
+  assert.equal(r.result, 'clock');
+  const kept = await q.pendingOf(31, 2);
+  assert.equal(kept.failed.kind, 'clock');
+  await q.flushAll(2);
+  assert.equal(sent.length, 2, 'a marked signature does not go again by itself');
+  assert.deepEqual(sent.map((b) => b.signed_at), [undefined, '2026-11-17T15:00:00.000Z'], 'the queue never sends it without its moment');
+});
+
+test('signed_at by default (variant A): the first try goes without it, the sends from the queue with it', async () => {
+  let up = false;
+  const sent = [];
+  const q = makeApproveQueue({ queue: memoryQueue(), api: { sign: async (v, b) => { sent.push(b); if (!up) throw offline(); return { authorization: { id: 11 } }; } } });
+  await q.sign({ visitId: 31, userId: 2, body: body('r2'), at: AT });
+  up = true;
+  await q.flushAll(2);
+  assert.deepEqual(sent.map((b) => b.signed_at), [undefined, '2026-11-17T15:00:00.000Z']);
+});
+
+test('the first try goes as before 13g (the lead, variant A)', () => {
+  assert.equal(SIGNED_AT_FIRST_SEND, false);
 });

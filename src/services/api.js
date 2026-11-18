@@ -159,6 +159,21 @@ export const myDayAPI = {
     const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/notes`, body, { timeout: 15000 });
     return response.data;
   },
+  // The visit's diagnosis (src/diagnosis/model.js diagnosisBody): { text, base_version,
+  // client_request_id }. 200 { success, changed, diagnosis, visit } (changed: false for the
+  // same text or the same id again); 409 { error, code, diagnosis, visit } — diagnosis_conflict
+  // (diagnosis: their text), diagnosis_locked (the bill is issued: add to it); 400; 404.
+  diagnosis: async (id, body) => {
+    const response = await api.put(`/api/my/visits/${encodeURIComponent(id)}/diagnosis`, body, { timeout: 15000 });
+    return response.data;
+  },
+  // An addition to the diagnosis after the bill: { text, client_request_id }. 201 { success,
+  // created: true, addendum, diagnosis, visit }; 200 created: false for the same id again;
+  // 409 { error, code, visit } — diagnosis_not_locked, addenda_limit; 400; 404.
+  addToDiagnosis: async (id, body) => {
+    const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/diagnosis/addenda`, body, { timeout: 15000 });
+    return response.data;
+  },
   // The route of a New York day (backend routes/scheduler/route.js, route.js here): { success,
   // date, today, stops, total_miles, stops_without_point, flags }; 400 for a bad date.
   route: async (date) => {
@@ -186,7 +201,9 @@ export const myDayAPI = {
 //   get — 404 'This visit has no bill yet' before it is drafted;
 //   draft — POST: the server assembles a new draft (201, created: true) or answers the one
 //           the visit has (200); 409 for a visit that has an issued bill or no work;
-//   message — PUT { message }; addLine — POST { price_item_id } or { kind, name, … };
+//   message — PUT { message }; tax — PUT { tax_id } (null: the company's default) or
+//           { tax_off }: 403 no_tax_permission without changes_bill_tax, 400 tax_not_allowed;
+//   addLine — POST { price_item_id } or { kind, name, … };
 //   changeLine — PATCH the fields that changed; removeLine — DELETE;
 //   issue — POST { expected_total_cents }: the number, the snapshot and the PDF; 409 with a
 //           code when the draft is not ready (tax_missing, profile_missing, no_lines, …);
@@ -196,6 +213,7 @@ export const billAPI = {
   get: async (id) => (await api.get(billPath(id), { timeout: 15000 })).data,
   draft: async (id) => (await api.post(billPath(id), {}, { timeout: 15000 })).data,
   message: async (id, message) => (await api.put(billPath(id), { message }, { timeout: 15000 })).data,
+  tax: async (id, body) => (await api.put(billPath(id), body, { timeout: 15000 })).data,
   addLine: async (id, body) => (await api.post(`${billPath(id)}/lines`, body, { timeout: 15000 })).data,
   changeLine: async (id, lineId, body) => (await api.patch(`${billPath(id)}/lines/${encodeURIComponent(lineId)}`, body, { timeout: 15000 })).data,
   removeLine: async (id, lineId) => (await api.delete(`${billPath(id)}/lines/${encodeURIComponent(lineId)}`, { timeout: 15000 })).data,

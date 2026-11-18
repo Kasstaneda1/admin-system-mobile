@@ -13,7 +13,7 @@ import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { alreadyLine, holderLine, moneyCents, paymentBody, shortPerson, tipButtons, tipForChoices, tipParts, tipPresetsOf } from '../pay/model';
+import { alreadyLine, commaHint, holderLine, moneyCents, paymentBody, shortPerson, tipButtons, tipForChoices, tipParts, tipPresetsOf } from '../pay/model';
 import { LOOK_AGAIN, answeredCount, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { BigHead, Choice, Field, MethodTiles, Pills, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
@@ -86,7 +86,7 @@ export default function CashTipScreen({ route, navigation }) {
           <Section label="How much">
             <Pills items={[...buttons.map((b) => ({ key: b.key, label: b.sub ? `${b.label} · ${b.sub}` : b.label })), { key: 'custom', label: 'Custom' }]}
               value={picked} onPick={(k) => k && setPicked(k)} off={sending || locked} />
-            {picked === 'custom' ? <Field off={locked} big prefix="$" label={null} value={typed} onChange={setTyped} keyboard="decimal-pad" max={9} placeholder="0.00" a11y="Tip amount" autoFocus /> : null}
+            {picked === 'custom' ? <Field off={locked} big prefix="$" label={null} value={typed} onChange={setTyped} keyboard="decimal-pad" max={9} placeholder="0.00" a11y="Tip amount" autoFocus hint={commaHint(typed)} /> : null}
           </Section>
           <Section label="For">
             <View style={{ gap: 8 }} accessibilityRole="radiogroup">

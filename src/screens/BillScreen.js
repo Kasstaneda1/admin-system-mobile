@@ -6,7 +6,11 @@
 // whole bill, with the totals and the tax counted there.
 //   - a line: tap → Edit line (BillLineScreen); the credit is the server's (a lock);
 //   - Price book / + Add …: the sheet of the job's company's price book (PriceBookSheet);
+//   - Tax (TAX-APP): with the office's leave (can_change_tax) the Taxable switch and the rate
+//     row that opens «Tax rate»; without it the rate locked «set by the office» (src/bill/tax.js);
 //   - Message on the bill: saved when the field is left;
+//   - Diagnosis (D1-APP): the visit's text over the lines, «Printed on the bill», Edit on a
+//     draft (the same sheet as on the visit); an issued bill shows what it printed;
 //   - Preview the bill: what the customer gets, and the issue (BillPreviewScreen).
 // An issued bill is frozen: it reads the same, nothing to change.
 // No offline queue here: without the connection the bill shows the words and Try again
@@ -25,6 +29,11 @@ import { Tag } from '../myDay/parts';
 import { billError, blockersOf, creditNote, deliveryOf, footOf, partiesOf, sectionsOf, statusOf, totalsOf } from '../bill/model';
 import { AddRow, Box, Foot, LineRow, MainButton, PlainButton, SectionHead, TopBar, Totals, billStyles } from '../bill/parts';
 import { PriceBookSheet } from '../bill/PriceBookSheet';
+import { TaxSection, TaxSheet } from '../bill/TaxParts';
+import { taxPick, taxRefusal, taxSection } from '../bill/tax';
+import { billDiagnosis, diagnosisOf } from '../diagnosis/model';
+import { DiagnosisBody, DiagnosisHead, DiagnosisSheet } from '../diagnosis/parts';
+import { useDiagnosis } from '../diagnosis/useDiagnosis';
 
 export default function BillScreen({ route, navigation }) {
   const { id, visit = null, create = false } = route.params || {};
@@ -96,7 +105,8 @@ export default function BillScreen({ route, navigation }) {
       if (data && data.bill) show(data.bill);
       return true;
     } catch (error) {
-      const failed = billError(error);
+      const said = taxRefusal(error);
+      const failed = said ? { kind: 'refused', text: said } : billError(error);
       if (failed.kind === 'gone') leave(failed.text);
       else {
         if (failed.kind === 'failed') logError('Error changing a bill:', error);
@@ -162,7 +172,7 @@ export default function BillScreen({ route, navigation }) {
   const goOwn = useCallback(() => {
     const kind = ownNext.current;
     ownNext.current = null;
-    if (kind) navigation.navigate('BillLine', { id, mode: 'new', kind, tax: bill ? { rate: bill.tax_rate, name: bill.tax_name } : null });
+    if (kind) navigation.navigate('BillLine', { id, mode: 'new', kind, tax: bill ? { rate: bill.tax_rate, name: bill.tax_name, off: bill.tax_off === true } : null });
   }, [navigation, id, bill]);
   const own = (tab) => {
     ownNext.current = tab === 'material' ? 'part' : 'labor';
@@ -170,7 +180,34 @@ export default function BillScreen({ route, navigation }) {
     setTimeout(goOwn, Platform.OS === 'ios' ? 700 : 200);
   };
 
-  const openLine = (line) => navigation.navigate('BillLine', { id, mode: 'edit', line, tax: { rate: bill.tax_rate, name: bill.tax_name } });
+  // ---------- the diagnosis ----------
+  // Its answer is the visit's block: the bill shows it at once (the visit reads its own on return)
+  const diag = useDiagnosis({
+    id,
+    current: bill && bill.status === 'draft' ? diagnosisOf(bill) : null,
+    onAnswer: ({ diagnosis }) => { if (diagnosis) setBill((b) => (b ? { ...b, diagnosis } : b)); },
+    onGone: () => leave('This visit was changed by the office'),
+  });
+  const diagBlock = billDiagnosis(bill);
+
+  const openLine = (line) => navigation.navigate('BillLine', { id, mode: 'edit', line, tax: { rate: bill.tax_rate, name: bill.tax_name, off: bill.tax_off === true } });
+
+  // ---------- the tax ----------
+  const [taxOpen, setTaxOpen] = useState(false);
+  // the switch shows where it was moved while the server answers (a refusal puts it back)
+  const [taxWant, setTaxWant] = useState(null);
+  const switchTax = async (on) => {
+    if (busy) return;
+    setTaxWant(on);
+    await change('tax', () => billAPI.tax(id, { tax_off: !on }));
+    setTaxWant(null);
+  };
+  const pickTax = async (key) => {
+    const body = taxPick(bill, key);
+    if (!body) { setTaxOpen(false); return; }
+    const ok = await change('tax', () => billAPI.tax(id, body));
+    if (ok) setTaxOpen(false);
+  };
 
   // ---------- what the screen shows ----------
   const now = nowWall(Date.now());
@@ -182,6 +219,7 @@ export default function BillScreen({ route, navigation }) {
     foot: footOf(bill),
     blockers: blockersOf(bill),
     creditNote: creditNote(bill),
+    tax: taxSection(bill),
   } : null), [bill, visit, userId]); // eslint-disable-line react-hooks/exhaustive-deps
   const draft = !!bill && bill.status === 'draft';
   const kind = kindWord({ visit_kind: (bill && bill.visit_kind) || (visit && visit.visit_kind) });
@@ -257,6 +295,13 @@ export default function BillScreen({ route, navigation }) {
           </View>
         </View>
 
+        {diagBlock ? (
+          <View style={[billStyles.section, styles.diag]}>
+            <DiagnosisHead />
+            <DiagnosisBody block={diagBlock} onPress={() => diag.open(diagBlock.mode)} />
+          </View>
+        ) : null}
+
         <View style={billStyles.section}>
           <SectionHead label="Services" link={draft ? 'Price book' : null} icon="book" onLink={() => openBook('service')} />
           {sections.services.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
@@ -283,6 +328,12 @@ export default function BillScreen({ route, navigation }) {
             <SectionHead label="Discounts" />
             {sections.discounts.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
             {draft ? <AddRow text="Add discount" onPress={() => openBook('discount')} off={!!busy} /> : null}
+          </View>
+        ) : null}
+
+        {view.tax ? (
+          <View style={billStyles.section}>
+            <TaxSection section={view.tax} busy={busy === 'tax'} want={taxWant} onSwitch={switchTax} onOpen={() => setTaxOpen(true)} />
           </View>
         ) : null}
 
@@ -328,6 +379,10 @@ export default function BillScreen({ route, navigation }) {
       </Foot>
       </KeyboardAvoidingView>
 
+      <DiagnosisSheet {...diag.sheet} visible={diag.sheet.visible && draft} bottom={insets.bottom}
+        onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onAddMine={diag.addMine} onSaveMine={diag.saveMine} onClose={diag.close} />
+      <TaxSheet visible={taxOpen && draft && !!view.tax && view.tax.change} bill={bill} sending={busy === 'tax'} bottom={insets.bottom}
+        onPick={pickTax} onClose={() => setTaxOpen(false)} />
       <PriceBookSheet visible={bookOpen !== null} tab={bookOpen} book={book} failed={bookFailed} bill={bill} kindWord={kind}
         adding={adding} bottom={insets.bottom} onTryAgain={loadBook} onAdd={addItem} onOwn={own}
         onClose={() => setBookOpen(null)} />
@@ -354,4 +409,5 @@ const styles = StyleSheet.create({
   messageState: { fontSize: 13, color: colors.fgSecondary },
   blockers: { paddingHorizontal: 16, paddingTop: 12 },
   retryWrap: { alignSelf: 'stretch' },
+  diag: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
 });

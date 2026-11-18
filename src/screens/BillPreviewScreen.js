@@ -2,7 +2,7 @@
 // PDF will print it (backend billPdf.js) — the company's head with its licence, FINAL BILL,
 // the number («Given when issued» for a draft), the job, the dates of the visits, the payment
 // terms and the amount due; bill to, the service address and the technician; the appliance;
-// the lines by group; the totals; the message and the warranty. A draft says DRAFT.
+// the diagnosis (D1-APP: the text, «— technician, day», the additions); the lines by group; the totals; the message and the warranty. A draft says DRAFT.
 // Issue the bill: the server gives the number from the company's counter, freezes the bill
 // and makes its PDF; the total the technician saw goes with it (expected_total_cents), so a
 // bill changed meanwhile is not issued unseen. What only the office can fix (no tax, no
@@ -18,6 +18,7 @@ import { billAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { nowWall } from '../myDay/model';
 import { billError, blockersOf, previewOf, retryTax } from '../bill/model';
+import { previewDiagnosis } from '../diagnosis/model';
 import { Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 
 export default function BillPreviewScreen({ route, navigation }) {
@@ -49,6 +50,7 @@ export default function BillPreviewScreen({ route, navigation }) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const doc = useMemo(() => (bill ? previewOf(bill, visit, nowWall(Date.now()).date) : null), [bill, visit]);
+  const diagnosis = useMemo(() => previewDiagnosis(bill, visit), [bill, visit]);
   const blockers = bill ? blockersOf(bill) : [];
   const stopped = blockers.some((b) => b.hard);
   const draft = !!bill && bill.status === 'draft';
@@ -151,6 +153,17 @@ export default function BillPreviewScreen({ route, navigation }) {
                 </View>
               ) : null}
 
+              {diagnosis ? (
+                <View style={[styles.block, styles.diag]}>
+                  <Text style={styles.h}>DIAGNOSIS</Text>
+                  {diagnosis.text ? <Text style={styles.p}>{diagnosis.text}</Text> : null}
+                  {diagnosis.signature ? <Text style={styles.diagBy}>{diagnosis.signature}</Text> : null}
+                  {diagnosis.addenda.map((a) => (
+                    <Text key={a.key} style={[styles.p, styles.diagAdd]}><Text style={styles.diagLead}>{a.lead}</Text>{a.text}</Text>
+                  ))}
+                </View>
+              ) : null}
+
               {doc.groups.map((g) => (
                 <View key={g.key} style={styles.block}>
                   <Text style={styles.h}>{g.title.toUpperCase()}</Text>
@@ -245,6 +258,11 @@ const styles = StyleSheet.create({
   cols: { flexDirection: 'row', gap: 12, marginTop: 14 },
   col: { flex: 1, gap: 1 },
   block: { marginTop: 14, gap: 2 },
+  // the diagnosis as the PDF prints it: a brand rule on the left (billPdf.js)
+  diag: { paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: colors.brand },
+  diagBy: { marginTop: 2, fontSize: 13, color: colors.fgSecondary },
+  diagAdd: { marginTop: 4 },
+  diagLead: { fontWeight: '700' },
   h: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary, marginBottom: 2 },
   p: { fontSize: 14, lineHeight: 19, color: colors.fgDefault },
   strong: { fontWeight: '700' },

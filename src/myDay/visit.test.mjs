@@ -273,5 +273,12 @@ test('«Updated by the office»: when, what changed and what it was — only fro
   assert.deepEqual(updatedOf(now({ client_name: 'Someone else' }), before, oldAt), check);
   // no moment from the server: no time in the title, the copy still compares
   assert.deepEqual(updatedOf({ ...before, address_unit: '5B' }, before, oldAt).title, 'Updated by the office');
+  // the diagnosis the office edited (D1-APP): only between two cards that both have it
+  const diag = (text) => ({ text, version: 1, locked: false, addenda: [] });
+  assert.deepEqual(updatedOf(now({ diagnosis: diag('Relay failed. Replace it.') }), { ...before, diagnosis: diag('Relay failed.') }, oldAt),
+    { title: 'Updated by the office · 11:02 AM', line: 'The diagnosis changed. Check it before you go.', was: { diagnosis: 'was Relay failed.' } });
+  assert.deepEqual(updatedOf(now({ diagnosis: diag('Relay failed.') }), { ...before, diagnosis: diag(null) }, oldAt).was, { diagnosis: 'new' });
+  assert.deepEqual(updatedOf(now({ diagnosis: diag('Relay failed.') }), before, oldAt), check);
+  assert.deepEqual(updatedOf(now({ diagnosis: diag('Same.') }), { ...before, diagnosis: diag(' Same. ') }, oldAt), check);
   assert.equal(updatedOf({ ...before, address_unit: '5B' }, before, oldAt).line, 'The address changed. Check it before you go.');
 });

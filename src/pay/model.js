@@ -15,6 +15,7 @@
 // One record — one method; two methods are two records one after another. A tip (kind tip) is
 // not the bill's money: never in paid, balance or status.
 import { canBill, usd } from '../bill/model.js';
+import { moneyError, parseMoney } from '../utils/money.js';
 import { clockAmPm as clock, firstName, momentWall } from '../myDay/model.js';
 import { monthDay } from '../myDay/visit.js';
 
@@ -198,19 +199,20 @@ export function chargeOf(bill, part) {
 }
 
 // ---------- how much now (design pay, pay-part) ----------
-// What the technician types: '100', '100.5', '$1,250.00' → cents; null else
-export function moneyCents(text) {
-  const m = /^\$?\s*(\d{1,3}(?:,\d{3})+|\d{1,7})(?:\.(\d{0,2}))?$/.exec(String(text || '').trim());
-  if (!m) return null;
-  return Number(m[1].replace(/,/g, '')) * 100 + Number((m[2] || '').padEnd(2, '0'));
-}
+// What the technician types: '100', '100.5', '$1,250.00', '25,00' → cents; null else. One
+// comma with 1–2 digits is the cents (a European iPhone has no dot), with 3 — the thousands;
+// '0,500' is refused (src/utils/money.js)
+export const moneyCents = (text) => parseMoney(text);
+// Under a Custom tip, while it is typed: the words when the comma is in a wrong place, else
+// null; a comma at the end is not one yet («5,» — the cents are coming)
+export const commaHint = (text) => (/,\s*$/.test(String(text || '')) ? null : moneyError(text, null));
 export const moneyText = (cents) => (Number.isFinite(cents) ? (cents / 100).toFixed(2) : '');
 export const PART_REASONS = ['Rest by another method now', 'Customer pays the office later', 'Rest when the job is done'];
 // The amount step: { cents, part, left, error } — error in words, null when Next can go
 export function amountOf({ full, typed, note }, due) {
   if (full) return { cents: due, part: false, left: 0, error: due > 0 ? null : 'Nothing is due on this bill.' };
   const cents = moneyCents(typed);
-  if (cents === null || cents <= 0) return { cents: null, part: true, left: due, error: 'Type the amount: dollars and cents, like 100.00.' };
+  if (cents === null || cents <= 0) return { cents: null, part: true, left: due, error: moneyError(typed, 'Type the amount: dollars and cents, like 100.00.') };
   if (cents > due) return { cents, part: true, left: 0, error: `Only ${usd(due)} is due. A tip is recorded on its own.` };
   const part = cents < due;
   if (part && !String(note || '').trim()) return { cents, part, left: due - cents, error: 'Why only part? Pick a reason or type a note.' };
