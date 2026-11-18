@@ -156,12 +156,13 @@ export function historyOf(bill, nowMs) {
   return paymentsOf(bill).map((p) => {
     const at = momentWall(p.received_at);
     const how = p.method === 'check' && p.check_number ? `Check #${p.check_number}` : p.method === 'other' ? (p.method_note || 'Other') : TITLES[p.method] || p.method;
-    const who = shortPerson(p.recorded_by_name);
+    // the customer paid on Stripe's page (the webhook wrote it as «Online payment»): no person
+    const who = p.online === true ? '' : shortPerson(p.recorded_by_name);
     const voidedAt = p.voided_at ? momentWall(p.voided_at) : null;
     return {
       key: `p${p.id}`,
       payment: p,
-      title: [at ? clock(at.minutes) : null, p.kind === 'tip' ? `Tip for ${shortPerson(p.tip_for_name) || 'the team'}` : null, how].filter(Boolean).join(' · '),
+      title: [at ? clock(at.minutes) : null, p.kind === 'tip' ? `Tip for ${shortPerson(p.tip_for_name) || 'the team'}` : null, how, p.online === true ? 'online' : null].filter(Boolean).join(' · '),
       sub: [who, p.note ? `“${p.note}”` : null, p.before_delivery ? 'bill sent later' : null].filter(Boolean).join(' · '),
       amount: usd(p.amount_cents),
       tip: p.kind === 'tip',

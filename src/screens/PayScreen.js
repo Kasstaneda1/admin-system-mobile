@@ -19,6 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { billAPI, payAPI } from '../services/api';
 import { forgetBill } from '../pay/attempts';
+import { canPayOnline } from '../pay/online';
 import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { clockAmPm, nowWall } from '../myDay/model';
@@ -106,6 +107,13 @@ export default function PayScreen({ route, navigation }) {
     // reason of the first payment is the office's, the technician's words go again
     const sentLater = later || (!bill.delivered_at && laterReasonGiven(bill) ? { reason: 'The bill is sent later, as with the first payment' } : null);
     navigation.navigate('PayMethod', { id, visit, bill, cents: amount.cents, part: amount.part, note: amount.part ? note.trim() : '', later: sentLater });
+  };
+
+  // «Pay online» (ONL-APP1): the customer pays the same amount on their own phone, by the QR code;
+  // only when the server's flag says the bill may be paid online
+  const payOnline = () => {
+    if (amount.error) return;
+    navigation.navigate('PayOnline', { id, visit, bill, cents: amount.cents, part: amount.part });
   };
 
   // ---------- «Customer gets the bill later…» ----------
@@ -295,7 +303,10 @@ export default function PayScreen({ route, navigation }) {
           ) : stage === 'none' ? (
             <MainButton text="Open the bill" icon="doc" onPress={() => navigation.navigate('Bill', { id, visit, create: false })} />
           ) : askAmount ? (
-            <MainButton text="Next · how they pay" icon="chev" off={!!amount.error} onPress={next} />
+            <>
+              <MainButton text="Next · how they pay" icon="chev" off={!!amount.error} onPress={next} />
+              {canPayOnline(bill) ? <PlainButton text="Pay online · show QR code" off={!!amount.error} onPress={payOnline} /> : null}
+            </>
           ) : (
             <MainButton text="Done · back to the visit" onPress={() => navigation.goBack()} />
           )}
