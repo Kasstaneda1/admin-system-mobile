@@ -106,6 +106,8 @@ export default function ApproveScreen({ route, navigation }) {
 
   const approve = async () => {
     if (sending) return;
+    // the moment the customer signed: the press of Approve, by this phone's clock (13г, signed_at)
+    const signedMs = Date.now();
     const png = pad.current ? await pad.current.png() : null;
     const { body, error } = authBody({
       name, png, agreed, terms, rule,
@@ -115,7 +117,7 @@ export default function ApproveScreen({ route, navigation }) {
     if (error) { setSaid({ kind: 'refused', text: error }); return; }
     setSending(true);
     setSaid(null);
-    const r = await approvals.sign({ visitId: id, userId, body, at: Date.now() });
+    const r = await approvals.sign({ visitId: id, userId, body, at: signedMs });
     setSending(false);
     if (r.result === 'sent') {
       setAgain(false);
@@ -131,7 +133,7 @@ export default function ApproveScreen({ route, navigation }) {
     setPending(await approvals.pendingOf(id, userId));
     setSaid(r.failed);
     // a new signature is a new choice about the written estimate («Архитектор ПО», #44)
-    if (r.result === 'resign' || r.result === 'refused') { pad.current && pad.current.clear(); setEstimate(null); load(); }
+    if (r.result === 'resign' || r.result === 'refused' || r.result === 'clock') { pad.current && pad.current.clear(); setEstimate(null); load(); }
     if (r.result === 'gone') Alert.alert('The visit changed', r.failed.text, [{ text: 'OK', onPress: () => navigation.goBack() }]);
   };
 

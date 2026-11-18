@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ESTIMATE_CHOICES, RESIGN_WORDS, agreedOf, approveError, approveTile, authBody, canApprove, copyName, countText, estimatePriceOf, estimatePriceText, estimateText, writtenText,
-  latestOf, needsEstimateChoice, pickEstimate, ruleText, signedText, termsLineOf,
+  latestOf, needsEstimateChoice, pickEstimate, ruleText, signedText, termsLineOf, signedAtOf, withSignedAt, CLOCK_WORDS,
 } from './model.js';
 
 // The design's draft (design-mockups/app-invoice «Числа сходятся»): $230.00 before tax, $250.41 with it
@@ -130,4 +130,22 @@ test('a different written-estimate choice after the signature is drawn wipes it'
   assert.deepEqual(pickEstimate('written', 'waived', true), { estimate: 'waived', clear: true });
   assert.deepEqual(pickEstimate('written', 'waived', false), { estimate: 'waived', clear: false });
   assert.deepEqual(pickEstimate('waived', 'waived', true), { estimate: 'waived', clear: false });
+});
+
+test('signed_at (13г): the phone\'s moment as ISO in UTC; none for no moment', () => {
+  assert.equal(signedAtOf(Date.parse('2026-11-17T10:00:00-05:00')), '2026-11-17T15:00:00.000Z');
+  assert.equal(signedAtOf(NaN), null);
+  assert.equal(signedAtOf(undefined), null);
+  assert.equal(signedAtOf(0), null);
+  assert.deepEqual(withSignedAt({ a: 1 }, Date.parse('2026-11-17T15:00:00Z')), { a: 1, signed_at: '2026-11-17T15:00:00.000Z' });
+  assert.deepEqual(withSignedAt({ a: 1 }, null), { a: 1 });
+});
+
+test('400 signed_at_out_of_bounds: its own kind, words for the technician (not the server\'s)', () => {
+  const failed = approveError({ response: { status: 400, data: { code: 'signed_at_out_of_bounds', error: 'signed_at is out of bounds: not later than now…' } } });
+  assert.equal(failed.kind, 'clock');
+  assert.equal(failed.text, CLOCK_WORDS);
+  assert.doesNotMatch(failed.text, /signed_at/);
+  // another 400 stays a refusal with the server's words
+  assert.equal(approveError({ response: { status: 400, data: { error: 'Something else' } } }).kind, 'refused');
 });

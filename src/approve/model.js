@@ -158,8 +158,13 @@ export function approveTile(visit, known, pending, today) {
 //   offline — no answer (the signature waits on the phone and goes again);
 //   resign — the draft or the terms changed: the customer sees the new and signs again;
 //   refused — the server's reason in words; gone — the visit is no longer this technician's;
+//   clock — the server did not take the moment of the signature (signed_at_out_of_bounds, 13г):
+//           the phone's clock is far off, or the visit's start the server knows is later than the
+//           signature; the signature is never sent without its moment — it stays, marked;
 //   failed — the server broke.
 export const RESIGN_WORDS = 'The amount changed — the customer signs again.';
+// 400 signed_at_out_of_bounds (draft, the Designer's words to come)
+export const CLOCK_WORDS = 'The office’s server did not accept the time of this signature. Check that the phone’s date and time are set automatically, then the customer signs again. If the customer is gone, call the office.';
 export function approveError(error) {
   const response = error && error.response;
   const status = response ? response.status : 0;
@@ -172,12 +177,27 @@ export function approveError(error) {
   }
   if (status === 409 && data.code === 'terms_changed') return { kind: 'resign', text: 'The company’s terms changed — the customer reads them and signs again.' };
   if (status === 409 && (data.code === 'no_draft' || data.code === 'no_lines')) return { kind: 'refused', text: 'The bill has nothing to approve yet. Add the work to it first.' };
+  if (status === 400 && data.code === 'signed_at_out_of_bounds') return { kind: 'clock', text: CLOCK_WORDS };
   if (status === 400 && data.code === 'estimate_choice_missing') return { kind: 'refused', text: 'In NYC the customer chooses about the written estimate first.' };
   if (status === 404) return { kind: 'gone', text: 'This visit was changed by the office' };
   if (status === 409 || status === 403 || status === 400) {
     return { kind: 'refused', text: said ? `${said.replace(/[.\s]*$/, '')}.` : 'The approval was not saved.' };
   }
   return { kind: 'failed', text: 'Something went wrong. Try again.' };
+}
+
+// ---------- the moment of the signature (PR 13г, BILLS_MV_DESIGN.md §5а) ----------
+// The customer signed at `ms` by this phone's clock: signed_at as the server takes it (ISO with
+// its zone, UTC), or null for no moment. The server keeps it beside the moment it got the
+// signature, so a signature kept on the phone without the network is not taken as later than it
+// was. Only the technician's signature carries it (the office signs on line).
+export function signedAtOf(ms) {
+  return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : null;
+}
+// The body as it is sent: with the moment of the signature when there is one
+export function withSignedAt(body, ms) {
+  const at = signedAtOf(ms);
+  return at ? { ...body, signed_at: at } : body;
 }
 
 // The PDF file of an approval's copy: 'approval-412.pdf'
