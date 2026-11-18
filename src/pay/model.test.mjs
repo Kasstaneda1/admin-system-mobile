@@ -117,6 +117,8 @@ test('minutes left and short names', () => {
   assert.equal(minutesLeft('2026-11-17T19:39:00Z', Date.parse('2026-11-17T19:38:59Z')), 1);
   assert.equal(minutesLeft('2026-11-17T19:39:00Z', Date.parse('2026-11-17T19:39:00Z')), 0);
   assert.equal(minutesLeft(null, 0), 0);
+  // the phone's clock 70 s behind the server's: still 15, not 16 (the Designer on #62)
+  assert.equal(minutesLeft('2026-11-17T19:39:00Z', Date.parse('2026-11-17T19:22:50Z')), 15);
   assert.equal(shortPerson('Ivan Petrov'), 'Ivan P.');
   assert.equal(shortPerson('Team'), 'Team');
   assert.equal(shortPerson(''), '');

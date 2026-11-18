@@ -177,11 +177,13 @@ export function shortPerson(name) {
   if (!words.length) return '';
   return words.length === 1 ? words[0] : `${words[0]} ${words[words.length - 1].charAt(0)}.`;
 }
-// Whole minutes left until the moment (rounded up), 0 when it passed or is unknown
+// Whole minutes left until the moment (rounded up), 0 when it passed or is unknown; never more
+// than the 15 of a void (a phone clock a little behind the server's would show 16)
+export const VOID_WINDOW_MINUTES = 15;
 export function minutesLeft(until, nowMs) {
   const end = Date.parse(until || '');
   if (!Number.isFinite(end) || !Number.isFinite(nowMs) || end <= nowMs) return 0;
-  return Math.ceil((end - nowMs) / 60000);
+  return Math.min(VOID_WINDOW_MINUTES, Math.ceil((end - nowMs) / 60000));
 }
 // HISTORY · 2 PAYMENTS · 1 TIP: a tip is not a payment, it is counted on its own
 export const countWord = (rows) => {
