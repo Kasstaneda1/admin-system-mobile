@@ -28,6 +28,7 @@ import {
   PART_REASONS, VOID_REASONS, amountOf, chipOf, countWord, dueOf, historyOf, laterReasonGiven, moneyText, numbersOf, paidAt, payError, stageOf, voidBody,
 } from '../pay/model';
 import { Chip, Field, History, Numbers, Pills, Section, payStyles } from '../pay/parts';
+import { depositPayRows, historyLabel } from '../deposit/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 
 const LATER_REASONS = ['Wants it by email', 'Printer is out', 'Paying for someone else'];
@@ -146,7 +147,8 @@ export default function PayScreen({ route, navigation }) {
   };
 
   const now = nowWall(Date.now());
-  const rows = useMemo(() => (bill ? historyOf(bill, tick) : []), [bill, tick]);
+  // the deposits this bill took (DEP-APP, design app-repair-pay): first in History, no void
+  const rows = useMemo(() => (bill ? [...depositPayRows(visit, bill.label), ...historyOf(bill, tick)] : []), [bill, tick, visit]);
   const offline = problem && problem.kind === 'offline';
   const back = <TopBar back="Visit" title="Payment" onBack={() => navigation.goBack()} />;
 
@@ -232,7 +234,7 @@ export default function PayScreen({ route, navigation }) {
           ) : null}
 
           {rows.length || stage === 'collect' ? (
-            <History rows={rows} label={rows.length ? `History · ${countWord(rows)}` : 'History'} onVoid={offline ? null : openVoid} />
+            <History rows={rows} label={historyLabel(rows, countWord)} onVoid={offline ? null : openVoid} />
           ) : null}
           {rows.some((r) => r.voidLeft > 0) ? (
             <Text style={payStyles.hint}>Wrong amount or method? Void it in the first 15 minutes. After that, ask the office: an admin voids it.</Text>

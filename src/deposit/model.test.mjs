@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { depositBody, depositError, depositHolderLine, depositRow, depositRows, depositsOf, recordedLine } from './model.js';
+import { blockedOf, depositAmount, depositBody, depositError, depositHolderLine, depositPayRows, depositRow, depositRows, depositsOf, historyLabel, recordedLine, withYouRows } from './model.js';
+import { countWord } from '../pay/model.js';
 
 // The design's job (design-mockups/deposits): job #2215, Javier Ortiz; Ivan takes $100.00 by
 // check #1038 at 11:58 AM on Nov 11 (16:58Z), «Drain pump»; the repair bill NY-1048 takes it
@@ -94,4 +95,36 @@ test('refusals in words', () => {
   assert.equal(depositError(err(500, { error: 'x' })).kind, 'failed');
   assert.equal(depositError(err(404, {})).kind, 'gone');
   assert.equal(depositError(err(400, { error: 'amount_cents must be above 0' })).text, 'amount_cents must be above 0');
+});
+
+test('the amount: above $0.00, a comma as cents', () => {
+  assert.deepEqual(depositAmount('100'), { cents: 10000, error: null });
+  assert.deepEqual(depositAmount('25,50'), { cents: 2550, error: null });
+  assert.equal(depositAmount('0').cents, null);
+  assert.equal(depositAmount('').error, 'Type the amount: dollars and cents, like 100.00.');
+});
+
+test('with you now: own open cash or check, not the office\'s, not applied, not void', () => {
+  const mine = { ...DEP, holder_is_me: true, open_cents: 10000 };
+  const visit = withDeposits(on(null, 32500, [mine, { ...DEP, id: 11, method: 'zelle', holder_is_me: false, open_cents: 20000 },
+    { ...DEP, id: 12, holder_is_me: true, voided_at: '2026-11-11T17:00:00Z', open_cents: 0 }, { ...DEP, id: 13, holder_is_me: true, open_cents: 0, applied_cents: 2500 }]));
+  assert.deepEqual(withYouRows(visit), [{ key: 'y9', title: 'Check #1038 · deposit', amount: '$100.00' }]);
+});
+
+test('Pay of the bill that took them: History rows and their count', () => {
+  const visit = withDeposits(on('bill_issued', 0, [{ ...DEP, applied_cents: 10000, applied_to: 'NY-1048', open_cents: 0 },
+    { ...DEP, id: 10, applied_cents: 5000, applied_to: 'NY-2000', open_cents: 0 }]));
+  const rows = depositPayRows(visit, 'NY-1048');
+  assert.deepEqual(rows.map((r) => [r.title, r.sub, r.amount, r.voidLeft]), [['Nov 11 · Deposit · Check #1038', 'Ivan P. · applied to this bill', '$100.00', 0]]);
+  assert.equal(historyLabel(rows, countWord), 'History · 1 deposit');
+  assert.equal(historyLabel([...rows, { key: 'p1', tip: false }], countWord), 'History · 1 deposit · 1 payment');
+  assert.equal(historyLabel([], countWord), 'History');
+  assert.deepEqual(depositPayRows(visit, null), []);
+});
+
+test('the grey row tapped: this visit\'s issued bill opens Pay; another visit\'s — words only', () => {
+  assert.deepEqual(blockedOf(APPLIED, { status: 'issued', label: 'NY-1048' }),
+    { title: 'Bill NY-1048 is issued', text: 'Money for this job now goes to the bill. Take it with Pay: it lowers what is due.', pay: true });
+  assert.equal(blockedOf(APPLIED, { status: 'draft', label: null }).pay, false);
+  assert.equal(blockedOf(APPLIED, null).title, 'The final bill is issued');
 });

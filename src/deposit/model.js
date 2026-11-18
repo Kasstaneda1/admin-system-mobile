@@ -20,6 +20,7 @@ import { usd } from '../bill/model.js';
 import { canPay, methodWord, paymentBody, shortPerson, minutesLeft } from '../pay/model.js';
 import { clockAmPm as clock, momentWall } from '../myDay/model.js';
 import { monthDay } from '../myDay/visit.js';
+import { moneyError, parseMoney } from '../utils/money.js';
 
 // The job's deposits as the visit carries them, or null (no row at all)
 export function depositsOf(visit) {
@@ -136,4 +137,58 @@ export function depositError(error, { company = 'the company', billLabel = null 
   const text = res.data && typeof res.data.error === 'string' ? res.data.error : null;
   if (res.status >= 500 || !text) return { kind: 'failed', text: 'Something went wrong. Nothing was recorded: try again.' };
   return { kind: 'refused', text };
+}
+
+// ---------- the amount typed (design app-take: any amount above $0.00, no bill to bound it) ----------
+export function depositAmount(typed) {
+  const cents = parseMoney(typed);
+  if (cents === null || cents <= 0) return { cents: null, error: moneyError(typed, 'Type the amount: dollars and cents, like 100.00.') };
+  return { cents, error: null };
+}
+
+// ---------- the money with the technician (design app-done «With you now») ----------
+// Their own open deposits by cash, check or other: what they turn in → [{ key, title, amount }]
+export function withYouRows(visit) {
+  const d = depositsOf(visit);
+  if (!d) return [];
+  return d.live.filter((row) => row.holder_is_me && (Number.isFinite(row.open_cents) ? row.open_cents : row.amount_cents) > 0)
+    .map((row) => ({ key: `y${row.id}`, title: `${howOf(row)} · deposit`, amount: usd(row.amount_cents) }));
+}
+
+// ---------- Pay of the bill that took them (design app-repair-pay History) ----------
+// The deposits applied to the bill labelled label, as History rows: 'Nov 11 · Deposit · Check #1038',
+// 'Ivan P. · applied to this bill', the part the bill took; no void (a void of the bill takes it back)
+export function depositPayRows(visit, label) {
+  const d = depositsOf(visit);
+  if (!d || !label) return [];
+  return d.live.filter((row) => row.applied_to === label && appliedOf(row) > 0).map((row) => ({
+    key: `d${row.id}`,
+    deposit: true,
+    title: [dayOf(row.received_at), 'Deposit', howOf(row)].filter(Boolean).join(' · '),
+    sub: [shortPerson(row.recorded_by_name), 'applied to this bill'].filter(Boolean).join(' · '),
+    amount: usd(appliedOf(row)),
+    voided: false,
+    voidLeft: 0,
+  }));
+}
+// HISTORY · 1 DEPOSIT · 1 PAYMENT
+export function historyLabel(rows, countWord) {
+  const deposits = rows.filter((r) => r.deposit).length;
+  const rest = rows.filter((r) => !r.deposit);
+  if (!rows.length) return 'History';
+  const parts = [deposits ? (deposits === 1 ? '1 deposit' : `${deposits} deposits`) : null, rest.length ? countWord(rest) : null];
+  return `History · ${parts.filter(Boolean).join(' · ')}`;
+}
+
+// ---------- the grey row tapped (design app-blocked) ----------
+// bill: this visit's bill as the visit knows it, or null. → { title, text, pay } — pay: Open Pay
+// leads to this visit's bill (only when it is the issued one that stops new deposits)
+export function blockedOf(visit, bill) {
+  const own = bill && bill.status === 'issued' ? (bill.label || (bill.bill_number ? `#${bill.bill_number}` : null)) : null;
+  return {
+    title: own ? `Bill ${own} is issued` : 'The final bill is issued',
+    text: own ? 'Money for this job now goes to the bill. Take it with Pay: it lowers what is due.'
+      : 'Money for this job now goes to the repair or installation bill. Take it with Pay on that visit.',
+    pay: !!own,
+  };
 }
