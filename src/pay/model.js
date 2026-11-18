@@ -199,10 +199,11 @@ export function chargeOf(bill, part) {
 }
 
 // ---------- how much now (design pay, pay-part) ----------
-// What the technician types: '100', '100.5', '$1,250.00' → cents; null else. A comma only
-// between thousands: '25,00' and '0,500' are refused (src/utils/money.js, as the office's fe#337)
+// What the technician types: '100', '100.5', '$1,250.00', '25,00' → cents; null else. One
+// comma with 1–2 digits is the cents (a European iPhone has no dot), with 3 — the thousands;
+// '0,500' is refused (src/utils/money.js)
 export const moneyCents = (text) => parseMoney(text);
-// Under a Custom tip: the words when a comma was typed for the cents, else null
+// Under a Custom tip: the words when the comma is in a wrong place, else null
 export const commaHint = (text) => moneyError(text, null);
 export const moneyText = (cents) => (Number.isFinite(cents) ? (cents / 100).toFixed(2) : '');
 export const PART_REASONS = ['Rest by another method now', 'Customer pays the office later', 'Rest when the job is done'];
