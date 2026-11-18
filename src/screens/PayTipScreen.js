@@ -10,7 +10,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../constants/colors';
 import { firstName } from '../myDay/model';
 import { usd } from '../bill/model';
-import { chargeOf, moneyCents, tipButtons, tipPresetsOf } from '../pay/model';
+import { chargeOf, commaHint, moneyCents, tipButtons, tipPresetsOf } from '../pay/model';
 import { Field } from '../pay/parts';
 import { Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
@@ -70,7 +70,7 @@ export default function PayTipScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
           {picked === 'custom' ? (
-            <Field big prefix="$" label="Tip" value={typed} onChange={setTyped} keyboard="decimal-pad" max={9} placeholder="0.00" autoFocus />
+            <Field big prefix="$" label="Tip" value={typed} onChange={setTyped} keyboard="decimal-pad" max={9} placeholder="0.00" autoFocus hint={commaHint(typed)} />
           ) : null}
         </ScrollView>
         <Foot bottom={insets.bottom} note={ready ? null : 'Pick one to go on, even No tip.'}>

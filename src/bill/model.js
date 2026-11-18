@@ -13,6 +13,7 @@
 // later (BILLS_PLAN.md, PR 11–13).
 import { clock, kindWord, momentWall, parseWall, stateOf, firstName } from '../myDay/model.js';
 import { monthDay, unitText } from '../myDay/visit.js';
+import { moneyError, parseMoney } from '../utils/money.js';
 
 export const CHARGE_KINDS = ['diagnostics', 'service_call', 'labor', 'part', 'installation', 'shop_supplies', 'estimate_fee', 'extra'];
 const DEDUCTION_KINDS = ['discount', 'diagnostics_credit'];
@@ -50,12 +51,9 @@ export function qtyText(milli) {
   const rest = String(milli % 1000).padStart(3, '0').replace(/0+$/, '');
   return `${Math.floor(milli / 1000)}${rest ? `.${rest}` : ''}`;
 }
-// What the technician types as a price: '120', '120.5', '$120.00', '1,250.00' → cents; null else
-export function priceCents(text) {
-  const m = /^\$?\s*(\d{1,3}(?:,\d{3})+|\d{1,7})(?:\.(\d{0,2}))?$/.exec(String(text || '').trim());
-  if (!m) return null;
-  return Number(m[1].replace(/,/g, '')) * 100 + Number((m[2] || '').padEnd(2, '0'));
-}
+// What the technician types as a price: '120', '120.5', '$120.00', '1,250.00' → cents; null
+// else. A comma only between thousands: '25,00' and '0,500' are refused (src/utils/money.js)
+export const priceCents = (text) => parseMoney(text);
 // 12000 → '120.00': the price in the field
 export const priceText = (cents) => (Number.isFinite(cents) ? (cents / 100).toFixed(2) : '');
 // round(price × quantity), half up, in integers (as the server's lineAmount)
@@ -335,7 +333,7 @@ export function editTotal(edit) {
 // Why it cannot be saved yet, or null
 export function editError(edit) {
   if (!edit.name.trim()) return 'Name the line as the customer will read it.';
-  if (priceCents(edit.price) === null) return 'Price: dollars and cents, like 120.00.';
+  if (priceCents(edit.price) === null) return moneyError(edit.price, 'Price: dollars and cents, like 120.00.');
   if (!(edit.qty > 0)) return 'Quantity is more than 0.';
   return null;
 }
