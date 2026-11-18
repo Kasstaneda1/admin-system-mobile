@@ -47,7 +47,10 @@ export default function PayMethodScreen({ route, navigation }) {
   const [sending, setSending] = useState(false);
   // the screen is still open: Back or the swipe during the photo's upload must not start a payment
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => {
+    alive.current = true; // again after Fast Refresh, which runs the cleanup and the effect anew
+    return () => { alive.current = false; };
+  }, []);
   const [failed, setFailed] = useState(kept && kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}` : null);
   const [, redraw] = useReducer((n) => n + 1, 0);
   const locked = linesLocked(attemptOf(bill.id, 'method'));
