@@ -4,7 +4,7 @@
 // src/bill/lineText.js; the line's Done saves it with the rest of the line.
 import React, { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 import Icon from '../myDay/Icon';
 import { TopBar } from './parts';
@@ -69,21 +69,25 @@ export function LineTextEditor({ visible, text, lineName, onDone, onClose }) {
   };
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={cancel}>
-      <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
-        <TopBar back="Line" title="Text under the line" onBack={cancel} right="Done" onRight={() => onDone(value)} wide={false} />
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.editBody}>
-            {lineName ? <Text style={styles.editFor} numberOfLines={1}>{lineName}</Text> : null}
-            <TextInput style={styles.editField} value={value} onChangeText={setValue} multiline autoFocus
-              maxLength={TEXT_MAX} textAlignVertical="top" placeholder="What the customer reads under this line, e.g. The control board needs to be replaced."
-              placeholderTextColor={colors.fgMutedField} accessibilityLabel="Text under the line" />
-            <View style={styles.editFoot}>
-              <Text style={styles.only}>{THIS_BILL_ONLY}</Text>
-              {countText(value) ? <Text style={styles.count}>{countText(value)}</Text> : null}
+      {/* A Modal is a root of its own: without its own provider the insets are 0 on iOS and the
+          bar goes under the status bar, Done cannot be tapped (found in the simulator) */}
+      <SafeAreaProvider>
+        <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
+          <TopBar back="Line" title="Text under the line" onBack={cancel} right="Done" onRight={() => onDone(value)} wide={false} />
+          <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.editBody}>
+              {lineName ? <Text style={styles.editFor} numberOfLines={1}>{lineName}</Text> : null}
+              <TextInput style={styles.editField} value={value} onChangeText={setValue} multiline autoFocus
+                maxLength={TEXT_MAX} textAlignVertical="top" placeholder="What the customer reads under this line, e.g. The control board needs to be replaced."
+                placeholderTextColor={colors.fgMutedField} accessibilityLabel="Text under the line" />
+              <View style={styles.editFoot}>
+                <Text style={styles.only}>{THIS_BILL_ONLY}</Text>
+                {countText(value) ? <Text style={styles.count}>{countText(value)}</Text> : null}
+              </View>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }
