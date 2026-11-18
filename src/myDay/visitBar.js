@@ -183,12 +183,12 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
           <View style={styles.partCell}>
             <Text style={styles.partLabel}>Part needed<Text style={styles.partOpt}> · optional</Text></Text>
             <TextInput style={styles.partField} value={partName} onChangeText={setPartName} onFocus={toField} editable={!saving}
-              maxLength={PART_NAME_MAX} placeholder="Start relay" placeholderTextColor={colors.fgMutedField} accessibilityLabel="Part needed, optional" />
+              maxLength={PART_NAME_MAX} accessibilityLabel="Part needed, optional" />
           </View>
           <View style={styles.partCell}>
             <Text style={styles.partLabel}>Part #<Text style={styles.partOpt}> · optional</Text></Text>
             <TextInput style={styles.partField} value={partNumber} onChangeText={setPartNumber} onFocus={toField} editable={!saving}
-              maxLength={PART_NUMBER_MAX} autoCapitalize="characters" autoCorrect={false} placeholder="W10613606" placeholderTextColor={colors.fgMutedField}
+              maxLength={PART_NUMBER_MAX} autoCapitalize="characters" autoCorrect={false}
               accessibilityLabel="Part number, optional" />
           </View>
         </View>
