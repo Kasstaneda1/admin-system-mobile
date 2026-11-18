@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { answeredCount, attemptOf, dropAttempt, forgetBill, linesLocked, noAnswer, runAttempt, startAttempt } from './attempts.js';
-import { alreadyLine, payError } from './model.js';
+import { LOOK_AGAIN, answeredCount, attemptOf, dropAttempt, forgetBill, linesLocked, lockedTipOf, noAnswer, runAttempt, startAttempt } from './attempts.js';
+import { alreadyLine, payError, tipButtons } from './model.js';
 
 // Errors as axios gives them: no response (no connection, a timeout), or the server's answer
 const lost = () => Object.assign(new Error('Network Error'), { response: undefined });
@@ -130,4 +130,55 @@ test('Pay read the bill again: its attempts are forgotten, other bills keep thei
   assert.deepEqual([attemptOf(77, 'method'), attemptOf(77, 'card'), attemptOf(78, 'method')], [null, null, other]);
   forgetBill(78);
   assert.equal(linesLocked(null), false);
+});
+
+test('Pay read the bill again: an attempt without an answer stays (its line may still be on the way), the rest go', async () => {
+  // the tip's answer is lost after the payment went: the card attempt is uncertain
+  const s = fakeServer({ lose: ['tip-u'] });
+  const card = startAttempt(81, 'card', { lines: [line('pay-u'), line('tip-u', { kind: 'tip' })], view: { cents: 16041, tipCents: 1000, forKey: 'me' } });
+  await runAttempt(card, s);
+  // a refused attempt after a recorded line: locked, but settled — Pay forgets it
+  const method = startAttempt(81, 'method', { lines: [line('m-1'), line('m-2')], view: {} });
+  await runAttempt(method, fakeServer({ fail: { 'm-2': server(409, { code: 'over_balance' }) } }));
+  assert.deepEqual([card.uncertain, linesLocked(card), method.uncertain, linesLocked(method)], [true, true, false, true]);
+  forgetBill(81);
+  assert.equal(attemptOf(81, 'card'), card, 'the uncertain one lives');
+  assert.equal(attemptOf(81, 'method'), null);
+  // the next press settles it with the same ids: one row each
+  const again = await runAttempt(card, s);
+  assert.equal(again.done, true);
+  assert.deepEqual(s.sent, ['pay-u', 'tip-u', 'tip-u']);
+  assert.equal(s.rows.size, 2);
+  forgetBill(81);
+  assert.equal(attemptOf(81, 'card'), null);
+});
+
+test('the tip screen while the card attempt is locked: the tip that went, marked; the yellow box words', async () => {
+  const buttons = tipButtons(null, 15041);                // $5 / $10 / $20
+  const view = { cents: 15041, tipCents: 1000, forKey: 'me' };
+  const fresh = startAttempt(90, 'card', { lines: [line('c-1'), line('c-2', { kind: 'tip' })], view });
+  assert.equal(lockedTipOf(fresh, buttons), null, 'nothing sent yet: the tip may change');
+  await runAttempt(fresh, fakeServer({ lose: ['c-1'] }));
+  assert.deepEqual(lockedTipOf(attemptOf(90, 'card'), buttons), {
+    picked: buttons.find((b) => b.cents === 1000).key, typed: '', cents: 15041, tipCents: 1000,
+    title: 'Tip $10.00 is locked',
+    text: 'The card charge of $160.41 already went out. To change the tip, void it after it is recorded.',
+  });
+  // a typed tip: Custom with its dollars; no tip: No tip
+  const typed = startAttempt(91, 'card', { lines: [line('d-1'), line('d-2', { kind: 'tip' })], view: { ...view, tipCents: 1250 } });
+  await runAttempt(typed, fakeServer({ lose: ['d-2'] }));
+  assert.deepEqual([lockedTipOf(typed, buttons).picked, lockedTipOf(typed, buttons).typed], ['custom', '12.50']);
+  const none = startAttempt(92, 'card', { lines: [line('e-1')], view: { ...view, tipCents: 0 } });
+  await runAttempt(none, fakeServer({ lose: ['e-1'] }));
+  assert.deepEqual([lockedTipOf(none, buttons).picked, lockedTipOf(none, buttons).title], ['none', 'Tip $0.00 is locked']);
+  // only the card's attempt locks the tip screen
+  const cash = startAttempt(93, 'tip', { lines: [line('t-1', { kind: 'tip' })], view: {} });
+  await runAttempt(cash, fakeServer({ lose: ['t-1'] }));
+  assert.equal(lockedTipOf(cash, buttons), null);
+  assert.equal(lockedTipOf(null, buttons), null);
+  for (const id of [90, 91, 92, 93]) for (const flow of ['card', 'tip']) dropAttempt(attemptOf(id, flow));
+});
+
+test('the words under the button (the Designer on #50)', () => {
+  assert.equal(LOOK_AGAIN, 'Press again: the same payment is sent, and the server records it only once.');
 });
