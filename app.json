@@ -10,8 +10,15 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.semix.technician"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.semix.technician",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SEMIX asks for your location only to show you on the route map. It never tracks you."
+      }
     },
     "android": {
       "adaptiveIcon": {
