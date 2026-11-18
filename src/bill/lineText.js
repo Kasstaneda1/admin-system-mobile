@@ -20,7 +20,7 @@ export function bookItemOf(line, book) {
 // Where the text of the line comes from, as the editor says it, and whether «Reset to default»
 // is there: { label, reset }
 //   - a line of the technician's own (no price book item): 'Written for this line' (none when empty);
-//   - a price book line, its text as the book's: 'From the price book · version 2';
+//   - a price book line, its text as the book's: 'From the price book';
 //   - otherwise 'Edited for this bill', with Reset when the book's text is known.
 // The book's text is the item's as loaded now; until it loads, the line's text as it came.
 export function textSourceOf(line, text, item) {
@@ -28,8 +28,7 @@ export function textSourceOf(line, text, item) {
   if (!line || !line.price_item_id) return { label: now ? 'Written for this line' : null, reset: false };
   const base = item ? clean(item.description) : clean(line.description);
   if (now === base) {
-    const version = line.price_item_version ? ` · version ${line.price_item_version}` : '';
-    return { label: now ? `From the price book${version}` : null, reset: false };
+    return { label: now ? 'From the price book' : null, reset: false };
   }
   return { label: 'Edited for this bill', reset: !!item };
 }
@@ -44,5 +43,10 @@ export function textPatch(line, text) {
   return now || null;
 }
 
-// '12 / 5000'; over the limit the field stops typing (maxLength), so this is the count
-export const countText = (text) => `${String(text || '').length} / ${TEXT_MAX}`;
+// '4612 / 5000' once the text nears the limit (from 4500), else null; the field stops
+// typing at the limit (maxLength)
+export const COUNT_FROM = 4500;
+export function countText(text) {
+  const n = String(text || '').length;
+  return n >= COUNT_FROM ? `${n} / ${TEXT_MAX}` : null;
+}

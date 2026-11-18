@@ -18,13 +18,13 @@ test('bookItemOf: the line\'s item in the loaded book', () => {
 
 test('textSourceOf: where the text comes from, and Reset', () => {
   const item = bookItemOf(BOOK_LINE, BOOK);
-  assert.deepEqual(textSourceOf(BOOK_LINE, TERMS, item), { label: 'From the price book · version 2', reset: false });
+  assert.deepEqual(textSourceOf(BOOK_LINE, TERMS, item), { label: 'From the price book', reset: false });
   // the owner's case: the technician adds a sentence
   const added = `${TERMS}\nThe control board needs to be replaced.`;
   assert.deepEqual(textSourceOf(BOOK_LINE, added, item), { label: 'Edited for this bill', reset: true });
   // the book not loaded: compared with the line as it came, no Reset to offer
   assert.deepEqual(textSourceOf(BOOK_LINE, added, null), { label: 'Edited for this bill', reset: false });
-  assert.deepEqual(textSourceOf(BOOK_LINE, TERMS, null), { label: 'From the price book · version 2', reset: false });
+  assert.deepEqual(textSourceOf(BOOK_LINE, TERMS, null), { label: 'From the price book', reset: false });
   // emptied on a book line: edited, Reset brings it back
   assert.deepEqual(textSourceOf(BOOK_LINE, '', item), { label: 'Edited for this bill', reset: true });
   // a book item without text and none here: nothing to say
@@ -33,7 +33,6 @@ test('textSourceOf: where the text comes from, and Reset', () => {
   assert.deepEqual(textSourceOf(OWN_LINE, 'Checked the board', null), { label: 'Written for this line', reset: false });
   assert.deepEqual(textSourceOf(OWN_LINE, '  ', null), { label: null, reset: false });
   assert.deepEqual(textSourceOf(null, 'New text', null), { label: 'Written for this line', reset: false });
-  assert.equal(textSourceOf({ ...BOOK_LINE, price_item_version: null }, TERMS, item).label, 'From the price book');
 });
 
 test('defaultTextOf: the book\'s text, trimmed', () => {
@@ -64,8 +63,11 @@ test('newLineBody: a new line takes its text when there is one', () => {
   assert.equal(newLineBody({ ...edit, description: ' The control board needs to be replaced. ' }).description, 'The control board needs to be replaced.');
 });
 
-test('countText: the letters against the server\'s 5000', () => {
+test('countText: the letters against the server\'s 5000, shown from 4500', () => {
   assert.equal(TEXT_MAX, 5000);
-  assert.equal(countText('abc'), '3 / 5000');
-  assert.equal(countText(null), '0 / 5000');
+  assert.equal(countText('abc'), null);
+  assert.equal(countText(null), null);
+  assert.equal(countText('x'.repeat(4499)), null);
+  assert.equal(countText('x'.repeat(4500)), '4500 / 5000');
+  assert.equal(countText('x'.repeat(5000)), '5000 / 5000');
 });

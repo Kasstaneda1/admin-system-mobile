@@ -79,7 +79,7 @@ export function LineTextEditor({ visible, text, lineName, onDone, onClose }) {
               placeholderTextColor={colors.fgMutedField} accessibilityLabel="Text under the line" />
             <View style={styles.editFoot}>
               <Text style={styles.only}>{THIS_BILL_ONLY}</Text>
-              <Text style={styles.count}>{countText(value)}</Text>
+              {countText(value) ? <Text style={styles.count}>{countText(value)}</Text> : null}
             </View>
           </View>
         </KeyboardAvoidingView>

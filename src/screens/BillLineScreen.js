@@ -42,6 +42,11 @@ export default function BillLineScreen({ route, navigation }) {
     return () => { live = false; };
   }, [id, isNew, discount, line]);
   const item = bookItemOf(isNew ? null : line, book);
+  // Reset to default replaces the technician's own words: asked first
+  const resetText = () => Alert.alert('Reset to the price book text?', 'Your text for this line is replaced.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Reset', style: 'destructive', onPress: () => set({ description: defaultTextOf(item) }) },
+  ]);
   const source = textSourceOf(isNew ? null : line, edit.description, item);
 
   const total = editTotal(edit);
@@ -146,7 +151,7 @@ export default function BillLineScreen({ route, navigation }) {
 
               <Text style={styles.label}>TEXT UNDER THE LINE</Text>
               <LineTextBlock text={edit.description} source={source} off={!!saving}
-                onEdit={() => setWriting(true)} onReset={() => set({ description: defaultTextOf(item) })} />
+                onEdit={() => setWriting(true)} onReset={resetText} />
 
               <View style={styles.pair}>
                 <View style={styles.half}>
