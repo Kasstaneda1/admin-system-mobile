@@ -108,7 +108,12 @@ test('the payment, its part, the Custom tip and a line\'s price: «25,00» is $2
   assert.equal(amountOf({ full: false, typed: '25.00', note: 'x' }, due).cents, 2500);
   // the Custom tip (PayTip, CashTip): the hint under the field, else none
   assert.equal(commaHint('5,50'), null);
-  assert.equal(commaHint('5,'), 'Type it like this: 5.00.');
+  assert.equal(commaHint('5,'), null);              // still typing the cents
+  assert.equal(commaHint('5, '), null);
+  assert.equal(commaHint('1,234,5'), 'Type it like this: 1234.50.');
+  assert.equal(commaHint('1.234,5'), 'Type it like this: 1234.50.');
+  // a payment with «5,» is still refused, with the words (as before)
+  assert.equal(amountOf({ full: false, typed: '5,', note: 'x' }, 300000).error, 'Type it like this: 5.00.');
   assert.equal(commaHint('5.50'), null);
   assert.equal(commaHint(''), null);
   // a line's price (Edit line): refused with the words, no total shown
