@@ -14,13 +14,13 @@
 // as sent (Retake too: linesLocked); the next press sends the same request (the server records it
 // once) — «Already recorded» when it had gone through. The server refusing the photo (photo_*,
 // 413) before anything was recorded drops the attempt: a new photo, a new attempt.
-import React, { useMemo, useReducer, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../constants/colors';
 import { payAPI } from '../services/api';
-import { checkPhotoRefusal } from '../pay/checkPhoto';
+import { afterPhotoUpload, checkPhotoRefusal } from '../pay/checkPhoto';
 import { takeCheckPhoto } from '../pay/takeCheckPhoto';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
@@ -45,6 +45,9 @@ export default function PayMethodScreen({ route, navigation }) {
   const [checkNumber, setCheckNumber] = useState(view ? view.checkNumber : '');
   const [note, setNote] = useState(view ? view.note : partNote);
   const [sending, setSending] = useState(false);
+  // the screen is still open: Back or the swipe during the photo's upload must not start a payment
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
   const [failed, setFailed] = useState(kept && kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}` : null);
   const [, redraw] = useReducer((n) => n + 1, 0);
   const locked = linesLocked(attemptOf(bill.id, 'method'));
@@ -108,10 +111,12 @@ export default function PayMethodScreen({ route, navigation }) {
       // the photo first: the attempt's line names its file, the same on every repeat
       setSending(true);
       setFailed(null);
-      const file = await photoFile();
-      if (file.stop !== undefined) {
+      const file = afterPhotoUpload(await photoFile(), { left: !alive.current });
+      // left during the upload (Back, the swipe): no payment starts — nothing recorded
+      if (file.left) return;
+      if (!file.go) {
         setSending(false);
-        if (file.stop) setFailed(file.stop);
+        if (file.text) setFailed(file.text);
         return;
       }
       const body = file.fileId
