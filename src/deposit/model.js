@@ -1,11 +1,12 @@
 // «Deposit» in the technician app (DEP-APP; look: design-mockups/deposits app-states, app-visit,
 // app-take, app-done, app-visit-after, app-repair-pay, app-blocked; rules BILLS_MV_DESIGN.md
 // §2.4а), without React Native (model.test.mjs runs it on node). The server keeps the money:
-//   GET  /api/my/visits/:id                — visit.deposits (DEP-1c): absent when the company has
-//                                            deposits off, for a helper and for a technician
-//                                            without «Takes payments»; else { take, open_cents,
+//   GET  /api/my/visits/:id                — visit.deposits (DEP-1c, be#223): null for a helper
+//                                            and for a technician without «Takes payments»; else
+//                                            { enabled, can_take, refused_code, open_cents,
 //                                            items[] } (the job's deposits as the technician sees
-//                                            them); take: 'yes' | 'bill_issued' | 'job_closed';
+//                                            them: applied_cents, applied_to, open_cents, can_void);
+//                                            refused_code: 'bill_issued' | 'job_closed' | null;
 //   POST /api/my/visits/:id/deposits       — { amount_cents, method, method_note?, note?,
 //                                            check_number?, check_photo_file_id?,
 //                                            client_request_id } → 201 { created, deposit,
@@ -26,13 +27,17 @@ export function depositsOf(visit) {
   const d = visit.deposits;
   if (!d || typeof d !== 'object') return null;
   const items = Array.isArray(d.items) ? d.items : [];
+  // take: why a new one is refused, 'off' (the company's switch), or 'yes'
+  const take = d.refused_code || (d.enabled === false ? 'off' : 'yes');
   return {
-    take: d.take || 'yes',
+    take,
+    canTake: take === 'yes' && d.can_take !== false,
     openCents: Number.isFinite(d.open_cents) ? d.open_cents : 0,
     items,
     live: items.filter((row) => !row.voided_at),
   };
 }
+const appliedOf = (row) => (Number.isFinite(row.applied_cents) ? row.applied_cents : row.applied_to ? row.amount_cents : 0);
 
 const howOf = (row) => (row.method === 'check' && row.check_number ? `Check #${row.check_number}`
   : row.method === 'other' ? (row.method_note || 'Other') : methodWord(row.method, row.method_note).replace(/^./, (c) => c.toUpperCase()));
@@ -45,11 +50,12 @@ export function depositRow(visit, { offline = false } = {}) {
   const d = depositsOf(visit);
   if (!d) return null;
   if (offline) return { line: 'Needs the internet', kind: 'mute', done: false, off: true, tap: null };
-  const applied = d.live.filter((row) => row.applied_to);
-  const open = d.live.filter((row) => !row.applied_to);
-  if (d.take === 'bill_issued' && !open.length) {
+  const applied = d.live.filter((row) => appliedOf(row) > 0);
+  // Open: not taken by a bill yet (what a bill took in part, the rest is the office's refund)
+  const open = d.take === 'bill_issued' ? [] : d.live.filter((row) => appliedOf(row) === 0);
+  if (d.take === 'bill_issued') {
     if (applied.length) {
-      const sum = applied.reduce((s, row) => s + row.amount_cents, 0);
+      const sum = applied.reduce((s, row) => s + appliedOf(row), 0);
       return { line: `${usd(sum)} applied to ${applied[0].applied_to}`, kind: 'ok', done: true, off: false, tap: 'open' };
     }
     return { line: 'Take it as a payment', kind: 'mute', done: false, off: true, tap: 'blocked' };
@@ -61,7 +67,7 @@ export function depositRow(visit, { offline = false } = {}) {
     }
     return { line: `${usd(d.openCents || open.reduce((s, row) => s + row.amount_cents, 0))} · ${open.length} deposits`, kind: 'ok', done: true, off: false, tap: 'open' };
   }
-  if (d.take === 'job_closed') return null;
+  if (d.take === 'job_closed' || d.take === 'off') return null;
   return { line: 'Take one for the repair', kind: 'wait', done: false, off: false, tap: 'take' };
 }
 

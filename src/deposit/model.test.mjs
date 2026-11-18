@@ -11,18 +11,33 @@ const DEP = {
 };
 const VISIT = { id: 31, job_id: 2215, role: 'main', status: 'on_site', legacy: false };
 const withDeposits = (d) => ({ ...VISIT, deposits: d });
-const NONE = withDeposits({ take: 'yes', open_cents: 0, items: [] });
-const TAKEN = withDeposits({ take: 'yes', open_cents: 10000, items: [DEP] });
-const APPLIED = withDeposits({ take: 'bill_issued', open_cents: 0, items: [{ ...DEP, applied_to: 'NY-1048', can_void: false }] });
-const ISSUED_NONE = withDeposits({ take: 'bill_issued', open_cents: 0, items: [] });
+const on = (refused, open, items) => ({ enabled: true, can_take: refused === null, refused_code: refused, open_cents: open, items });
+const NONE = withDeposits(on(null, 0, []));
+const TAKEN = withDeposits(on(null, 10000, [DEP]));
+const APPLIED = withDeposits(on('bill_issued', 0, [{ ...DEP, applied_cents: 10000, applied_to: 'NY-1048', open_cents: 0, can_void: false }]));
+const ISSUED_NONE = withDeposits(on('bill_issued', 0, []));
 const err = (status, data = {}) => ({ response: { status, data } });
 
-test('no row: deposits off (no field), helper, legacy, no job', () => {
+test('no row: deposits null, the company off, helper, legacy, no job', () => {
   assert.equal(depositRow(VISIT), null);
   assert.equal(depositRow({ ...NONE, role: 'helper' }), null);
   assert.equal(depositRow({ ...NONE, legacy: true }), null);
   assert.equal(depositRow({ ...NONE, job_id: null }), null);
-  assert.equal(depositRow(withDeposits({ take: 'job_closed', open_cents: 0, items: [] })), null);
+  assert.equal(depositRow(withDeposits(on('job_closed', 0, []))), null);
+  assert.equal(depositRow({ ...VISIT, deposits: null }), null, 'a helper or no «Takes payments»: null');
+  assert.equal(depositRow(withDeposits({ enabled: false, can_take: false, refused_code: null, open_cents: 0, items: [] })), null, 'the company off');
+});
+
+test('the company switched off with a deposit open: the row shows it, nothing new to take', () => {
+  const off = withDeposits({ enabled: false, can_take: false, refused_code: null, open_cents: 10000, items: [DEP] });
+  assert.equal(depositRow(off).line, '$100.00 · check · Nov 11');
+  assert.equal(depositsOf(off).canTake, false);
+  assert.equal(depositsOf(NONE).canTake, true);
+});
+
+test('a deposit above the bill: the row shows what the bill took', () => {
+  const part = withDeposits(on('bill_issued', 2500, [{ ...DEP, applied_cents: 7500, applied_to: 'NY-1048', open_cents: 2500, can_void: false }]));
+  assert.equal(depositRow(part).line, '$75.00 applied to NY-1048');
 });
 
 test('the seven states of the row (design app-states)', () => {
@@ -34,9 +49,9 @@ test('the seven states of the row (design app-states)', () => {
 });
 
 test('a void deposit does not count; two open ones sum', () => {
-  const voided = withDeposits({ take: 'yes', open_cents: 0, items: [{ ...DEP, voided_at: '2026-11-11T17:00:00Z' }] });
+  const voided = withDeposits(on(null, 0, [{ ...DEP, voided_at: '2026-11-11T17:00:00Z' }]));
   assert.equal(depositRow(voided).line, 'Take one for the repair');
-  const two = withDeposits({ take: 'yes', open_cents: 15000, items: [DEP, { ...DEP, id: 10, amount_cents: 5000, method: 'cash', check_number: null }] });
+  const two = withDeposits(on(null, 15000, [DEP, { ...DEP, id: 10, amount_cents: 5000, method: 'cash', check_number: null }]));
   assert.equal(depositRow(two).line, '$150.00 · 2 deposits');
   assert.equal(depositsOf(two).live.length, 2);
 });
