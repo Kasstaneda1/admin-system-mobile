@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TEXT_MAX, bookItemOf, countText, defaultTextOf, textPatch, textSourceOf } from './lineText.js';
+import * as model from './model.js';
 import { editOf, newEdit, newLineBody, patchOf } from './model.js';
 
 const TERMS = 'Parts ordered for this repair cannot be returned.';
@@ -25,6 +26,10 @@ test('textSourceOf: where the text comes from, and Reset', () => {
   // the book not loaded: compared with the line as it came, no Reset to offer
   assert.deepEqual(textSourceOf(BOOK_LINE, added, null), { label: 'Edited for this bill', reset: false });
   assert.deepEqual(textSourceOf(BOOK_LINE, TERMS, null), { label: 'From the price book', reset: false });
+  // edited earlier (the line's text is no longer the book's) and the book loaded: compared
+  // with the book, not with the line as it came
+  const earlier = { ...BOOK_LINE, description: added };
+  assert.deepEqual(textSourceOf(earlier, model.editOf(earlier).description, item), { label: 'Edited for this bill', reset: true });
   // emptied on a book line: edited, Reset brings it back
   assert.deepEqual(textSourceOf(BOOK_LINE, '', item), { label: 'Edited for this bill', reset: true });
   // a book item without text and none here: nothing to say
