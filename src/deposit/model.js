@@ -110,11 +110,11 @@ export function depositRows(visit, nowMs) {
     const applied = appliedOf(row);
     const open = openOf(row);
     // where its money is: void · applied to NY-1048 · refunded ($40.00) · the rest open toward the bill,
-    // or — once the final bill is issued — the office refunds it
+    // or — once the final bill is issued — the office refunds it («$24.71 to refund by the office»)
     const where = row.voided_at ? ['void'] : [
       applied > 0 && row.applied_to ? `applied to ${row.applied_to}` : null,
-      refunded > 0 ? (open === 0 && applied === 0 ? 'refunded' : `refunded ${usd(refunded)}`) : null,
-      open > 0 ? (applied > 0 || d.take === 'bill_issued' ? `${usd(open)} the office refunds` : 'open until the repair bill') : null,
+      refunded > 0 ? (open === 0 && applied === 0 ? 'refunded in full' : `refunded ${usd(refunded)}`) : null,
+      open > 0 ? (applied > 0 || d.take === 'bill_issued' ? `${usd(open)} to refund by the office` : 'open until the repair bill') : null,
     ].filter(Boolean);
     return {
       key: `d${row.id}`,
@@ -174,7 +174,7 @@ export function withYouRows(visit) {
 
 // ---------- the head of the deposits screen ----------
 // Before the final bill: DEPOSITS $100.00 | FOR THE REPAIR Open. After it: APPLIED TO NY-1048
-// $175.29 and, when some is left over, OFFICE REFUNDS $24.71 → Numbers rows
+// $175.29 and, when some is left over, TO REFUND $24.71 → Numbers rows
 export function depositHead(visit) {
   const d = depositsOf(visit);
   if (!d) return [];
@@ -183,7 +183,7 @@ export function depositHead(visit) {
     const label = applied.length ? applied[0].applied_to : null;
     return [
       { key: 'applied', label: label ? `Applied to ${label}` : 'Applied', value: usd(applied.reduce((s, row) => s + appliedOf(row), 0)) },
-      d.openCents > 0 ? { key: 'refund', label: 'Office refunds', value: usd(d.openCents) } : null,
+      d.openCents > 0 ? { key: 'refund', label: 'To refund', value: usd(d.openCents) } : null,
     ].filter(Boolean);
   }
   return [

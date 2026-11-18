@@ -131,10 +131,10 @@ test('the grey row tapped: this visit\'s issued bill opens Pay; another visit\'s
 
 // ---------- the Architect's cases on 2cad7bc (refunds, money with the technician, the head) ----------
 const sub = (visit) => depositRows(visit, Date.parse('2026-11-11T17:00:00Z'))[0].sub;
-test('a deposit refunded in full: no green row, Take one again, «refunded» in the list', () => {
+test('a deposit refunded in full: no green row, Take one again, «refunded in full» in the list', () => {
   const back = withDeposits(on(null, 0, [{ ...DEP, refunded_cents: 10000, applied_cents: 0, open_cents: 0, can_void: false }]));
   assert.deepEqual(depositRow(back), { line: 'Take one for the repair', kind: 'wait', done: false, off: false, tap: 'take' });
-  assert.equal(sub(back), 'Ivan P. · “Drain pump” · refunded');
+  assert.equal(sub(back), 'Ivan P. · “Drain pump” · refunded in full');
 });
 
 test('$40 of $100 refunded: the row shows the $60.00 the bill takes', () => {
@@ -158,8 +158,8 @@ test('with you now: their own check stays after the bill applies it; less refund
 test('$200 deposit, $175.29 bill: $175.29 applied, $24.71 the office refunds', () => {
   const over = withDeposits(on('bill_issued', 2471, [{ ...DEP, amount_cents: 20000, refunded_cents: 0, applied_cents: 17529, applied_to: 'NY-1048', open_cents: 2471 }]));
   assert.equal(depositRow(over).line, '$175.29 applied to NY-1048');
-  assert.deepEqual(depositHead(over).map((r) => [r.label, r.value]), [['Applied to NY-1048', '$175.29'], ['Office refunds', '$24.71']]);
-  assert.equal(sub(over), 'Ivan P. · “Drain pump” · applied to NY-1048 · $24.71 the office refunds');
+  assert.deepEqual(depositHead(over).map((r) => [r.label, r.value]), [['Applied to NY-1048', '$175.29'], ['To refund', '$24.71']]);
+  assert.equal(sub(over), 'Ivan P. · “Drain pump” · applied to NY-1048 · $24.71 to refund by the office');
   const whole = withDeposits(on('bill_issued', 0, [{ ...DEP, applied_cents: 10000, applied_to: 'NY-1048', open_cents: 0 }]));
   assert.deepEqual(depositHead(whole).map((r) => [r.label, r.value]), [['Applied to NY-1048', '$100.00']]);
   assert.deepEqual(depositHead(TAKEN).map((r) => [r.label, r.value]), [['Deposits', '$100.00'], ['For the repair', 'Open']]);
