@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ESTIMATE_CHOICES, RESIGN_WORDS, agreedOf, approveError, approveTile, authBody, canApprove, copyName, countText, estimatePriceOf, estimatePriceText, estimateText, writtenText,
-  latestOf, needsEstimateChoice, pickEstimate, ruleText, signedText, termsLineOf, signedAtOf, withSignedAt, CLOCK_WORDS,
+  latestOf, needsEstimateChoice, pickEstimate, ruleText, signedText, termsLineOf, signedAtOf, withSignedAt, CLOCK_SKEW_MS, CLOCK_QUEUED_WORDS, clockOff, queuedClockText, clockBoxNow,
 } from './model.js';
 
 // The design's draft (design-mockups/app-invoice «Числа сходятся»): $230.00 before tax, $250.41 with it
@@ -141,11 +141,45 @@ test('signed_at (13г): the phone\'s moment as ISO in UTC; none for no moment', 
   assert.deepEqual(withSignedAt({ a: 1 }, null), { a: 1 });
 });
 
-test('400 signed_at_out_of_bounds: its own kind, words for the technician (not the server\'s)', () => {
-  const failed = approveError({ response: { status: 400, data: { code: 'signed_at_out_of_bounds', error: 'signed_at is out of bounds: not later than now…' } } });
-  assert.equal(failed.kind, 'clock');
-  assert.equal(failed.text, CLOCK_WORDS);
-  assert.doesNotMatch(failed.text, /signed_at/);
+const NOW = Date.parse('2026-11-17T15:00:00Z');
+const outOfBounds = (date) => ({ response: { status: 400, headers: date === undefined ? {} : { date }, data: { code: 'signed_at_out_of_bounds', error: 'signed_at is out of bounds: not later than now…' } } });
+
+test('400 signed_at_out_of_bounds: its own kind; the clock blamed only when the server\'s Date says so', () => {
+  // the server's Date 10 min after this phone's clock: off
+  const off = approveError(outOfBounds(new Date(NOW + 10 * 60000).toUTCString()), NOW);
+  assert.deepEqual([off.kind, off.clock], ['clock', true]);
+  assert.equal(off.text, `The phone’s clock was off when it was signed. ${CLOCK_QUEUED_WORDS}`);
+  // 1 min apart: the clock agrees
+  const fine = approveError(outOfBounds(new Date(NOW - 60000).toUTCString()), NOW);
+  assert.deepEqual([fine.kind, fine.clock, fine.text], ['clock', false, CLOCK_QUEUED_WORDS]);
+  // no Date header: not known
+  assert.equal(approveError(outOfBounds(undefined), NOW).clock, null);
+  assert.equal(approveError(outOfBounds('junk'), NOW).clock, null);
+  // the words never say «server» or the field's name
+  for (const f of [off, fine]) assert.doesNotMatch(f.text, /server|signed_at/i);
   // another 400 stays a refusal with the server's words
   assert.equal(approveError({ response: { status: 400, data: { error: 'Something else' } } }).kind, 'refused');
+});
+
+test('clockOff: more than 2 min either way', () => {
+  const at = (ms) => ({ response: { headers: { date: new Date(ms).toUTCString() } } });
+  assert.equal(clockOff(at(NOW + CLOCK_SKEW_MS + 1000), NOW), true);
+  assert.equal(clockOff(at(NOW - CLOCK_SKEW_MS - 1000), NOW), true);
+  assert.equal(clockOff(at(NOW + CLOCK_SKEW_MS - 1000), NOW), false);
+  assert.equal(clockOff({ response: { headers: { Date: new Date(NOW).toUTCString() } } }, NOW), false);
+  assert.equal(clockOff(null, NOW), null);
+  assert.equal(queuedClockText(null), CLOCK_QUEUED_WORDS);
+});
+
+test('right after Approve: the clock, a visit not started, or the words for both', () => {
+  assert.equal(clockBoxNow({ clock: true }, { omw_at: null }).title, 'Signature not saved: the phone’s clock is off');
+  assert.equal(clockBoxNow({ clock: true }, { omw_at: null }).text, 'Set the date and time to automatic in the phone’s settings. Then ask the customer to sign again.');
+  assert.deepEqual(clockBoxNow({ clock: false }, { omw_at: null }),
+    { title: 'Signature not saved: the visit hasn’t started', text: 'Tap On my way, then ask the customer to sign again.' });
+  const general = { title: 'Signature not saved: its time doesn’t fit this visit', text: 'Check that the phone’s date and time are automatic and the visit is marked On my way. Then ask the customer to sign again.' };
+  // On my way pressed and the clock agrees: neither is known
+  assert.deepEqual(clockBoxNow({ clock: false }, { omw_at: '2026-11-17T14:00:00Z' }), general);
+  // the clock not known: not blamed, and the visit's start not blamed either
+  assert.deepEqual(clockBoxNow({ clock: null }, { omw_at: null }), general);
+  assert.deepEqual(clockBoxNow({ clock: false }, null), general);
 });

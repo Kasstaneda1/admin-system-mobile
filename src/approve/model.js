@@ -160,12 +160,40 @@ export function approveTile(visit, known, pending, today) {
 //   refused — the server's reason in words; gone — the visit is no longer this technician's;
 //   clock — the server did not take the moment of the signature (signed_at_out_of_bounds, 13г):
 //           the phone's clock is far off, or the visit's start the server knows is later than the
-//           signature; the signature is never sent without its moment — it stays, marked;
+//           signature; clock: whether the phone's clock is known to be off (clockOff); text: the
+//           words of a signature from the queue. It is never sent without its moment — it stays,
+//           marked;
 //   failed — the server broke.
 export const RESIGN_WORDS = 'The amount changed — the customer signs again.';
-// 400 signed_at_out_of_bounds (draft, the Designer's words to come)
-export const CLOCK_WORDS = 'The office’s server did not accept the time of this signature. Check that the phone’s date and time are set automatically, then the customer signs again. If the customer is gone, call the office.';
-export function approveError(error) {
+// ---------- 400 signed_at_out_of_bounds: the words (the Designer, 17.11) ----------
+// The clock is blamed only when the app knows it: the server's Date header against this phone's
+// clock, more than CLOCK_SKEW_MS apart. Else a visit without its start (no On my way) is the
+// likely cause; else the words say neither. «Server» is not a word for the technician.
+export const CLOCK_SKEW_MS = 2 * 60 * 1000;
+// true — the phone's clock is off; false — it agrees with the server's; null — not known
+export function clockOff(error, nowMs = Date.now()) {
+  const headers = error && error.response && error.response.headers;
+  const at = Date.parse(headers ? headers.date || headers.Date : '');
+  return Number.isFinite(at) ? Math.abs(nowMs - at) > CLOCK_SKEW_MS : null;
+}
+// A signature from the phone's queue, refused for its time: the plain words, the clock first
+// when it is known to be off (the box «The signature was not accepted»)
+export const CLOCK_QUEUED_WORDS = 'The time it was signed doesn’t fit this visit. Ask the customer to sign again, or call the office if they’re gone.';
+export function queuedClockText(clock) {
+  return clock === true ? `The phone’s clock was off when it was signed. ${CLOCK_QUEUED_WORDS}` : CLOCK_QUEUED_WORDS;
+}
+// Right after Approve, the customer beside the technician: { title, text } of the yellow box.
+// failed: approveError's 'clock'; visit: the visit as the screen has it (omw_at)
+export function clockBoxNow(failed, visit) {
+  if (failed && failed.clock === true) {
+    return { title: 'Signature not saved: the phone’s clock is off', text: 'Set the date and time to automatic in the phone’s settings. Then ask the customer to sign again.' };
+  }
+  if (failed && failed.clock === false && visit && !visit.omw_at) {
+    return { title: 'Signature not saved: the visit hasn’t started', text: 'Tap On my way, then ask the customer to sign again.' };
+  }
+  return { title: 'Signature not saved: its time doesn’t fit this visit', text: 'Check that the phone’s date and time are automatic and the visit is marked On my way. Then ask the customer to sign again.' };
+}
+export function approveError(error, nowMs = Date.now()) {
   const response = error && error.response;
   const status = response ? response.status : 0;
   const data = (response && response.data) || {};
@@ -177,7 +205,10 @@ export function approveError(error) {
   }
   if (status === 409 && data.code === 'terms_changed') return { kind: 'resign', text: 'The company’s terms changed — the customer reads them and signs again.' };
   if (status === 409 && (data.code === 'no_draft' || data.code === 'no_lines')) return { kind: 'refused', text: 'The bill has nothing to approve yet. Add the work to it first.' };
-  if (status === 400 && data.code === 'signed_at_out_of_bounds') return { kind: 'clock', text: CLOCK_WORDS };
+  if (status === 400 && data.code === 'signed_at_out_of_bounds') {
+    const clock = clockOff(error, nowMs);
+    return { kind: 'clock', clock, text: queuedClockText(clock) };
+  }
   if (status === 400 && data.code === 'estimate_choice_missing') return { kind: 'refused', text: 'In NYC the customer chooses about the written estimate first.' };
   if (status === 404) return { kind: 'gone', text: 'This visit was changed by the office' };
   if (status === 409 || status === 403 || status === 400) {

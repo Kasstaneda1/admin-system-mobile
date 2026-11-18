@@ -29,7 +29,7 @@ import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody, usd } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 import {
-  ESTIMATE_CHOICES, ESTIMATE_RIGHT, agreedOf, authBody, pickEstimate, countText, estimatePriceOf, estimatePriceText, writtenText, latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf,
+  ESTIMATE_CHOICES, ESTIMATE_RIGHT, agreedOf, authBody, pickEstimate, countText, estimatePriceOf, estimatePriceText, writtenText, latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf, clockBoxNow,
 } from '../approve/model';
 import { approvals } from '../approve/store';
 import { downloadApprovalPdf } from '../approve/pdf';
@@ -131,7 +131,9 @@ export default function ApproveScreen({ route, navigation }) {
       return;
     }
     setPending(await approvals.pendingOf(id, userId));
-    setSaid(r.failed);
+    // the time of the signature refused (13г): the words for the customer beside the technician,
+    // the clock blamed only when it is known to be off (approve/model.js clockBoxNow)
+    setSaid(r.result === 'clock' ? { kind: 'clock', ...clockBoxNow(r.failed, visit) } : r.failed);
     // a new signature is a new choice about the written estimate («Архитектор ПО», #44)
     if (r.result === 'resign' || r.result === 'refused' || r.result === 'clock') { pad.current && pad.current.clear(); setEstimate(null); load(); }
     if (r.result === 'gone') Alert.alert('The visit changed', r.failed.text, [{ text: 'OK', onPress: () => navigation.goBack() }]);
@@ -207,8 +209,8 @@ export default function ApproveScreen({ route, navigation }) {
           {waitingOnPhone ? (
             <Box kind="done" icon="checkc" title="Signed · saved on this phone" text="No connection. The signature goes to the office by itself when the phone is back online. You can start the repair." style={styles.boxGap} />
           ) : null}
-          {pending && pending.failed ? <Box kind="warn" icon="warn" title="The signature was not accepted" text={pending.failed.text} style={styles.boxGap} /> : null}
-          {said && !(pending && pending.failed && said.text === pending.failed.text) ? <Box kind="warn" icon="warn" text={said.text} style={styles.boxGap} /> : null}
+          {pending && pending.failed && !(said && said.kind === 'clock') ? <Box kind="warn" icon="warn" title="The signature was not accepted" text={pending.failed.text} style={styles.boxGap} /> : null}
+          {said && !(pending && pending.failed && said.text === pending.failed.text) ? <Box kind="warn" icon="warn" title={said.title || null} text={said.text} style={styles.boxGap} /> : null}
 
           {!signing && latest && !waitingOnPhone ? (
             <View style={styles.pad}>
