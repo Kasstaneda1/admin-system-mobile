@@ -201,7 +201,9 @@ export const myDayAPI = {
 //   get — 404 'This visit has no bill yet' before it is drafted;
 //   draft — POST: the server assembles a new draft (201, created: true) or answers the one
 //           the visit has (200); 409 for a visit that has an issued bill or no work;
-//   message — PUT { message }; addLine — POST { price_item_id } or { kind, name, … };
+//   message — PUT { message }; tax — PUT { tax_id } (null: the company's default) or
+//           { tax_off }: 403 no_tax_permission without changes_bill_tax, 400 tax_not_allowed;
+//   addLine — POST { price_item_id } or { kind, name, … };
 //   changeLine — PATCH the fields that changed; removeLine — DELETE;
 //   issue — POST { expected_total_cents }: the number, the snapshot and the PDF; 409 with a
 //           code when the draft is not ready (tax_missing, profile_missing, no_lines, …);
@@ -211,6 +213,7 @@ export const billAPI = {
   get: async (id) => (await api.get(billPath(id), { timeout: 15000 })).data,
   draft: async (id) => (await api.post(billPath(id), {}, { timeout: 15000 })).data,
   message: async (id, message) => (await api.put(billPath(id), { message }, { timeout: 15000 })).data,
+  tax: async (id, body) => (await api.put(billPath(id), body, { timeout: 15000 })).data,
   addLine: async (id, body) => (await api.post(`${billPath(id)}/lines`, body, { timeout: 15000 })).data,
   changeLine: async (id, lineId, body) => (await api.patch(`${billPath(id)}/lines/${encodeURIComponent(lineId)}`, body, { timeout: 15000 })).data,
   removeLine: async (id, lineId) => (await api.delete(`${billPath(id)}/lines/${encodeURIComponent(lineId)}`, { timeout: 15000 })).data,

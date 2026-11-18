@@ -79,7 +79,8 @@ export default function BillLineScreen({ route, navigation }) {
   };
 
   const step = qtyStep(edit);
-  const taxText = tax && tax.rate !== null && tax.rate !== undefined
+  const taxText = tax && tax.off ? 'Tax is turned off on this bill'
+    : tax && tax.rate !== null && tax.rate !== undefined
     ? `Sales tax ${percentText(tax.rate)}${tax.name ? ` · ${tax.name}` : ''}`
     : 'The company has no default tax';
   const taxable = isNew ? null : line.taxable;
