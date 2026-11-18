@@ -117,6 +117,8 @@ test('minutes left and short names', () => {
   assert.equal(minutesLeft('2026-11-17T19:39:00Z', Date.parse('2026-11-17T19:38:59Z')), 1);
   assert.equal(minutesLeft('2026-11-17T19:39:00Z', Date.parse('2026-11-17T19:39:00Z')), 0);
   assert.equal(minutesLeft(null, 0), 0);
+  // the phone's clock 70 s behind the server's: still 15, not 16 (the Designer on #62)
+  assert.equal(minutesLeft('2026-11-17T19:39:00Z', Date.parse('2026-11-17T19:22:50Z')), 15);
   assert.equal(shortPerson('Ivan Petrov'), 'Ivan P.');
   assert.equal(shortPerson('Team'), 'Team');
   assert.equal(shortPerson(''), '');
@@ -248,4 +250,12 @@ test('the company\'s settings from the bill answer: tip buttons and how to pay (
   assert.equal(paymentInstructionsOf({ payment_instructions: '  Zelle (718) 555-0100 ' }), 'Zelle (718) 555-0100');
   assert.deepEqual([paymentInstructionsOf({ payment_instructions: '   ' }), paymentInstructionsOf({ payment_instructions: null }), paymentInstructionsOf({}), paymentInstructionsOf(null)],
     [null, null, null, null]);
+});
+
+test('numbers of a bill that took a deposit (DEP-2, design deposits app-repair-pay)', () => {
+  const took = { ...ISSUED, deposits_applied_cents: 10000, balance_cents: 7529 };
+  assert.deepEqual(numbersOf(took).map((n) => [n.label, n.value]), [['Total', '$175.29'], ['Deposit', '−$100.00'], ['Due', '$75.29']]);
+  const partly = { ...took, paid_cents: 5000, balance_cents: 2529 };
+  assert.deepEqual(numbersOf(partly).map((n) => n.label), ['Total', 'Deposit', 'Paid', 'Due']);
+  assert.deepEqual(numbersOf(ISSUED).map((n) => n.label), ['Total', 'Paid', 'Due']);
 });

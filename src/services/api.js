@@ -277,6 +277,15 @@ export const payAPI = {
   })).data,
 };
 
+// A deposit on the visit's job (DEP-1, be#217; DEP-APP): the main technician with «Takes
+// payments», the company's deposits on, the job open. record — POST { amount_cents, method,
+// method_note?, note?, check_number?, client_request_id }: 201 { created, deposit,
+// deposit_warnings, deposits_open_cents }, the same id again 200; 409 deposits_off / job_closed /
+// bill_issued / request_used, 403 payments_off. A void goes by payAPI.void (the same route).
+export const depositAPI = {
+  record: async (id, body) => (await api.post(`/api/my/visits/${encodeURIComponent(id)}/deposits`, body, { timeout: 30000 })).data,
+};
+
 // The visit's photos (backend routes/scheduler/photos.js; a technician only on their own
 // visit). list: the server's rows, the newest first. upload(file { uri, name, type }): the
 // field 'photo', JPEG/PNG/GIF/WebP up to 10 MB; 201 { photo }. A photo itself is

@@ -53,6 +53,7 @@ import { billError, billTile, canBill, draftedFrom, knownOf } from '../bill/mode
 import { Box } from '../bill/parts';
 import { approveError, approveTile, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
+import { VISIT_HINT, depositRow } from '../deposit/model';
 import { approvals } from '../approve/store';
 import { diagnosisBlock, diagnosisOf, finishAsksDiagnosis, finishDiagnosisChanged, finishNeedsDiagnosis, finishWaitsForDiagnosis } from '../diagnosis/model';
 import { estimateRequestOf } from '../myDay/estimateRequest';
@@ -237,6 +238,11 @@ export default function VisitScreen({ route, navigation }) {
   // «Pay» (src/pay): what the bill's money says under the button; the last known balance without
   // the connection (recording waits for it)
   const pay = shown ? payTile(shown.visit, known, { offline: problem === 'offline' }) : null;
+  // Deposit (DEP-APP, design deposits app-states): under Pay, only with the server's visit.deposits
+  const deposit = shown ? depositRow(shown.visit, { offline: problem === 'offline' }) : null;
+  const openDeposit = useCallback(() => {
+    if (shown && deposit && deposit.tap) navigation.navigate('Deposit', { id, visit: shown.visit, mode: deposit.tap, bill: known && known.bill ? known.bill : null });
+  }, [shown, deposit, known, id, navigation]);
   const openPay = useCallback(() => {
     if (shown) navigation.navigate('Pay', { id, visit: shown.visit, bill: known && known.bill ? known.bill : null });
   }, [navigation, id, shown, known]);
@@ -689,6 +695,20 @@ export default function VisitScreen({ route, navigation }) {
                 {pay.off ? null : <Icon name="chev" size={20} color={colors.fgSecondary} />}
               </TouchableOpacity>
             ) : null}
+            {deposit ? (
+              <TouchableOpacity style={[styles.billTile, deposit.kind === 'ok' && styles.payPaid, deposit.off && styles.billTileOff]}
+                onPress={openDeposit} disabled={!deposit.tap} accessibilityRole="button" accessibilityLabel={`Deposit, ${deposit.line}`}
+                accessibilityState={{ disabled: !deposit.tap }}>
+                <Icon name={deposit.done ? 'checkc' : 'cash'} size={26}
+                  color={deposit.kind === 'ok' ? colors.successFg : deposit.off ? colors.fgSecondary : colors.brandPressed} />
+                <View style={styles.billTileBody}>
+                  <Text style={styles.billTileTitle}>Deposit</Text>
+                  <Text style={[styles.billTileLine, deposit.kind === 'ok' && styles.approveSigned, deposit.off && styles.payQuiet]}>{deposit.line}</Text>
+                </View>
+                {deposit.tap && !deposit.off ? <Icon name="chev" size={20} color={colors.fgSecondary} /> : null}
+              </TouchableOpacity>
+            ) : null}
+            {deposit && deposit.tap === 'take' ? <Text style={styles.depositHint}>{VISIT_HINT}</Text> : null}
             {drafted ? <Box kind="info" icon="doc" title={drafted.title} text={drafted.text} style={styles.drafted} /> : null}
             {estimateRequest ? (
               <TouchableOpacity style={styles.estReq} onPress={() => navigation.navigate('Estimate', { id: estimateRequest.id, from: 'Visit' })}
@@ -939,6 +959,7 @@ const styles = StyleSheet.create({
   approveTodoLine: { color: colors.fgSecondary },
   approveSigned: { color: colors.successFg },
   drafted: { marginTop: 10 },
+  depositHint: { marginTop: 8, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   accessBody: { flex: 1 },
   accessTitle: { fontSize: 15, fontWeight: '700', color: colors.warningFg },

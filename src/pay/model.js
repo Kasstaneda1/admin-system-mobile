@@ -122,14 +122,18 @@ export function chipOf(bill, now) {
 function whenText(at, now) {
   return now && at.date === now.date ? clock(at.minutes) : monthDay(at.date);
 }
-// TOTAL / PAID / DUE
+// TOTAL / PAID / DUE; a bill that took a job's deposit (DEP-2, design deposits app-repair-pay):
+// TOTAL / DEPOSIT −$100.00 / DUE, and PAID too once something is paid on it
 export function numbersOf(bill) {
   const due = Number.isFinite(bill.balance_cents) ? bill.balance_cents : (bill.total_cents || 0) - (bill.deposits_applied_cents || 0);
+  const deposit = bill.deposits_applied_cents || 0;
+  const paid = bill.paid_cents || 0;
   return [
     { key: 'total', label: 'Total', value: usd(bill.total_cents) },
-    { key: 'paid', label: 'Paid', value: usd(bill.paid_cents || 0) },
+    deposit > 0 ? { key: 'deposit', label: 'Deposit', value: `−${usd(deposit)}` } : null,
+    deposit > 0 && paid === 0 ? null : { key: 'paid', label: 'Paid', value: usd(paid) },
     { key: 'due', label: 'Due', value: usd(Math.max(0, due)) },
-  ];
+  ].filter(Boolean);
 }
 export const dueOf = (bill) => Math.max(0, Number.isFinite(bill.balance_cents) ? bill.balance_cents : (bill.total_cents || 0) - (bill.deposits_applied_cents || 0));
 // What the screen is about: none (no issued bill) · void · show (not given, nothing paid) ·
@@ -173,11 +177,13 @@ export function shortPerson(name) {
   if (!words.length) return '';
   return words.length === 1 ? words[0] : `${words[0]} ${words[words.length - 1].charAt(0)}.`;
 }
-// Whole minutes left until the moment (rounded up), 0 when it passed or is unknown
+// Whole minutes left until the moment (rounded up), 0 when it passed or is unknown; never more
+// than the 15 of a void (a phone clock a little behind the server's would show 16)
+export const VOID_WINDOW_MINUTES = 15;
 export function minutesLeft(until, nowMs) {
   const end = Date.parse(until || '');
   if (!Number.isFinite(end) || !Number.isFinite(nowMs) || end <= nowMs) return 0;
-  return Math.ceil((end - nowMs) / 60000);
+  return Math.min(VOID_WINDOW_MINUTES, Math.ceil((end - nowMs) / 60000));
 }
 // HISTORY · 2 PAYMENTS · 1 TIP: a tip is not a payment, it is counted on its own
 export const countWord = (rows) => {
