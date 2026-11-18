@@ -249,3 +249,11 @@ test('the company\'s settings from the bill answer: tip buttons and how to pay (
   assert.deepEqual([paymentInstructionsOf({ payment_instructions: '   ' }), paymentInstructionsOf({ payment_instructions: null }), paymentInstructionsOf({}), paymentInstructionsOf(null)],
     [null, null, null, null]);
 });
+
+test('numbers of a bill that took a deposit (DEP-2, design deposits app-repair-pay)', () => {
+  const took = { ...ISSUED, deposits_applied_cents: 10000, balance_cents: 7529 };
+  assert.deepEqual(numbersOf(took).map((n) => [n.label, n.value]), [['Total', '$175.29'], ['Deposit', '−$100.00'], ['Due', '$75.29']]);
+  const partly = { ...took, paid_cents: 5000, balance_cents: 2529 };
+  assert.deepEqual(numbersOf(partly).map((n) => n.label), ['Total', 'Deposit', 'Paid', 'Due']);
+  assert.deepEqual(numbersOf(ISSUED).map((n) => n.label), ['Total', 'Paid', 'Due']);
+});
