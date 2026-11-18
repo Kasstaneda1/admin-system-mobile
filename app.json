@@ -17,7 +17,8 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "SEMIX asks for your location only to show you on the route map. It never tracks you."
+        "NSLocationWhenInUseUsageDescription": "SEMIX asks for your location only to show you on the route map. It never tracks you.",
+        "CFBundleDisplayName": "SEMIX Tech"
       }
     },
     "android": {
