@@ -24,7 +24,7 @@ import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
 import { OTHER_CHOICES, VOID_REASONS, chosenMethod, methodWord, numbersOf, payError, shortPerson, voidBody } from '../pay/model';
 import {
-  NOT_A_BILL, TAKE_HINT, blockedOf, depositAmount, depositBody, depositError, depositHolderLine, depositRows, depositsOf, recordedLine, withYouRows,
+  NOT_A_BILL, TAKE_HINT, blockedOf, depositAmount, depositHead, depositBody, depositError, depositHolderLine, depositRows, depositsOf, recordedLine, withYouRows,
 } from '../deposit/model';
 import { Choice, Field, MethodTiles, Numbers, Pills, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
@@ -161,7 +161,6 @@ export default function DepositScreen({ route, navigation }) {
   }
 
   if (mode === 'open') {
-    const open = d ? d.openCents : 0;
     return (
       <SafeAreaView edges={['top']} style={billStyles.screen}>
         <StatusBar style="dark" />
@@ -177,10 +176,7 @@ export default function DepositScreen({ route, navigation }) {
                 </View>
               </View>
             ) : null}
-            <Numbers rows={[
-              { key: 'deposits', label: 'Deposits', value: usd(open) },
-              { key: 'for', label: 'For the repair', value: d && d.take === 'bill_issued' ? 'Applied' : 'Open' },
-            ]} />
+            <Numbers rows={depositHead(visit)} />
           </View>
           {loadFailed ? <Box kind="warn" icon="wifioff" style={payStyles.gap} text={loadFailed} /> : null}
           <Section label={rows.length ? `Deposits · ${rows.filter((r) => !r.voided).length}` : 'Deposits'}>

@@ -39,6 +39,12 @@ export function depositsOf(visit) {
   };
 }
 const appliedOf = (row) => (Number.isFinite(row.applied_cents) ? row.applied_cents : row.applied_to ? row.amount_cents : 0);
+const refundedOf = (row) => (Number.isFinite(row.refunded_cents) ? row.refunded_cents : 0);
+// What is left of a live deposit: its amount less live refunds and live allocations (the server's)
+const openOf = (row) => (row.voided_at ? 0
+  : Number.isFinite(row.open_cents) ? row.open_cents : Math.max(0, row.amount_cents - refundedOf(row) - appliedOf(row)));
+// Open toward the final bill: live, nothing of it applied, something left (a refunded one is not)
+const towardBill = (row) => !row.voided_at && appliedOf(row) === 0 && openOf(row) > 0;
 
 const howOf = (row) => (row.method === 'check' && row.check_number ? `Check #${row.check_number}`
   : row.method === 'other' ? (row.method_note || 'Other') : methodWord(row.method, row.method_note).replace(/^./, (c) => c.toUpperCase()));
@@ -52,8 +58,8 @@ export function depositRow(visit, { offline = false } = {}) {
   if (!d) return null;
   if (offline) return { line: 'Needs the internet', kind: 'mute', done: false, off: true, tap: null };
   const applied = d.live.filter((row) => appliedOf(row) > 0);
-  // Open: not taken by a bill yet (what a bill took in part, the rest is the office's refund)
-  const open = d.take === 'bill_issued' ? [] : d.live.filter((row) => appliedOf(row) === 0);
+  // Open toward the bill: not taken by a bill, not refunded (after the bill — the office's refund)
+  const open = d.take === 'bill_issued' ? [] : d.items.filter(towardBill);
   if (d.take === 'bill_issued') {
     if (applied.length) {
       const sum = applied.reduce((s, row) => s + appliedOf(row), 0);
@@ -64,9 +70,9 @@ export function depositRow(visit, { offline = false } = {}) {
   if (open.length) {
     if (open.length === 1) {
       const row = open[0];
-      return { line: [usd(row.amount_cents), methodLow(row), dayOf(row.received_at)].filter(Boolean).join(' · '), kind: 'ok', done: true, off: false, tap: 'open' };
+      return { line: [usd(openOf(row)), methodLow(row), dayOf(row.received_at)].filter(Boolean).join(' · '), kind: 'ok', done: true, off: false, tap: 'open' };
     }
-    return { line: `${usd(d.openCents || open.reduce((s, row) => s + row.amount_cents, 0))} · ${open.length} deposits`, kind: 'ok', done: true, off: false, tap: 'open' };
+    return { line: `${usd(open.reduce((s, row) => s + openOf(row), 0))} · ${open.length} deposits`, kind: 'ok', done: true, off: false, tap: 'open' };
   }
   if (d.take === 'job_closed' || d.take === 'off') return null;
   return { line: 'Take one for the repair', kind: 'wait', done: false, off: false, tap: 'take' };
@@ -100,12 +106,21 @@ export function depositRows(visit, nowMs) {
   if (!d) return [];
   return d.items.map((row) => {
     const at = momentWall(row.received_at);
+    const refunded = refundedOf(row);
+    const applied = appliedOf(row);
+    const open = openOf(row);
+    // where its money is: void · applied to NY-1048 · refunded ($40.00) · the rest open toward the bill,
+    // or — once the final bill is issued — the office refunds it
+    const where = row.voided_at ? ['void'] : [
+      applied > 0 && row.applied_to ? `applied to ${row.applied_to}` : null,
+      refunded > 0 ? (open === 0 && applied === 0 ? 'refunded' : `refunded ${usd(refunded)}`) : null,
+      open > 0 ? (applied > 0 || d.take === 'bill_issued' ? `${usd(open)} the office refunds` : 'open until the repair bill') : null,
+    ].filter(Boolean);
     return {
       key: `d${row.id}`,
       row,
       title: [at ? clock(at.minutes) : null, howOf(row)].filter(Boolean).join(' · '),
-      sub: [shortPerson(row.recorded_by_name), row.note ? `“${row.note}”` : null,
-        row.voided_at ? 'void' : row.applied_to ? `applied to ${row.applied_to}` : 'open until the repair bill'].filter(Boolean).join(' · '),
+      sub: [shortPerson(row.recorded_by_name), row.note ? `“${row.note}”` : null, ...where].filter(Boolean).join(' · '),
       amount: usd(row.amount_cents),
       voided: !!row.voided_at,
       applied: !!row.applied_to,
@@ -147,12 +162,34 @@ export function depositAmount(typed) {
 }
 
 // ---------- the money with the technician (design app-done «With you now») ----------
-// Their own open deposits by cash, check or other: what they turn in → [{ key, title, amount }]
+// Their own live deposits by cash, check or other, applied to a bill too (applying does not hand the
+// money to the office: BILLS_MV_DESIGN.md §3.7), less refunds — taken as given back by whoever has
+// the money; nothing left — no row → [{ key, title, amount }]
 export function withYouRows(visit) {
   const d = depositsOf(visit);
   if (!d) return [];
-  return d.live.filter((row) => row.holder_is_me && (Number.isFinite(row.open_cents) ? row.open_cents : row.amount_cents) > 0)
-    .map((row) => ({ key: `y${row.id}`, title: `${howOf(row)} · deposit`, amount: usd(row.amount_cents) }));
+  return d.live.filter((row) => row.holder_is_me && row.amount_cents - refundedOf(row) > 0)
+    .map((row) => ({ key: `y${row.id}`, title: `${howOf(row)} · deposit`, amount: usd(row.amount_cents - refundedOf(row)) }));
+}
+
+// ---------- the head of the deposits screen ----------
+// Before the final bill: DEPOSITS $100.00 | FOR THE REPAIR Open. After it: APPLIED TO NY-1048
+// $175.29 and, when some is left over, OFFICE REFUNDS $24.71 → Numbers rows
+export function depositHead(visit) {
+  const d = depositsOf(visit);
+  if (!d) return [];
+  const applied = d.live.filter((row) => appliedOf(row) > 0);
+  if (d.take === 'bill_issued' || applied.length) {
+    const label = applied.length ? applied[0].applied_to : null;
+    return [
+      { key: 'applied', label: label ? `Applied to ${label}` : 'Applied', value: usd(applied.reduce((s, row) => s + appliedOf(row), 0)) },
+      d.openCents > 0 ? { key: 'refund', label: 'Office refunds', value: usd(d.openCents) } : null,
+    ].filter(Boolean);
+  }
+  return [
+    { key: 'deposits', label: 'Deposits', value: usd(d.openCents) },
+    { key: 'for', label: 'For the repair', value: d.openCents > 0 ? 'Open' : 'None open' },
+  ];
 }
 
 // ---------- Pay of the bill that took them (design app-repair-pay History) ----------
