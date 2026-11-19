@@ -53,10 +53,17 @@
         "expo-image-picker",
         {
           "photosPermission": "SEMIX adds the photos you choose to the visit, so the office sees the job.",
-          "cameraPermission": "SEMIX takes photos of the job for the visit, so the office sees them.",
+          "cameraPermission": "SEMIX takes photos of the job for the visit, so the office sees them, and scans a card when the customer pays by card.",
           "microphonePermission": false
         }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "enableGooglePay": false
+        }
       ]
-    ]
+    ],
+    "scheme": "semix-tech"
   }
 }

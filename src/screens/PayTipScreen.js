@@ -18,17 +18,20 @@ import { chargeOf, commaHint, moneyCents, tipButtons, tipPresetsOf } from '../pa
 import { Field } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 import { attemptOf, lockedTipOf } from '../pay/attempts';
+import { entryOf, entryTipLock } from '../pay/cardEntry';
 
 export default function PayTipScreen({ route, navigation }) {
   const params = route.params || {};
-  const { bill, cents, part = false } = params;
+  const { bill, cents, part = false, entry = false } = params;
+  // the next screen: the card in this app (ONL-APP2) or the card app's summary
+  const next = entry ? 'PayCardEntry' : 'PayCard';
   const insets = useSafeAreaInsets();
   const [chosen, setPicked] = useState(null);           // a button's key, 'none' or 'custom'
   const [entered, setTyped] = useState('');
   useIsFocused();                                        // back from the card: look at its attempt again
 
   const buttons = tipButtons(tipPresetsOf(bill), bill.total_cents);
-  const lock = lockedTipOf(attemptOf(bill.id, 'card'), buttons);
+  const lock = entry ? entryTipLock(entryOf(bill.id), buttons) : lockedTipOf(attemptOf(bill.id, 'card'), buttons);
   const picked = lock ? lock.picked : chosen;
   const typed = lock ? lock.typed : entered;
   const pick = (key) => { if (!lock) setPicked(key); };
@@ -87,10 +90,10 @@ export default function PayTipScreen({ route, navigation }) {
         <Foot bottom={insets.bottom} note={ready || lock ? null : 'Pick one to go on, even No tip.'}>
           {lock ? (
             <MainButton text="Back to the card" icon="chev"
-              onPress={() => navigation.navigate('PayCard', { ...params, cents: lock.cents, tipCents: lock.tipCents })} />
+              onPress={() => navigation.navigate(next, { ...params, cents: lock.cents, tipCents: lock.tipCents })} />
           ) : (
             <MainButton text={ready ? `Next · ${usd(cents + tip)} in all` : 'Next'} icon="chev" off={!ready}
-              onPress={() => navigation.navigate('PayCard', { ...params, tipCents: tip })} />
+              onPress={() => navigation.navigate(next, { ...params, tipCents: tip })} />
           )}
         </Foot>
       </KeyboardAvoidingView>

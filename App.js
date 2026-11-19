@@ -3,7 +3,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { colors } from './src/constants/colors';
-import { AppState } from 'react-native';
+import { AppState, Linking } from 'react-native';
+import { stripeSdk } from './src/pay/stripeSdk';
 import { AuthProvider, useAuth } from './src/session/AuthContext';
 import { outbox } from './src/estimate/outboxStore';
 import { approvals } from './src/approve/store';
@@ -27,6 +28,7 @@ import DepositScreen from './src/screens/DepositScreen';
 import PayMethodScreen from './src/screens/PayMethodScreen';
 import PayTipScreen from './src/screens/PayTipScreen';
 import PayCardScreen from './src/screens/PayCardScreen';
+import PayCardEntryScreen from './src/screens/PayCardEntryScreen';
 import PayOnlineScreen from './src/screens/PayOnlineScreen';
 import CashTipScreen from './src/screens/CashTipScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -48,6 +50,16 @@ const Stack = createNativeStackNavigator();
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
+  // A bank's check of a card (3-D Secure) opens Safari or the bank's app and comes back to the
+  // app's scheme (app.json «scheme»): Stripe takes its own URLs. A build without Stripe: nothing.
+  useEffect(() => {
+    const sdk = stripeSdk();
+    if (!sdk) return undefined;
+    const take = (url) => { if (url) Promise.resolve(sdk.handleURLCallback(url)).catch(() => {}); };
+    Linking.getInitialURL().then(take).catch(() => {});
+    const sub = Linking.addEventListener('url', (event) => take(event && event.url));
+    return () => sub.remove();
+  }, []);
   return (
     <AuthProvider>
       <Screens />
@@ -180,6 +192,11 @@ function Screens() {
             <Stack.Screen
               name="PayCard"
               component={PayCardScreen}
+              options={{ headerShown: false, title: 'Card payment' }}
+            />
+            <Stack.Screen
+              name="PayCardEntry"
+              component={PayCardEntryScreen}
               options={{ headerShown: false, title: 'Card payment' }}
             />
             <Stack.Screen

@@ -1,0 +1,182 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  NOT_CONFIRMED, canEnterCard, cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, entryTipLock, forgetEntry,
+  intentBody, intentOutcome, makeConfirmHandler, noAnswer, pickSdk, sheetError, startEntry,
+} from './cardEntry.js';
+
+const err = (status, data = {}) => ({ response: { status, data } });
+
+test('the button: the server\'s card flag and a build with Stripe\'s native module', () => {
+  const bill = { online_payments: { link: true, card: true } };
+  assert.equal(canEnterCard(bill, true), true);
+  assert.equal(canEnterCard(bill, false), false);                       // an older build: no button
+  assert.equal(canEnterCard({ online_payments: { link: true, card: false } }, true), false);
+  assert.equal(canEnterCard({ online_payments: { card: 'yes' } }, true), false);
+  assert.equal(canEnterCard({}, true), false);
+  assert.equal(canEnterCard(null, true), false);
+});
+
+test('an older build: the package is never loaded without its native module, and a throw is no crash', () => {
+  let loaded = 0;
+  const load = () => { loaded += 1; return { initStripe() {} }; };
+  assert.equal(pickSdk({ get: () => null, load }), null);
+  assert.equal(loaded, 0, 'not required without the module (it throws on import there)');
+  assert.ok(pickSdk({ get: (n) => (n === 'StripeSdk' ? {} : null), load }));
+  assert.equal(loaded, 1);
+  assert.equal(pickSdk({ get: () => { throw new Error('no registry'); }, load }), null);
+  assert.equal(pickSdk({ get: () => ({}), load: () => { throw new Error('getEnforcing'); } }), null);
+  assert.equal(pickSdk({ load }), null);
+});
+
+test('the consent is the server\'s words exactly (cardEntry.js consentText)', () => {
+  assert.equal(consentText('SEMIX CORP', 17529, 1000), 'I authorize SEMIX CORP to charge $185.29 (bill $175.29 + tip $10.00) to this card.');
+  assert.equal(consentText('SEMIX CORP', 17529, 0), 'I authorize SEMIX CORP to charge $175.29 to this card.');
+  assert.equal(consentText('SEMIX NJ LLC', 123450, 5), 'I authorize SEMIX NJ LLC to charge $1,234.55 (bill $1,234.50 + tip $0.05) to this card.');
+  assert.equal(consentText(' A ', 100000000, 0), 'I authorize A to charge $1,000,000.00 to this card.');
+});
+
+test('the server\'s own template gives the same text (its usd: toLocaleString en-US)', () => {
+  const serverUsd = (cents) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const server = (company, a, t) => (t > 0 ? `I authorize ${company} to charge ${serverUsd(a + t)} (bill ${serverUsd(a)} + tip ${serverUsd(t)}) to this card.`
+    : `I authorize ${company} to charge ${serverUsd(a)} to this card.`);
+  for (const [a, t] of [[1, 0], [99, 1], [17529, 1000], [123450, 5], [999999, 1], [100000000, 2500], [5, 0], [1000000, 0]]) {
+    assert.equal(consentText('SEMIX CORP', a, t), server('SEMIX CORP', a, t), `${a} + ${t}`);
+  }
+});
+
+test('tips by card: you, or split with the helper; never «the whole team»', () => {
+  const visit = { helper_id: 7, helper_name: 'Alex Kim' };
+  assert.deepEqual(cardTipChoices(visit, 'Ivan Petrov').map((c) => c.key), ['me', 'split']);
+  assert.deepEqual(cardTipChoices({}, 'Ivan Petrov').map((c) => c.key), ['me']);
+  assert.deepEqual(cardTips(1000, 'me', visit, 3), [{ user_id: 3, cents: 1000 }]);
+  assert.deepEqual(cardTips(1001, 'split', visit, 3), [{ user_id: 3, cents: 501 }, { user_id: 7, cents: 500 }]);
+  assert.deepEqual(cardTips(1, 'split', visit, 3), [{ user_id: 3, cents: 1 }]);
+  assert.deepEqual(cardTips(1000, 'split', {}, 3), [{ user_id: 3, cents: 1000 }]);
+  assert.deepEqual(cardTips(0, 'me', visit, 3), []);
+  assert.deepEqual(cardTips(1000, 'me', visit, null), []);
+});
+
+test('the attempt lives by bill; locked once card-intent went out; Pay forgets only one never sent', () => {
+  const a = startEntry(41, { requestId: 'app-x-1', amountCents: 17529, tipCents: 1000, forKey: 'me' });
+  assert.equal(entryOf(41), a);
+  assert.equal(entryLocked(a), false);
+  assert.equal(entryTipLock(a), null);
+  forgetEntry(41);
+  assert.equal(entryOf(41), null, 'not sent: forgotten');
+  const b = startEntry(41, { requestId: 'app-x-2', amountCents: 17529, tipCents: 1000, forKey: 'me' });
+  b.sent = true;
+  forgetEntry(41);
+  assert.equal(entryOf(41), b, 'sent: kept');
+  const lock = entryTipLock(b, [{ key: 'b10', cents: 1000 }]);
+  assert.equal(lock.picked, 'b10');
+  assert.equal(lock.cents, 17529);
+  assert.equal(entryTipLock({ ...b, tipCents: 0 }).picked, 'none');
+  assert.equal(entryTipLock({ ...b, tipCents: 750 }).typed, '7.50');
+  for (const flag of ['sent', 'uncertain', 'going']) assert.equal(entryLocked({ [flag]: true }), true, flag);
+  dropEntry(41);
+  assert.equal(entryOf(41), null);
+});
+
+test('card-intent body', () => {
+  const attempt = { paymentMethodId: 'pm_123456', amountCents: 17529, requestId: 'app-x-3', signatureFileId: 9 };
+  assert.deepEqual(intentBody({ attempt, tips: [{ user_id: 3, cents: 1000 }], signerName: '  Marta Kowalski ', consent: 'I authorize …' }), {
+    payment_method_id: 'pm_123456', amount_cents: 17529, tips: [{ user_id: 3, cents: 1000 }], client_request_id: 'app-x-3',
+    signature_file_id: 9, signer_name: 'Marta Kowalski', consent_text: 'I authorize …',
+  });
+});
+
+test('the retry rule: confirm only a fresh open answer; succeeded / processing — never twice', () => {
+  for (const status of ['requires_payment_method', 'requires_confirmation', 'requires_action']) {
+    assert.deepEqual(intentOutcome({ status, client_secret: 'pi_1_secret_x' }), { kind: 'confirm', clientSecret: 'pi_1_secret_x' }, status);
+  }
+  assert.deepEqual(intentOutcome({ status: 'succeeded', client_secret: null }), { kind: 'going' });
+  assert.deepEqual(intentOutcome({ status: 'processing', client_secret: 'pi_1_secret_x' }), { kind: 'going' }, 'processing: not confirmed even with a secret');
+  assert.deepEqual(intentOutcome({ status: 'requires_payment_method', client_secret: null }), { kind: 'closed' }, 'open without a secret: not confirmed');
+  assert.deepEqual(intentOutcome({ status: 'canceled', client_secret: 'pi_1_secret_x' }), { kind: 'closed' });
+  assert.deepEqual(intentOutcome(null), { kind: 'closed' });
+});
+
+test('the server\'s no: what the screen does next', () => {
+  assert.deepEqual([cardError(new Error('Network Error')).next, noAnswer(new Error('x'))], ['retry', true]);
+  assert.equal(noAnswer(err(502)), true);
+  assert.equal(noAnswer(err(409)), false);
+  const changed = cardError(err(409, { code: 'balance_changed', balance_cents: 4000 }));
+  assert.equal(changed.next, 'restart');
+  assert.match(changed.text, /\$40\.00 now/);
+  assert.equal(cardError(err(409, { code: 'attempt_closed' })).next, 'again');
+  assert.equal(cardError(err(409, { code: 'payment_processing' })).next, 'wait');
+  assert.equal(cardError(err(400, { code: 'consent_text_mismatch' })).next, 'again');
+  for (const code of ['signature_stale', 'signature_used', 'signature_unknown', 'request_used']) assert.equal(cardError(err(409, { code })).next, 'again', code);
+  assert.equal(cardError(err(409, { code: 'card_entry_off' })).next, null);
+  assert.match(cardError(err(503, { code: 'publishable_key_off' })).text, /not set up/);
+  assert.equal(cardError(err(409, { code: 'nothing_due' })).next, 'restart');
+  assert.equal(cardError(err(502, { code: 'stripe_error', error: 'Stripe: Your card was declined.' })).text, 'Stripe: Your card was declined.');
+  assert.equal(cardError(err(404)).kind, 'gone');
+  assert.equal(cardError(err(500)).next, 'retry');
+  assert.equal(cardError(err(400, { error: 'signer_name is required: who signed' })).text, 'signer_name is required: who signed.');
+});
+
+test('the confirm handler: a lost answer, then the retry with the same ids; never a kept secret', async () => {
+  const attempt = { requestId: 'app-r-1', amountCents: 17529, tipCents: 1000, tips: [{ user_id: 3, cents: 1000 }], signer: 'Marta K', consent: 'I authorize …', signatureFileId: 9, paymentMethodId: null, sent: false, uncertain: false, going: false };
+  const sent = [];
+  let answer;
+  const handler = makeConfirmHandler({ getAttempt: () => attempt, sendIntent: async (body) => { sent.push(body); return answer(); } });
+  const run = () => new Promise((resolve) => handler({ id: `pm_card${sent.length}` }, false, resolve));
+
+  // not pressed Charge: nothing is asked
+  assert.equal((await run()).error.message, NOT_CONFIRMED);
+  assert.equal(sent.length, 0);
+
+  // the first press: no answer — uncertain, locked, nothing confirmed
+  attempt.ready = true;
+  answer = () => { throw new Error('Network Error'); };
+  let got = await run();
+  assert.equal(got.error.message, NOT_CONFIRMED);
+  assert.deepEqual([attempt.uncertain, attempt.sent, attempt.outcome.error.next], [true, true, 'retry']);
+  assert.equal(sent[0].payment_method_id, 'pm_card0');
+
+  // the retry: the same request id and the first card's id, though the sheet made a new one
+  attempt.ready = true;
+  answer = () => ({ status: 'requires_payment_method', client_secret: 'pi_9_secret_fresh' });
+  got = await run();
+  assert.deepEqual(got, { clientSecret: 'pi_9_secret_fresh' });
+  assert.equal(sent[1].client_request_id, 'app-r-1');
+  assert.equal(sent[1].payment_method_id, 'pm_card0');
+  assert.equal(attempt.uncertain, false);
+  assert.equal(attempt.ready, false, 'one press, one ask');
+
+  // the payment went through meanwhile: never confirmed again
+  attempt.ready = true;
+  answer = () => ({ status: 'succeeded', client_secret: null });
+  got = await run();
+  assert.equal(got.error.message, NOT_CONFIRMED);
+  assert.deepEqual([attempt.going, attempt.sent, attempt.outcome.kind], [true, true, 'going']);
+});
+
+test('the confirm handler: a clear no unlocks; payment_processing keeps the lock', async () => {
+  const make = (status, data) => {
+    const attempt = { requestId: 'app-r-2', amountCents: 100, tips: [], signer: 'A', consent: 'x', signatureFileId: 1, paymentMethodId: null, ready: true };
+    const handler = makeConfirmHandler({ getAttempt: () => attempt, sendIntent: async () => { throw err(status, data); } });
+    return new Promise((resolve) => handler({ id: 'pm_x1234567' }, false, () => resolve(attempt)));
+  };
+  let a = await make(409, { code: 'attempt_closed' });
+  assert.deepEqual([a.sent, a.uncertain, a.outcome.error.next], [false, false, 'again']);
+  a = await make(409, { code: 'payment_processing' });
+  assert.deepEqual([a.sent, a.outcome.error.next], [true, 'wait']);
+  a = await make(503, {});
+  assert.deepEqual([a.sent, a.uncertain], [true, true]);
+  const closed = { requestId: 'app-r-3', amountCents: 100, tips: [], signer: 'A', consent: 'x', signatureFileId: 1, ready: true };
+  await new Promise((resolve) => makeConfirmHandler({ getAttempt: () => closed, sendIntent: async () => ({ status: 'canceled' }) })({ id: 'pm_x' }, false, resolve));
+  assert.deepEqual([closed.sent, closed.outcome.kind], [false, 'closed']);
+});
+
+test('the sheet: closed by the customer is not an error; the card line', () => {
+  assert.equal(sheetError({}), null);
+  assert.equal(sheetError({ error: { code: 'Canceled', message: 'x' } }), null);
+  assert.equal(sheetError({ error: { code: 'Failed', message: 'Your card was declined.' } }), 'Your card was declined.');
+  assert.match(sheetError({ error: { code: 'Failed' } }), /did not open/);
+  assert.equal(cardLine({ label: 'Visa •••• 4242', image: '' }), 'Visa ···· 4242');
+  assert.equal(cardLine(null), null);
+  assert.equal(typeof NOT_CONFIRMED, 'string');
+});
