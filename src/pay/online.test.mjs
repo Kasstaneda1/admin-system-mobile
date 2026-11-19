@@ -66,7 +66,7 @@ test('the server’s no in the technician’s words', () => {
   // no address for Stripe's page: its own words, not «Try again» (the Teamlead on #65)
   const off = no(503, 'site_address_off');
   assert.equal(off.kind, 'refused');
-  assert.match(off.text, /not set up on the server/);
+  assert.equal(off.text, 'Card payments are not ready yet. Take the payment another way and tell the office.');
   assert.doesNotMatch(off.text, /Try again/);
 });
 

@@ -269,7 +269,8 @@ test('an unclear confirm: no «Change» until the server answers; a new attempt 
 test('the hint when the bill is not signed «after the work»', () => {
   const hint = ackHint(null);
   assert.equal(hint.link, 'Customer signs for the bill');
-  assert.match(hint.text, /does not need it/);
+  assert.equal(hint.title, 'The customer has not signed for the bill');
+  assert.match(hint.text, /does not need it\. But if the customer disputes the charge/);
   assert.equal(ackHint({ id: 1, signer_name: 'Ann' }), null, 'signed');
   assert.equal(ackHint(undefined), null, 'not known: no hint');
 });

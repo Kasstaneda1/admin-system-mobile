@@ -70,7 +70,7 @@ export function linkError(error) {
     case 'not_issued': return { kind: 'refused', code, text: 'Issue the bill first: the customer pays an issued bill.' };
     case 'payments_off': return { kind: 'refused', code, text: 'Payments are turned off for you. Ask the office.' };
     // the server has no address for Stripe's page (503): trying again does not help
-    case 'site_address_off': return { kind: 'refused', code, text: 'Online payments are not set up on the server yet. Take the payment another way and tell the office.' };
+    case 'site_address_off': return { kind: 'refused', code, text: 'Card payments are not ready yet. Take the payment another way and tell the office.' };
     default: break;
   }
   if (status === 404) return { kind: 'gone', text: 'This visit was changed by the office' };

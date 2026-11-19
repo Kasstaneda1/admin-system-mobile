@@ -254,8 +254,8 @@ export function cardReopen(attempt) {
 export function ackHint(ack) {
   if (ack !== null) return null;
   return {
-    title: 'Not signed for the bill yet',
-    text: 'The card does not need it, but the customer’s signature for the bill proves the work if the charge is disputed.',
+    title: 'The customer has not signed for the bill',
+    text: 'The card does not need it. But if the customer disputes the charge, their signature for the bill proves the work was done.',
     link: 'Customer signs for the bill',
   };
 }
