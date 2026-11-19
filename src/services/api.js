@@ -275,6 +275,12 @@ export const payAPI = {
   checkPhoto: async (id, bytes) => (await api.post(`/api/my/visits/${encodeURIComponent(id)}/check-photos`, bytes.buffer, {
     headers: { 'Content-Type': 'image/jpeg' }, timeout: 60000,
   })).data,
+  // «Pay online»: the link of the QR code (backend #236, ONL-BE2): POST { amount_cents? } →
+  // 201 { link: { id, url, amount_cents, created_by_name, created_at }, balance_cents,
+  // link_warnings }; the token is in url only, once. A new link revokes the technician's earlier
+  // ones of the bill. 409 not_issued / bill_void / nothing_due / over_balance /
+  // online_payments_unavailable, 503 online_payments_off, 403 payments_off.
+  payLink: async (id, body) => (await api.post(`${billPath(id)}/pay-link`, body, { timeout: 20000 })).data,
 };
 
 // A deposit on the visit's job (DEP-1, be#217; DEP-APP): the main technician with «Takes
