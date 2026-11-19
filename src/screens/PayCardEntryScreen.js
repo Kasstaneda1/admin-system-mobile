@@ -17,14 +17,15 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
-import { billAPI, cardAPI } from '../services/api';
+import { ackAPI, billAPI, cardAPI } from '../services/api';
 import { useAuth } from '../session/AuthContext';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
 import { chargeOf } from '../pay/model';
 import {
-  cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, makeConfirmHandler, paidLine, sdkFailure, sheetError, startEntry,
+  ackHint, cardChangeable, cardError, cardReopen, cardLine, cardTipChoices, cardTips, confirmStep, consentText, dropEntry, entryLocked, entryOf, makeConfirmHandler, paidLine,
+  sheetError, startEntry,
 } from '../pay/cardEntry';
 import { POLL_MS, WAIT_MS, arrivedOf, onlineIds } from '../pay/online';
 import { RETURN_URL, stripeSdk } from '../pay/stripeSdk';
@@ -54,7 +55,10 @@ export default function PayCardEntryScreen({ route, navigation }) {
 
   const [forKey, setForKey] = useState(attempt.forKey || 'me');
   const [setup, setSetup] = useState(null);             // card-setup's answer
-  const [card, setCard] = useState(null);               // 'Visa ···· 4242' of the sheet
+  // 'Visa ···· 4242' of the sheet; a sent attempt keeps it for the screen coming back (the sheet
+  // in the SDK keeps the card until the next initPaymentSheet)
+  const [card, setCard] = useState(locked ? attempt.card : null);
+  const [ack, setAck] = useState(undefined);            // the signature for the bill: undefined — not known
   const [opening, setOpening] = useState(false);
   const [drawn, setDrawn] = useState(false);
   const [signer, setSigner] = useState(attempt.signer || ((firstBill.customer && firstBill.customer.name) || ''));
@@ -70,6 +74,14 @@ export default function PayCardEntryScreen({ route, navigation }) {
     return () => { alive.current = false; };
   }, []);
 
+  // the customer's signature for the bill «after the work»: read on opening and on coming back
+  // from it; no answer — no hint
+  useFocusEffect(useCallback(() => {
+    let live = true;
+    ackAPI.get(id).then((data) => { if (live && alive.current) setAck(data ? (data.acknowledgment || null) : undefined); }).catch(() => {});
+    return () => { live = false; };
+  }, [id]));
+
   const total = cents + tipCents;
   const company = (setup && setup.merchant_display_name) || (firstBill.company && (firstBill.company.legal_name || firstBill.company.name)) || '';
   const consent = consentText(company, cents, tipCents);
@@ -80,10 +92,11 @@ export default function PayCardEntryScreen({ route, navigation }) {
   // ---------- Card details: the sheet ----------
   const openCard = async () => {
     const sdk = stripeSdk();
-    if (!sdk || opening || charging) return;
+    if (!sdk || opening || charging || !cardChangeable(attempt)) return;
     // another card after a charge went out: the PaymentIntent is checked against the first card
     // (stripe-ios 25.9 compares the fingerprint) — a new attempt, a new signature (the Architect on #66)
-    if (entryLocked(attempt)) again(null);
+    // an unclear attempt whose sheet was lost keeps its ids: the server decides at Charge (the Architect on #67)
+    if (cardReopen(attempt) === 'again') again(null);
     setOpening(true);
     setProblem(null);
     try {
@@ -114,7 +127,7 @@ export default function PayCardEntryScreen({ route, navigation }) {
       const why = sheetError(shown);
       if (why) { setProblem(why); return; }
       const line = cardLine(shown.paymentOption);
-      if (line) setCard(line);
+      if (line) { attempt.card = line; setCard(line); }
     } catch (error) {
       if (!alive.current) return;
       const no = cardError(error);
@@ -153,17 +166,20 @@ export default function PayCardEntryScreen({ route, navigation }) {
       attempt.ready = true;
       attempt.outcome = null;
       const result = await sdk.confirmPaymentSheetPayment();
+      attempt.ready = false;                            // the handler did not run: no press left for it
       if (!alive.current) return;
-      const out = attempt.outcome;
-      if (!result.error || (out && out.kind === 'going')) { wait(); return; }
-      if (out && out.kind === 'closed') { again('This card charge was closed. Enter the card and sign again.'); return; }
-      if (out && out.kind === 'error') { afterRefusal(out.error); return; }
-      // the SDK failed after our client_secret: a clear no of the card — a new attempt, Pay opens;
-      // anything else may have charged — locked, the next Charge asks the server (the Architect on #66)
-      const failure = sdkFailure(result.error);
-      if (failure && failure.kind === 'declined') { again(failure.text); return; }
+      const next = confirmStep(result, attempt.outcome);
+      if (next.step === 'wait') { wait(); return; }
+      if (next.step === 'again') { again(next.text); return; }
+      if (next.step === 'refusal') { afterRefusal(next.error); return; }
+      // the sheet failed before our handler: nothing went to the server, the attempt stays as it was
+      // while unclear that means the sheet is gone: «Change» comes back, on the same attempt (the Architect on #67)
+      if (next.step === 'form') { if (attempt.unclear) attempt.formLost = true; setProblem(next.text); return; }
+      // the SDK failed after our client_secret without a clear no of the card: it may have charged —
+      // locked, no «Change»: the next Charge asks the server, its answer decides (the Architect on #66)
       attempt.uncertain = true;
-      setProblem(failure ? failure.text : 'No answer from Stripe. Press Charge again: the card is never charged twice.');
+      attempt.unclear = true;
+      setProblem(next.text);
     } catch (error) {
       if (!alive.current) return;
       const no = cardError(error);
@@ -180,7 +196,7 @@ export default function PayCardEntryScreen({ route, navigation }) {
   const wait = () => { attempt.going = true; setSince(Date.now()); setPhase('processing'); };
   const again = (text) => {
     // a new request and a new signature (§9: 409 attempt_closed); the card is entered again
-    Object.assign(attempt, { requestId: newRequestId(), signatureFileId: null, paymentMethodId: null, sent: false, uncertain: false, going: false });
+    Object.assign(attempt, { requestId: newRequestId(), signatureFileId: null, paymentMethodId: null, sent: false, uncertain: false, going: false, unclear: false, formLost: false, card: null });
     setCard(null);
     setDrawn(false);
     if (pad.current) pad.current.clear();
@@ -214,6 +230,7 @@ export default function PayCardEntryScreen({ route, navigation }) {
 
   const ready = !!card && (drawn || !!attempt.signatureFileId) && !!signer.trim();
   const sdkMissing = !stripeSdk();
+  const hint = phase === 'form' ? ackHint(ack) : null;
 
   return (
     <SafeAreaView edges={['top']} style={billStyles.screen}>
@@ -237,6 +254,14 @@ export default function PayCardEntryScreen({ route, navigation }) {
                 <Box kind="warn" icon="warn" style={payStyles.gap} title="Update the app"
                   text="This version of the app cannot take cards. Take the payment another way." />
               ) : null}
+              {hint ? (
+                <View style={payStyles.gap}>
+                  <Box kind="info" icon="info" title={hint.title} text={hint.text} />
+                  <TouchableOpacity onPress={() => navigation.navigate('Ack', { id, visit })} disabled={charging} accessibilityRole="link" style={styles.hintLink}>
+                    <Text style={styles.hintLinkText}>{hint.link}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               {tipCents > 0 ? (
                 <Section label="Tip for">
                   <View style={styles.choices} accessibilityRole="radiogroup">
@@ -250,9 +275,11 @@ export default function PayCardEntryScreen({ route, navigation }) {
                 {card ? (
                   <View style={styles.cardRow}>
                     <Text style={styles.cardText} accessibilityLabel={`Card ${card}`}>{card}</Text>
-                    <TouchableOpacity onPress={openCard} disabled={opening || charging} accessibilityRole="button" style={styles.change}>
-                      <Text style={styles.changeText}>Change</Text>
-                    </TouchableOpacity>
+                    {cardChangeable(attempt) ? (
+                      <TouchableOpacity onPress={openCard} disabled={opening || charging} accessibilityRole="button" style={styles.change}>
+                        <Text style={styles.changeText}>Change</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 ) : (
                   <>
@@ -302,5 +329,7 @@ const styles = StyleSheet.create({
   cardText: { fontSize: 18, fontWeight: '700', color: colors.fgDefault },
   change: { paddingHorizontal: 8, paddingVertical: 10 },
   changeText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
+  hintLink: { alignSelf: 'flex-start', paddingVertical: 10, minHeight: 44, justifyContent: 'center' },
+  hintLinkText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
   consent: { fontSize: 17, lineHeight: 23, fontWeight: '700', color: colors.fgDefault },
 });
