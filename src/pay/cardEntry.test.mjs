@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { historyOf } from './model.js';
 import {
   NOT_CONFIRMED, canEnterCard, cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, entryTipLock, forgetEntry,
-  intentBody, intentOutcome, makeConfirmHandler, noAnswer, pickSdk, sdkFailure, sheetError, startEntry,
+  intentBody, intentOutcome, makeConfirmHandler, noAnswer, paidLine, pickSdk, sdkFailure, sheetError, startEntry,
 } from './cardEntry.js';
 
 const err = (status, data = {}) => ({ response: { status, data } });
@@ -210,4 +210,10 @@ test('the SDK failed after the secret: a clear no of the card opens a new attemp
   assert.match(unclear.text, /never charged twice/);
   assert.equal(sdkFailure({ code: 'Timeout' }).kind, 'unclear');
   assert.equal(sdkFailure({ code: 'Canceled' }).kind, 'unclear', 'closed 3-D Secure: ask the server first');
+});
+
+test('the result: one sum as charged, the bill and the tip inside', () => {
+  assert.equal(paidLine(19598, 19598, 1000), 'Paid $205.98 by card: bill $195.98 + tip $10.00.');
+  assert.equal(paidLine(19598, 19598, 0), 'Paid $195.98 by card.');
+  assert.equal(paidLine(20598, 19598, 1000), 'Paid $205.98 by card.', 'Stripe took another sum: one payment, no tips');
 });

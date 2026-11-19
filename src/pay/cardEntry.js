@@ -196,6 +196,14 @@ export function sdkFailure(error) {
   return { kind: 'unclear', text: 'No answer from Stripe. Press Charge again: the card is never charged twice.' };
 }
 
+// The result, one sum as charged (the Designer on #66): «Paid $205.98 by card: bill $195.98 +
+// tip $10.00.» The payment row is the bill's part; when Stripe took another sum the webhook writes
+// it all as one payment without tips — then just that sum.
+export function paidLine(paidCents, billCents, tipCents) {
+  if (tipCents > 0 && paidCents === billCents) return `Paid ${usd(paidCents + tipCents)} by card: bill ${usd(paidCents)} + tip ${usd(tipCents)}.`;
+  return `Paid ${usd(paidCents)} by card.`;
+}
+
 // The card the sheet took: { label: 'Visa ···· 4242' } from paymentOption, or null
 export function cardLine(paymentOption) {
   if (!paymentOption || typeof paymentOption.label !== 'string' || !paymentOption.label) return null;

@@ -24,7 +24,7 @@ import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
 import { chargeOf } from '../pay/model';
 import {
-  cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, makeConfirmHandler, sdkFailure, sheetError, startEntry,
+  cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, makeConfirmHandler, paidLine, sdkFailure, sheetError, startEntry,
 } from '../pay/cardEntry';
 import { POLL_MS, WAIT_MS, arrivedOf, onlineIds } from '../pay/online';
 import { RETURN_URL, stripeSdk } from '../pay/stripeSdk';
@@ -225,7 +225,7 @@ export default function PayCardEntryScreen({ route, navigation }) {
 
           {phase === 'paid' && arrived ? (
             <Box kind="done" icon="checkc" style={payStyles.gap} title="Payment went through"
-              text={`Paid ${usd(arrived.cents)} by card. ${arrived.paid ? 'The bill is paid; the office sees it now.' : 'Stripe confirmed it.'}`} />
+              text={`${paidLine(arrived.cents, cents, tipCents)} ${arrived.paid ? 'The bill is paid; the office sees it now.' : 'Stripe confirmed it.'}`} />
           ) : phase === 'processing' ? (
             <Box kind="info" icon="clock" style={payStyles.gap} title="Processing…" text="Stripe is charging the card. The payment shows here by itself in a few seconds." />
           ) : phase === 'stale' ? (
