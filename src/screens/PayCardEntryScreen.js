@@ -24,7 +24,7 @@ import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
 import { chargeOf } from '../pay/model';
 import {
-  cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, makeConfirmHandler, sheetError, startEntry,
+  cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, makeConfirmHandler, sdkFailure, sheetError, startEntry,
 } from '../pay/cardEntry';
 import { POLL_MS, WAIT_MS, arrivedOf, onlineIds } from '../pay/online';
 import { RETURN_URL, stripeSdk } from '../pay/stripeSdk';
@@ -81,6 +81,9 @@ export default function PayCardEntryScreen({ route, navigation }) {
   const openCard = async () => {
     const sdk = stripeSdk();
     if (!sdk || opening || charging) return;
+    // another card after a charge went out: the PaymentIntent is checked against the first card
+    // (stripe-ios 25.9 compares the fingerprint) — a new attempt, a new signature (the Architect on #66)
+    if (entryLocked(attempt)) again(null);
     setOpening(true);
     setProblem(null);
     try {
@@ -155,8 +158,12 @@ export default function PayCardEntryScreen({ route, navigation }) {
       if (!result.error || (out && out.kind === 'going')) { wait(); return; }
       if (out && out.kind === 'closed') { again('This card charge was closed. Enter the card and sign again.'); return; }
       if (out && out.kind === 'error') { afterRefusal(out.error); return; }
-      // the bank's no (declined, 3-D Secure failed …): the same attempt, another card or again
-      setProblem(sheetError(result) || 'The card was not charged. Try another card.');
+      // the SDK failed after our client_secret: a clear no of the card — a new attempt, Pay opens;
+      // anything else may have charged — locked, the next Charge asks the server (the Architect on #66)
+      const failure = sdkFailure(result.error);
+      if (failure && failure.kind === 'declined') { again(failure.text); return; }
+      attempt.uncertain = true;
+      setProblem(failure ? failure.text : 'No answer from Stripe. Press Charge again: the card is never charged twice.');
     } catch (error) {
       if (!alive.current) return;
       const no = cardError(error);

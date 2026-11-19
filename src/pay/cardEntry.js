@@ -180,6 +180,22 @@ export function sheetError(result) {
   return typeof error.message === 'string' && error.message ? error.message : 'The card form did not open. Try again.';
 }
 
+// The sheet's confirm failed after our client_secret (the Architect on #66). A clear no of the
+// card — a decline code, a card error, 3-D Secure failed — means nothing was charged: a new
+// attempt (again(), Pay opens). Anything else may have charged: the attempt stays locked and
+// the next Charge asks the server first; the SDK's words are not shown then.
+const CARD_CODES = ['card_declined', 'expired_card', 'incorrect_cvc', 'invalid_cvc', 'incorrect_number', 'invalid_number', 'invalid_expiry_month',
+  'invalid_expiry_year', 'insufficient_funds', 'payment_intent_authentication_failure', 'authentication_required', 'card_not_supported', 'currency_not_supported'];
+export function sdkFailure(error) {
+  if (!error) return null;
+  const words = typeof error.localizedMessage === 'string' && error.localizedMessage ? error.localizedMessage
+    : typeof error.message === 'string' && error.message ? error.message : '';
+  if (error.declineCode || error.type === 'card_error' || CARD_CODES.includes(error.stripeErrorCode)) {
+    return { kind: 'declined', text: `${words ? `${words.replace(/[.\s]*$/, '')}. ` : 'The card was declined. '}Enter the card again or another one; the customer signs again.` };
+  }
+  return { kind: 'unclear', text: 'No answer from Stripe. Press Charge again: the card is never charged twice.' };
+}
+
 // The card the sheet took: { label: 'Visa ···· 4242' } from paymentOption, or null
 export function cardLine(paymentOption) {
   if (!paymentOption || typeof paymentOption.label !== 'string' || !paymentOption.label) return null;

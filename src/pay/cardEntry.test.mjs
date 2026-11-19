@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { historyOf } from './model.js';
 import {
   NOT_CONFIRMED, canEnterCard, cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, entryTipLock, forgetEntry,
-  intentBody, intentOutcome, makeConfirmHandler, noAnswer, pickSdk, sheetError, startEntry,
+  intentBody, intentOutcome, makeConfirmHandler, noAnswer, pickSdk, sdkFailure, sheetError, startEntry,
 } from './cardEntry.js';
 
 const err = (status, data = {}) => ({ response: { status, data } });
@@ -194,4 +194,20 @@ test('history: a card taken in the app is «Card · in app» with who took it; b
   assert.match(tip.title, /Tip for Nia T\. · Card · in app$/);
   assert.match(link.title, /Card · online$/);
   assert.equal(link.sub, '');
+});
+
+test('the SDK failed after the secret: a clear no of the card opens a new attempt; anything else stays locked, no SDK words', () => {
+  assert.equal(sdkFailure(null), null);
+  const declined = sdkFailure({ code: 'Failed', declineCode: 'insufficient_funds', localizedMessage: 'Your card has insufficient funds.' });
+  assert.equal(declined.kind, 'declined');
+  assert.match(declined.text, /^Your card has insufficient funds\. Enter the card again/);
+  assert.equal(sdkFailure({ code: 'Failed', type: 'card_error' }).kind, 'declined');
+  assert.equal(sdkFailure({ code: 'Failed', stripeErrorCode: 'payment_intent_authentication_failure' }).kind, 'declined', '3-D Secure failed');
+  assert.match(sdkFailure({ code: 'Failed', stripeErrorCode: 'card_declined' }).text, /^The card was declined\./);
+  const unclear = sdkFailure({ code: 'Failed', message: 'The Internet connection appears to be offline.', stripeErrorCode: null });
+  assert.equal(unclear.kind, 'unclear');
+  assert.doesNotMatch(unclear.text, /Internet/);
+  assert.match(unclear.text, /never charged twice/);
+  assert.equal(sdkFailure({ code: 'Timeout' }).kind, 'unclear');
+  assert.equal(sdkFailure({ code: 'Canceled' }).kind, 'unclear', 'closed 3-D Secure: ask the server first');
 });
