@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { historyOf } from './model.js';
 import {
   NOT_CONFIRMED, canEnterCard, cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, entryTipLock, forgetEntry,
   intentBody, intentOutcome, makeConfirmHandler, noAnswer, pickSdk, sheetError, startEntry,
@@ -179,4 +180,18 @@ test('the sheet: closed by the customer is not an error; the card line', () => {
   assert.equal(cardLine({ label: 'Visa •••• 4242', image: '' }), 'Visa ···· 4242');
   assert.equal(cardLine(null), null);
   assert.equal(typeof NOT_CONFIRMED, 'string');
+});
+
+test('history: a card taken in the app is «Card · in app» with who took it; by the link «Card · online»', () => {
+  const at = '2026-11-18T19:05:00Z';
+  const [app, tip, link] = historyOf({ payments: [
+    { id: 1, kind: 'payment', method: 'card', online: true, amount_cents: 19598, recorded_by_name: 'Ivan Petrov', received_at: at },
+    { id: 2, kind: 'tip', method: 'card', online: true, amount_cents: 500, recorded_by_name: 'Ivan Petrov', tip_for_name: 'Nia Test', received_at: at },
+    { id: 3, kind: 'payment', method: 'card', online: true, amount_cents: 100, recorded_by_name: 'Online payment', received_at: at },
+  ] }, Date.now());
+  assert.match(app.title, /Card · in app$/);
+  assert.equal(app.sub, 'Ivan P.');
+  assert.match(tip.title, /Tip for Nia T\. · Card · in app$/);
+  assert.match(link.title, /Card · online$/);
+  assert.equal(link.sub, '');
 });
