@@ -266,10 +266,10 @@ export default function PayCardEntryScreen({ route, navigation }) {
               ) : null}
             </>
           )}
-          {problem ? <Box kind="danger" icon="warn" style={payStyles.gap} text={problem} /> : null}
         </ScrollView>
 
         <Foot bottom={insets.bottom} note={phase === 'form' && card && !ready ? 'The customer signs, then Charge.' : null}>
+          {problem ? <Box kind="danger" icon="warn" text={problem} /> : null}
           {phase === 'paid' ? (
             <MainButton text="Done · back to the payment" onPress={() => backToPay()} />
           ) : phase === 'processing' ? (
