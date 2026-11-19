@@ -19,6 +19,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { billAPI, payAPI } from '../services/api';
 import { forgetBill } from '../pay/attempts';
+import { forgetEntry } from '../pay/cardEntry';
 import { canPayOnline } from '../pay/online';
 import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
@@ -50,7 +51,7 @@ export default function PayScreen({ route, navigation }) {
       const data = await billAPI.get(id);
       if (n !== seq.current) return;
       // the bill as it is now shows what went through: the method screens start anew (pay/attempts.js)
-      if (data.bill) forgetBill(data.bill.id);
+      if (data.bill) { forgetBill(data.bill.id); forgetEntry(data.bill.id); }
       setBill(data.bill);
       setProblem(null);
     } catch (error) {

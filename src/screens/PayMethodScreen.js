@@ -27,6 +27,8 @@ import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
 import { OTHER_CHOICES, alreadyLine, chosenMethod, dueOf, holderLine, methodWord, payError, paymentBody, paymentInstructionsOf, recordedLine, shortPerson } from '../pay/model';
 import { LOOK_AGAIN, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
+import { canEnterCard, entryLocked, entryOf } from '../pay/cardEntry';
+import { cardSdkReady } from '../pay/stripeSdk';
 import { BigHead, CheckPhotoRow, Choice, Field, MethodTiles, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
@@ -39,7 +41,13 @@ export default function PayMethodScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   // a card payment of this bill that went (or may have gone) to the server keeps the card
   const cardKept = linesLocked(attemptOf(bill.id, 'card'));
-  const [tile, setTile] = useState(view ? view.tile : cardKept ? 'card' : null);
+  // a card charge sent from «Card details» (pay/cardEntry.js) keeps the card too
+  const entryKept = entryLocked(entryOf(bill.id));
+  const [tile, setTile] = useState(view ? view.tile : cardKept || entryKept ? 'card' : null);
+  // the card: in this app (Stripe, ONL-APP2) when the company and this build can, else the card app
+  const canEntry = canEnterCard(bill, cardSdkReady()) && !cardKept;
+  const [cardWay, setCardWay] = useState(entryKept || (canEntry && !cardKept) ? 'entry' : 'app');
+  const entry = tile === 'card' && canEntry && cardWay === 'entry';
   const [otherKey, setOtherKey] = useState(view ? view.otherKey : null);
   const [otherName, setOtherName] = useState(view ? view.otherName : '');
   const [checkNumber, setCheckNumber] = useState(view ? view.checkNumber : '');
@@ -158,7 +166,7 @@ export default function PayMethodScreen({ route, navigation }) {
   };
   const toTip = () => {
     if (part && !note.trim()) { setFailed('Part of the balance: the note says why.'); return; }
-    navigation.navigate('PayTip', { id, visit, bill, cents, part, note: note.trim(), later });
+    navigation.navigate('PayTip', { id, visit, bill, cents, part, note: note.trim(), later, entry });
   };
 
   const holder = holderLine(method, { me });
@@ -172,7 +180,7 @@ export default function PayMethodScreen({ route, navigation }) {
         <ScrollView contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
           <BigHead label={`Collect for ${label}`} big={usd(cents)} sub={sub} />
           <Section label="Pay with">
-            <MethodTiles value={tile} onPick={pickTile} off={sending || locked || cardKept} />
+            <MethodTiles value={tile} onPick={pickTile} off={sending || locked || cardKept || entryKept} />
           </Section>
 
           {tile === 'cash' ? (
@@ -189,8 +197,17 @@ export default function PayMethodScreen({ route, navigation }) {
           ) : null}
           {tile === 'card' ? (
             <Section label="Card">
+              {canEntry ? (
+                <View style={styles.choices} accessibilityRole="radiogroup">
+                  <Choice on={cardWay === 'entry'} title="Card details in this app" sub="Typed or scanned with the camera. Stripe charges it after the customer signs." off={entryKept}
+                    onPress={() => setCardWay('entry')} />
+                  <Choice on={cardWay === 'app'} title="Another card app (Square)" sub="Charge it there, then record it here." off={entryKept}
+                    onPress={() => setCardWay('app')} />
+                </View>
+              ) : null}
               <Box kind="info" icon="info" title="Next: the customer picks a tip"
-                text="Then this app shows the total. Charge it in the card app (Square) on this phone. Never type a card number into SEMIX." />
+                text={entry ? 'Then the card details, the customer’s signature and Charge. The card number goes to Stripe, never to SEMIX.'
+                  : 'Then this app shows the total. Charge it in the card app (Square) on this phone. Never type a card number into SEMIX.'} />
               <Field off={locked} label="Note" optional value={note} onChange={setNote} placeholder="Anything the office should know" max={500} />
             </Section>
           ) : null}

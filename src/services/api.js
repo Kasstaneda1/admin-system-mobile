@@ -283,6 +283,18 @@ export const payAPI = {
   payLink: async (id, body) => (await api.post(`${billPath(id)}/pay-link`, body, { timeout: 20000 })).data,
 };
 
+// «Card details» in the app (backend #241, ONL-APP2; pay/cardEntry.js):
+//   setup     — GET → { publishable_key, stripe_account, merchant_display_name, balance_cents };
+//   signature — POST { signature_png } (a PNG data URL) → 201 { file_id };
+//   intent    — POST { payment_method_id, amount_cents, tips, client_request_id, signature_file_id,
+//               signer_name, consent_text } → 201 / 200 { status, client_secret }; 409 balance_changed /
+//               attempt_closed / payment_processing / card_entry_off, 400 consent_text_mismatch.
+export const cardAPI = {
+  setup: async (id) => (await api.get(`${billPath(id)}/card-setup`, { timeout: 15000 })).data,
+  signature: async (id, png) => (await api.post(`${billPath(id)}/card-signature`, { signature_png: png }, { timeout: 30000 })).data,
+  intent: async (id, body) => (await api.post(`${billPath(id)}/card-intent`, body, { timeout: 30000 })).data,
+};
+
 // A deposit on the visit's job (DEP-1, be#217; DEP-APP): the main technician with «Takes
 // payments», the company's deposits on, the job open. record — POST { amount_cents, method,
 // method_note?, note?, check_number?, client_request_id }: 201 { created, deposit,

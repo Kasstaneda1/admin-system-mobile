@@ -41,6 +41,8 @@ export const OTHER_CHOICES = [
   { key: 'else', title: 'Something else', sub: 'Type what the customer used', method: 'other', name: '' },
 ];
 const WORDS = { cash: 'cash', check: 'check', card: 'card', zelle: 'Zelle', venmo: 'Venmo', bank_transfer: 'bank transfer', other: 'other' };
+// The webhook's name of a payment made on Stripe's page by the link (backend stripeWebhook.js ONLINE_NAME)
+const ONLINE_NAME = 'Online payment';
 const TITLES = { cash: 'Cash', check: 'Check', card: 'Card', zelle: 'Zelle', venmo: 'Venmo', bank_transfer: 'Bank transfer', other: 'Other' };
 // What stays in the technician's hands (the server's IN_HAND_METHODS): cash, check, other
 const IN_HAND = ['cash', 'check', 'other'];
@@ -156,13 +158,15 @@ export function historyOf(bill, nowMs) {
   return paymentsOf(bill).map((p) => {
     const at = momentWall(p.received_at);
     const how = p.method === 'check' && p.check_number ? `Check #${p.check_number}` : p.method === 'other' ? (p.method_note || 'Other') : TITLES[p.method] || p.method;
-    // the customer paid on Stripe's page (the webhook wrote it as «Online payment»): no person
-    const who = p.online === true ? '' : shortPerson(p.recorded_by_name);
+    // Stripe's webhook wrote it: the customer paid on Stripe's page («Online payment», no person)
+    // or the card was taken in the app (§9: «Card · in app», the technician who took it)
+    const byLink = p.online === true && p.recorded_by_name === ONLINE_NAME;
+    const who = byLink ? '' : shortPerson(p.recorded_by_name);
     const voidedAt = p.voided_at ? momentWall(p.voided_at) : null;
     return {
       key: `p${p.id}`,
       payment: p,
-      title: [at ? clock(at.minutes) : null, p.kind === 'tip' ? `Tip for ${shortPerson(p.tip_for_name) || 'the team'}` : null, how, p.online === true ? 'online' : null].filter(Boolean).join(' · '),
+      title: [at ? clock(at.minutes) : null, p.kind === 'tip' ? `Tip for ${shortPerson(p.tip_for_name) || 'the team'}` : null, how, p.online === true ? (byLink ? 'online' : 'in app') : null].filter(Boolean).join(' · '),
       sub: [who, p.note ? `“${p.note}”` : null, p.before_delivery ? 'bill sent later' : null].filter(Boolean).join(' · '),
       amount: usd(p.amount_cents),
       tip: p.kind === 'tip',
