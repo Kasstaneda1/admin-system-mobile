@@ -13,7 +13,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/native": "^7.0.13",
     "@react-navigation/native-stack": "^7.1.8",
-    "@stripe/stripe-react-native": "0.50.3",
+    "@stripe/stripe-react-native": "0.61.0",
     "axios": "^1.7.9",
     "expo": "~54.0.0",
     "expo-asset": "~12.0.12",
@@ -36,5 +36,12 @@
     "@babel/core": "^7.25.0",
     "babel-preset-expo": "~54.0.10"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "install": {
+      "exclude": [
+        "@stripe/stripe-react-native"
+      ]
+    }
+  }
 }

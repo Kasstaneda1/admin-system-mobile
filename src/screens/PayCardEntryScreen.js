@@ -1,7 +1,7 @@
 // «Card payment» with the card taken in the app (ONL-APP2, ONLINE_PAYMENT_SPEC.md §9 п. 2;
 // backend #241; pay/cardEntry.js). After the tip (PayTipScreen): who the tip is for → Card details
-// (Stripe's Payment Sheet in customFlow: it only takes the card — typed, or scanned with the
-// camera by the button inside the card form; the name on the card always) → the customer signs
+// (Stripe's Payment Sheet in customFlow: it only takes the card — scanned with the camera, which
+// opens first, or typed; the name on the card always) → the customer signs
 // under «I authorize <Company> to charge $X …» → Charge $X → Processing… → «Payment went through»,
 // when Stripe's webhook has written it on the bill (the app records nothing).
 // Charge: the signature goes first (card-signature → file_id); then the sheet's confirm calls our
@@ -100,6 +100,7 @@ export default function PayCardEntryScreen({ route, navigation }) {
         customFlow: true,
         intentConfiguration: { mode: { amount: total, currencyCode: 'USD' }, paymentMethodTypes: ['card'], confirmHandler: handlerFor(id, billId) },
         billingDetailsCollectionConfiguration: { name: 'always' },
+        opensCardScannerAutomatically: true,          // the camera opens first (0.59+); typing stays one tap away
         style: 'alwaysLight',
         returnURL: RETURN_URL,
         appearance: { colors: { primary: colors.brand } },
