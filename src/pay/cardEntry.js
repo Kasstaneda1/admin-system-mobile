@@ -76,11 +76,13 @@ export function cardTips(cents, forKey, visit, meId) {
 //   was lost, going: the server said the payment is on its way, unclear: the SDK's confirm of our
 //   client_secret failed without a clear no of the card — it may have charged, so only Charge
 //   (the server) decides now: no «Change», no new attempt from the screen (the Architect on #66),
+//   formLost: while unclear, the SDK's sheet failed before our handler (it was lost or set up
+//   for another bill) — the card may be entered again on the same attempt, the same ids,
 //   card: the card line the sheet took, kept for the screen coming back }
 const attempts = new Map();
 export const entryOf = (billId) => attempts.get(billId) || null;
 export function startEntry(billId, { requestId, amountCents, tipCents, forKey }) {
-  const attempt = { billId, requestId, amountCents, tipCents, forKey, signatureFileId: null, paymentMethodId: null, sent: false, uncertain: false, going: false, unclear: false, card: null };
+  const attempt = { billId, requestId, amountCents, tipCents, forKey, signatureFileId: null, paymentMethodId: null, sent: false, uncertain: false, going: false, unclear: false, formLost: false, card: null };
   attempts.set(billId, attempt);
   return attempt;
 }
@@ -232,8 +234,18 @@ export function confirmStep(result, outcome) {
   return { step: 'unclear', text: failure.text };
 }
 // May the card be changed on the screen («Change», «Card details»): not while a confirm of our
-// client_secret is unclear — the server's answer to the next Charge decides
-export const cardChangeable = (attempt) => !attempt || !attempt.unclear;
+// client_secret is unclear — the server's answer to the next Charge decides; but when the sheet
+// itself is lost then (Charge gives the form's error each time), the card is entered again
+// (the Architect on #67)
+export const cardChangeable = (attempt) => !attempt || !attempt.unclear || !!attempt.formLost;
+// What a new card does to the attempt: 'again' — a sent one starts anew (a new request id, a new
+// signature: another card does not go on the old PaymentIntent); 'same' — an unclear one keeps its
+// ids and its signature: the next Charge asks the server with them, and its answer decides
+// (going — wait, open — the SDK checks the card against it, closed — again); null — nothing to do
+export function cardReopen(attempt) {
+  if (!entryLocked(attempt)) return null;
+  return attempt.unclear ? 'same' : 'again';
+}
 
 // The hint above the card when the customer has not signed for the bill «after the work» (§9 п. 2,
 // the Architect on #66): the card does not wait for it — no second signature inside the card

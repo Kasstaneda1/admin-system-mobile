@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { historyOf } from './model.js';
 import {
-  NOT_CONFIRMED, ackHint, canEnterCard, cardChangeable, cardError, confirmStep, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, entryTipLock, forgetEntry,
+  NOT_CONFIRMED, ackHint, canEnterCard, cardChangeable, cardError, cardReopen, confirmStep, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, entryTipLock, forgetEntry,
   intentBody, intentOutcome, makeConfirmHandler, noAnswer, paidLine, pickSdk, sdkFailure, sheetError, startEntry,
 } from './cardEntry.js';
 
@@ -252,6 +252,17 @@ test('an unclear confirm: no «Change» until the server answers; a new attempt 
   a.unclear = true;
   assert.equal(cardChangeable(a), false, 'the SDK may have charged with our secret: only Charge decides');
   assert.equal(cardChangeable(null), true);
+  assert.equal(a.formLost, false);
+  // the sheet lost while unclear: the card again, but on the same attempt — never a new one (the Architect on #67)
+  a.formLost = true;
+  assert.equal(cardChangeable(a), true);
+  assert.equal(cardReopen(a), 'same');
+  a.unclear = false;
+  a.formLost = false;
+  assert.equal(cardReopen(a), 'again', 'sent, the secret never reached the SDK: a new attempt');
+  a.sent = false;
+  a.uncertain = false;
+  assert.equal(cardReopen(a), null, 'nothing sent');
   dropEntry(4401);
 });
 

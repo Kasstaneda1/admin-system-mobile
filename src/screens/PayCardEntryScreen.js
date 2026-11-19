@@ -24,7 +24,7 @@ import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
 import { chargeOf } from '../pay/model';
 import {
-  ackHint, cardChangeable, cardError, cardLine, cardTipChoices, cardTips, confirmStep, consentText, dropEntry, entryLocked, entryOf, makeConfirmHandler, paidLine,
+  ackHint, cardChangeable, cardError, cardReopen, cardLine, cardTipChoices, cardTips, confirmStep, consentText, dropEntry, entryLocked, entryOf, makeConfirmHandler, paidLine,
   sheetError, startEntry,
 } from '../pay/cardEntry';
 import { POLL_MS, WAIT_MS, arrivedOf, onlineIds } from '../pay/online';
@@ -95,7 +95,8 @@ export default function PayCardEntryScreen({ route, navigation }) {
     if (!sdk || opening || charging || !cardChangeable(attempt)) return;
     // another card after a charge went out: the PaymentIntent is checked against the first card
     // (stripe-ios 25.9 compares the fingerprint) — a new attempt, a new signature (the Architect on #66)
-    if (entryLocked(attempt)) again(null);
+    // an unclear attempt whose sheet was lost keeps its ids: the server decides at Charge (the Architect on #67)
+    if (cardReopen(attempt) === 'again') again(null);
     setOpening(true);
     setProblem(null);
     try {
@@ -172,7 +173,8 @@ export default function PayCardEntryScreen({ route, navigation }) {
       if (next.step === 'again') { again(next.text); return; }
       if (next.step === 'refusal') { afterRefusal(next.error); return; }
       // the sheet failed before our handler: nothing went to the server, the attempt stays as it was
-      if (next.step === 'form') { setProblem(next.text); return; }
+      // while unclear that means the sheet is gone: «Change» comes back, on the same attempt (the Architect on #67)
+      if (next.step === 'form') { if (attempt.unclear) attempt.formLost = true; setProblem(next.text); return; }
       // the SDK failed after our client_secret without a clear no of the card: it may have charged —
       // locked, no «Change»: the next Charge asks the server, its answer decides (the Architect on #66)
       attempt.uncertain = true;
@@ -194,7 +196,7 @@ export default function PayCardEntryScreen({ route, navigation }) {
   const wait = () => { attempt.going = true; setSince(Date.now()); setPhase('processing'); };
   const again = (text) => {
     // a new request and a new signature (§9: 409 attempt_closed); the card is entered again
-    Object.assign(attempt, { requestId: newRequestId(), signatureFileId: null, paymentMethodId: null, sent: false, uncertain: false, going: false, unclear: false, card: null });
+    Object.assign(attempt, { requestId: newRequestId(), signatureFileId: null, paymentMethodId: null, sent: false, uncertain: false, going: false, unclear: false, formLost: false, card: null });
     setCard(null);
     setDrawn(false);
     if (pad.current) pad.current.clear();
