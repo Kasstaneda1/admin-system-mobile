@@ -101,7 +101,7 @@ export default function PayOnlineScreen({ route, navigation }) {
         {arrived ? (
           <>
             <Box kind="done" icon="checkc" style={payStyles.gap} title={arrivedLine(arrived)}
-              text={arrived.paid ? 'The bill is paid. Stripe sent it to the company; the office sees it now.' : `Stripe sent it to the company. ${due !== null ? `${usd(due)} is still due.` : ''}`.trim()} />
+              text={arrived.paid ? 'Stripe confirmed it. The bill is paid; the office sees it now.' : `Stripe confirmed it. ${due !== null ? `${usd(due)} is still due.` : ''}`.trim()} />
           </>
         ) : link ? (
           <View style={styles.wrap}>
