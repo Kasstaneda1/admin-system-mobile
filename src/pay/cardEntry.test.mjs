@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { historyOf } from './model.js';
 import {
-  NOT_CONFIRMED, canEnterCard, cardError, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, entryTipLock, forgetEntry,
+  NOT_CONFIRMED, ackHint, canEnterCard, cardChangeable, cardError, confirmStep, cardLine, cardTipChoices, cardTips, consentText, dropEntry, entryLocked, entryOf, entryTipLock, forgetEntry,
   intentBody, intentOutcome, makeConfirmHandler, noAnswer, paidLine, pickSdk, sdkFailure, sheetError, startEntry,
 } from './cardEntry.js';
 
@@ -115,6 +115,10 @@ test('the server\'s no: what the screen does next', () => {
   assert.equal(cardError(err(502, { code: 'stripe_error', error: 'Stripe: Your card was declined.' })).text, 'Stripe: Your card was declined.');
   assert.equal(cardError(err(404)).kind, 'gone');
   assert.equal(cardError(err(500)).next, 'retry');
+  // exactly 500 is «no answer» too: the next press asks again with the same id (the Teamlead on #66)
+  assert.equal(cardError(err(500)).kind, 'failed');
+  assert.equal(noAnswer(err(500)), true);
+  assert.equal(noAnswer(err(499)), false);
   assert.equal(cardError(err(400, { error: 'signer_name is required: who signed' })).text, 'signer_name is required: who signed.');
 });
 
@@ -216,4 +220,45 @@ test('the result: one sum as charged, the bill and the tip inside', () => {
   assert.equal(paidLine(19598, 19598, 1000), 'Paid $205.98 by card: bill $195.98 + tip $10.00.');
   assert.equal(paidLine(19598, 19598, 0), 'Paid $195.98 by card.');
   assert.equal(paidLine(20598, 19598, 1000), 'Paid $205.98 by card.', 'Stripe took another sum: one payment, no tips');
+});
+
+test('after the sheet\'s confirm: what the screen does', () => {
+  const failed = { error: { code: 'Failed', message: 'x' } };
+  assert.deepEqual(confirmStep({}, { kind: 'confirm', clientSecret: 's' }), { step: 'wait' }, 'confirmed');
+  assert.deepEqual(confirmStep(failed, { kind: 'going' }), { step: 'wait' }, 'the server: going');
+  assert.equal(confirmStep(failed, { kind: 'closed' }).step, 'again');
+  const no = cardError(err(409, { code: 'attempt_closed' }));
+  assert.deepEqual(confirmStep(failed, { kind: 'error', error: no }), { step: 'refusal', error: no });
+  // the sheet failed before our handler (no outcome): the form's words, nothing locked by it (the Architect on #66)
+  const form = confirmStep(failed, null);
+  assert.equal(form.step, 'form');
+  assert.equal(form.text, 'The card form failed. Try again.');
+  assert.doesNotMatch(form.text, /No answer from Stripe/);
+  // after our client_secret: a clear no of the card — again; anything else — unclear
+  assert.equal(confirmStep({ error: { code: 'Failed', declineCode: 'card_declined' } }, { kind: 'confirm', clientSecret: 's' }).step, 'again');
+  const unclear = confirmStep({ error: { code: 'Timeout' } }, { kind: 'confirm', clientSecret: 's' });
+  assert.equal(unclear.step, 'unclear');
+  assert.match(unclear.text, /^No answer from Stripe/);
+});
+
+test('an unclear confirm: no «Change» until the server answers; a new attempt clears it', () => {
+  const a = startEntry(4401, { requestId: 'r1', amountCents: 1000, tipCents: 0, forKey: 'me' });
+  assert.equal(a.unclear, false);
+  assert.equal(a.card, null);
+  assert.equal(cardChangeable(a), true, 'a new attempt');
+  a.sent = true;
+  a.uncertain = true;
+  assert.equal(cardChangeable(a), true, 'card-intent had no answer, no secret went to the SDK: Change is a new attempt, safe');
+  a.unclear = true;
+  assert.equal(cardChangeable(a), false, 'the SDK may have charged with our secret: only Charge decides');
+  assert.equal(cardChangeable(null), true);
+  dropEntry(4401);
+});
+
+test('the hint when the bill is not signed «after the work»', () => {
+  const hint = ackHint(null);
+  assert.equal(hint.link, 'Customer signs for the bill');
+  assert.match(hint.text, /does not need it/);
+  assert.equal(ackHint({ id: 1, signer_name: 'Ann' }), null, 'signed');
+  assert.equal(ackHint(undefined), null, 'not known: no hint');
 });

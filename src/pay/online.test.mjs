@@ -63,6 +63,15 @@ test('the server’s no in the technician’s words', () => {
   assert.equal(no(404).kind, 'gone');
   assert.match(no(429).text, /Wait a minute/);
   assert.equal(no(500).kind, 'failed');
+  // no address for Stripe's page: its own words, not «Try again» (the Teamlead on #65)
+  const off = no(503, 'site_address_off');
+  assert.equal(off.kind, 'refused');
+  assert.match(off.text, /not set up on the server/);
+  assert.doesNotMatch(off.text, /Try again/);
+});
+
+test('the quiet zone is the standard 4 modules (the Teamlead on #65)', () => {
+  assert.equal(QUIET, 4);
 });
 
 test('the runs of dark modules give back the matrix exactly', () => {

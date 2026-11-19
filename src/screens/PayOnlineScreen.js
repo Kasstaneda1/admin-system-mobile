@@ -33,6 +33,7 @@ export default function PayOnlineScreen({ route, navigation }) {
   const [stale, setStale] = useState(false);            // the 10 minutes are over
   const [lost, setLost] = useState(false);              // the last check had no answer
   const known = useRef(onlineIds(firstBill));           // online payments before this code
+  const first = useRef(true);                           // the first code of this screen: read the bill before it
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -43,10 +44,21 @@ export default function PayOnlineScreen({ route, navigation }) {
     setMaking(true);
     setFailed(null);
     try {
+      // the bill as it is now, not as Pay loaded it: a payment by an earlier link that came after
+      // that is not this code's (the Teamlead on #65). Until the first code shows: a payment that
+      // comes after it is this screen's. No answer — the bill from Pay.
+      if (first.current) {
+        try {
+          const now = await billAPI.get(id);
+          if (now && now.bill) { known.current = onlineIds(now.bill); if (alive.current) setBill(now.bill); }
+        } catch (e) { /* the bill from Pay */ }
+        if (!alive.current) return;
+      }
       const data = await payAPI.payLink(id, linkBody({ part, cents }));
       if (!alive.current) return;
       const got = linkOf(data);
       if (!got) { setFailed('Could not make the code. Try again.'); return; }
+      first.current = false;
       setLink(got);
       setSince(Date.now());
       setStale(false);

@@ -73,11 +73,14 @@ export function cardTips(cents, forKey, visit, meId) {
 // ---------- the attempt (in memory by bill, as pay/attempts.js) ----------
 // { billId, requestId, amountCents, tipCents, forKey, signatureFileId, paymentMethodId,
 //   sent: card-intent went out (the tip and the amount do not change now), uncertain: its answer
-//   was lost, going: the server said the payment is on its way }
+//   was lost, going: the server said the payment is on its way, unclear: the SDK's confirm of our
+//   client_secret failed without a clear no of the card — it may have charged, so only Charge
+//   (the server) decides now: no «Change», no new attempt from the screen (the Architect on #66),
+//   card: the card line the sheet took, kept for the screen coming back }
 const attempts = new Map();
 export const entryOf = (billId) => attempts.get(billId) || null;
 export function startEntry(billId, { requestId, amountCents, tipCents, forKey }) {
-  const attempt = { billId, requestId, amountCents, tipCents, forKey, signatureFileId: null, paymentMethodId: null, sent: false, uncertain: false, going: false };
+  const attempt = { billId, requestId, amountCents, tipCents, forKey, signatureFileId: null, paymentMethodId: null, sent: false, uncertain: false, going: false, unclear: false, card: null };
   attempts.set(billId, attempt);
   return attempt;
 }
@@ -208,6 +211,41 @@ export function paidLine(paidCents, billCents, tipCents) {
 export function cardLine(paymentOption) {
   if (!paymentOption || typeof paymentOption.label !== 'string' || !paymentOption.label) return null;
   return paymentOption.label.replace(/•+/g, '····');
+}
+
+// What the screen does after the sheet's confirm (confirmPaymentSheetPayment's result and what
+// our handler left in attempt.outcome):
+//   { step: 'wait' }           — it went or is going: wait for Stripe's webhook;
+//   { step: 'again', text }    — closed, or a clear no of the card: a new attempt, a new signature;
+//   { step: 'refusal', error } — the server's no (cardError) — afterRefusal;
+//   { step: 'form', text }     — the sheet failed before our handler ran (no outcome): nothing
+//                                went to the server, nothing is locked by it (the Architect on #66);
+//   { step: 'unclear', text }  — the SDK failed after our client_secret: may have charged
+export function confirmStep(result, outcome) {
+  const error = result && result.error;
+  if (!error || (outcome && outcome.kind === 'going')) return { step: 'wait' };
+  if (!outcome) return { step: 'form', text: 'The card form failed. Try again.' };
+  if (outcome.kind === 'closed') return { step: 'again', text: 'This card charge was closed. Enter the card and sign again.' };
+  if (outcome.kind === 'error') return { step: 'refusal', error: outcome.error };
+  const failure = sdkFailure(error);
+  if (failure.kind === 'declined') return { step: 'again', text: failure.text };
+  return { step: 'unclear', text: failure.text };
+}
+// May the card be changed on the screen («Change», «Card details»): not while a confirm of our
+// client_secret is unclear — the server's answer to the next Charge decides
+export const cardChangeable = (attempt) => !attempt || !attempt.unclear;
+
+// The hint above the card when the customer has not signed for the bill «after the work» (§9 п. 2,
+// the Architect on #66): the card does not wait for it — no second signature inside the card
+// flow — but the signed bill proves the work in a dispute. `ack`: GET …/bill/acknowledgment's
+// acknowledgment — null: not signed; undefined: not known (not read, no answer) — no hint then.
+export function ackHint(ack) {
+  if (ack !== null) return null;
+  return {
+    title: 'Not signed for the bill yet',
+    text: 'The card does not need it, but the customer’s signature for the bill proves the work if the charge is disputed.',
+    link: 'Customer signs for the bill',
+  };
 }
 
 // The marker the confirm handler hands Stripe when our server said not to confirm: the sheet
