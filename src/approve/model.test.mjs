@@ -199,9 +199,13 @@ test('keptEstimate: after Finish the earlier answer goes with the new signature,
   const done = { status: 'completed' };
   const earlier = { id: 3, estimate_choice: 'waived', estimate_price_cents: 0, authorized_at: '2026-11-20 11:31:00' };
   assert.deepEqual(keptEstimate(earlier, done, 'nyc_20'),
-    { choice: 'waived', price: 0, text: 'Written estimate: No — chosen before the work, Nov 20 ($0.00)' });
-  assert.deepEqual(keptEstimate({ ...earlier, estimate_choice: 'written', estimate_price_cents: 2500 }, done, 'nyc_20'),
-    { choice: 'written', price: 2500, text: 'Written estimate: Yes — chosen before the work, Nov 20 ($25.00)' });
+    { choice: 'waived', price: 0, text: 'No, not needed — chosen before the work, Nov 20.' });
+  assert.deepEqual(keptEstimate({ ...earlier, estimate_choice: 'written', estimate_price_cents: 4500 }, done, 'nyc_20'),
+    { choice: 'written', price: 4500, text: 'Yes, asked for ($45.00) — chosen before the work, Nov 20.' });
+  assert.equal(keptEstimate({ ...earlier, estimate_choice: 'written' }, done, 'nyc_20').text, 'Yes, asked for (free) — chosen before the work, Nov 20.');
+  // the day the customer signed on the phone comes first; UTC late evening is still Nov 20 in New York
+  assert.equal(keptEstimate({ ...earlier, signed_on_device_at: '2026-11-21T02:10:00.000Z', authorized_at: '2026-11-21T09:00:00.000Z' }, done, 'nyc_20').text,
+    'No, not needed — chosen before the work, Nov 20.');
 });
 
 test('keptEstimate: asked as before — no earlier answer, not finished, not NYC', () => {

@@ -286,10 +286,12 @@ export default function ApproveScreen({ route, navigation }) {
 
               {nyc && kept ? (
                 <View style={styles.pad}>
-                  <Text style={styles.label} accessibilityRole="header">WRITTEN ESTIMATE</Text>
-                  <View style={[styles.card, styles.termsRow]} accessible accessibilityLabel={kept.text}>
+                  <View style={[styles.card, styles.termsRow]} accessible accessibilityLabel={`Written estimate. ${kept.text}`}>
                     <Icon name="doc" size={22} color={colors.fgSecondary} />
-                    <Text style={[styles.sub, styles.flex]}>{kept.text}</Text>
+                    <View style={styles.flex}>
+                      <Text style={styles.termsTitle}>Written estimate</Text>
+                      <Text style={styles.sub}>{kept.text}</Text>
+                    </View>
                   </View>
                 </View>
               ) : nyc ? (
