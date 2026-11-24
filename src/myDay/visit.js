@@ -91,7 +91,8 @@ export function kindLine(visit) {
 
 // The three tiles under the buttons: window, plan (a closed visit: done), fee (an old task
 // has no fee). struck: the visit was called off, its times no longer hold.
-export function tilesOf(visit, now) {
+// prices: false — this technician sees no prices (takes_payments off, src/perms): no Fee tile
+export function tilesOf(visit, now, { prices = true } = {}) {
   const state = stateOf(visit);
   const date = visitDay(visit);
   const plan = planOf(visit);
@@ -105,7 +106,7 @@ export function tilesOf(visit, now) {
   } else {
     tiles.push({ key: 'plan', label: 'Plan', big: plan ? clock(plan.start.minutes) : '—', small: plan ? durationText(plan.duration) : '', struck });
   }
-  if (!visit.legacy) {
+  if (!visit.legacy && prices) {
     if (visit.visit_kind === 'recall') tiles.push({ key: 'fee', label: 'Fee', big: 'No charge', small: 'recall', struck });
     else {
       const fee = money(visit.service_call_fee_quoted_cents);
@@ -211,7 +212,7 @@ export function notesOf(visit, now) {
 // Everything the card shows. visit: the card from the server, or the list's visit (no
 // job_visits, notes: full false, the screen says those need the connection).
 // officeOpen: every office note shows, not two
-export function visitCard(visit, { n = null, now, officeOpen = false }) {
+export function visitCard(visit, { n = null, now, officeOpen = false, prices = true }) {
   const history = historyOf(visit, now);
   const notes = notesOf(visit, now);
   return {
@@ -222,7 +223,7 @@ export function visitCard(visit, { n = null, now, officeOpen = false }) {
     kindLine: kindLine(visit),
     name: (typeof visit.client_name === 'string' && visit.client_name.trim()) || 'Customer',
     address: addressLines(visit),
-    tiles: tilesOf(visit, now),
+    tiles: tilesOf(visit, now, { prices }),
     access: typeof visit.access_notes === 'string' && visit.access_notes.trim() ? visit.access_notes.trim() : null,
     problem: typeof visit.description === 'string' && visit.description.trim() ? visit.description.trim() : null,
     appliances: appliancesOf(visit),

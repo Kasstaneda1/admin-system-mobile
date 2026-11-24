@@ -273,7 +273,7 @@ export function loggedTag(change, date, { long = false } = {}) {
 //   date, isToday, isPast, rows: [row], current: row|null, next: row|null,
 //   summary: { big, small }, gaps: [{ afterId, from, to, text }], count, done
 // }
-// row: { id, key, n, visit, state, logged, current, next, helper, legacy, client (short), clientFull, area,
+// row: { id, key, n, visit, state, logged, current, next, helper, legacy, client (short), clientFull, contactsHidden, area,
 //        kind, window, timeText, tag, label (VoiceOver, logged rows), start, end (minutes of the
 //        plan), winStart, winEnd (minutes on this day, clamped to it) }
 // Numbers go by planned time, 1..n, the same in the strip and in the list; only live visits
@@ -318,6 +318,8 @@ export function buildDay(visits, date, now) {
       legacy: !!v.legacy,
       client: shortName(v.client_name),
       clientFull,
+      // the server hides the customer's phone from this technician (src/perms): Office, not Call
+      contactsHidden: v.contacts_hidden === true,
       area: areaOf(v),
       kind: kindText(v),
       duration: state === 'sched' && v.role !== 'helper' ? durationText(plan.duration) : null,

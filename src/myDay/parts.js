@@ -155,9 +155,11 @@ export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
           <Icon name="nav" size={18} color={colors.fgOnFill} />
           <Text style={styles.miniText}>Directions</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.mini, styles.miniGhost]} onPress={onCall} accessibilityRole="button" accessibilityLabel={`Call ${row.clientFull}`}>
+        {/* contacts hidden from this technician (src/perms): the office's phone in place of the customer's */}
+        <TouchableOpacity style={[styles.mini, styles.miniGhost]} onPress={onCall} accessibilityRole="button"
+          accessibilityLabel={row.contactsHidden ? 'Call the office' : `Call ${row.clientFull}`}>
           <Icon name="phone" size={18} color={colors.brandPressed} />
-          <Text style={[styles.miniText, styles.miniGhostText]}>Call</Text>
+          <Text style={[styles.miniText, styles.miniGhostText]}>{row.contactsHidden ? 'Office' : 'Call'}</Text>
         </TouchableOpacity>
       </View>
     </View>

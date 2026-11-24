@@ -21,6 +21,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
+import Icon from '../myDay/Icon';
 import { billAPI } from '../services/api';
 import { useAuth } from '../session/AuthContext';
 import { logError } from '../utils/logError';
@@ -34,6 +35,7 @@ import { taxPick, taxRefusal, taxSection } from '../bill/tax';
 import { billDiagnosis, diagnosisOf } from '../diagnosis/model';
 import { DiagnosisBody, DiagnosisHead, DiagnosisSheet } from '../diagnosis/parts';
 import { useDiagnosis } from '../diagnosis/useDiagnosis';
+import { billView } from '../perms/model';
 
 export default function BillScreen({ route, navigation }) {
   const { id, visit = null, create = false } = route.params || {};
@@ -214,14 +216,19 @@ export default function BillScreen({ route, navigation }) {
   const view = useMemo(() => (bill ? {
     status: statusOf(bill, now),
     parties: partiesOf(bill, visit),
-    sections: sectionsOf(bill, userId),
+    sections: sectionsOf(bill, userId, billView(user, bill).edit),
     totals: totalsOf(bill),
     foot: footOf(bill),
     blockers: blockersOf(bill),
     creditNote: creditNote(bill),
     tax: taxSection(bill),
-  } : null), [bill, visit, userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  } : null), [bill, visit, userId, user]); // eslint-disable-line react-hooks/exhaustive-deps
   const draft = !!bill && bill.status === 'draft';
+  // The technician's permissions (src/perms, the bill's own flags): the lines (can_edit_lines),
+  // the money and giving the bill (can_take_payments; without it no amounts, no Preview or PDF)
+  const perms = billView(user, bill);
+  const canEdit = perms.edit;
+  const payments = perms.give;
   const kind = kindWord({ visit_kind: (bill && bill.visit_kind) || (visit && visit.visit_kind) });
 
   const top = <TopBar back="Visit" title="Bill" onBack={() => navigation.goBack()} />;
@@ -303,17 +310,24 @@ export default function BillScreen({ route, navigation }) {
         ) : null}
 
         <View style={billStyles.section}>
-          <SectionHead label="Services" link={draft ? 'Price book' : null} icon="book" onLink={() => openBook('service')} />
+          <SectionHead label="Services" link={canEdit ? 'Price book' : null} icon="book" onLink={() => openBook('service')} />
+          {/* the lines are the office's for this technician (src/perms): said under the head, before the lines */}
+          {perms.linesLine ? (
+            <View style={styles.permRow}>
+              <Icon name="lock" size={16} color={colors.fgMutedField} />
+              <Text style={styles.permText}>{perms.linesLine}</Text>
+            </View>
+          ) : null}
           {sections.services.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
-          {!sections.services.length && !draft ? <Text style={billStyles.quiet}>No services</Text> : null}
-          {draft ? <AddRow text="Add service" onPress={() => openBook('service')} off={!!busy} /> : null}
+          {!sections.services.length && !canEdit ? <Text style={billStyles.quiet}>No services</Text> : null}
+          {canEdit ? <AddRow text="Add service" onPress={() => openBook('service')} off={!!busy} /> : null}
         </View>
 
         <View style={billStyles.section}>
-          <SectionHead label="Materials" link={draft ? 'Parts & price book' : null} icon="box" onLink={() => openBook('material')} />
+          <SectionHead label="Materials" link={canEdit ? 'Parts & price book' : null} icon="box" onLink={() => openBook('material')} />
           {sections.materials.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
-          {!sections.materials.length && !draft ? <Text style={billStyles.quiet}>No materials</Text> : null}
-          {draft ? <AddRow text="Add material" onPress={() => openBook('material')} off={!!busy} /> : null}
+          {!sections.materials.length && !canEdit ? <Text style={billStyles.quiet}>No materials</Text> : null}
+          {canEdit ? <AddRow text="Add material" onPress={() => openBook('material')} off={!!busy} /> : null}
         </View>
 
         {sections.credits.length ? (
@@ -323,11 +337,11 @@ export default function BillScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {sections.discounts.length || draft ? (
+        {sections.discounts.length || canEdit ? (
           <View style={billStyles.section}>
             <SectionHead label="Discounts" />
             {sections.discounts.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
-            {draft ? <AddRow text="Add discount" onPress={() => openBook('discount')} off={!!busy} /> : null}
+            {canEdit ? <AddRow text="Add discount" onPress={() => openBook('discount')} off={!!busy} /> : null}
           </View>
         ) : null}
 
@@ -337,10 +351,12 @@ export default function BillScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        <View style={billStyles.section}>
-          <SectionHead label="Totals" />
-          <Totals rows={totals} />
-        </View>
+        {totals.length ? (
+          <View style={billStyles.section}>
+            <SectionHead label="Totals" />
+            <Totals rows={totals} />
+          </View>
+        ) : null}
 
         <View style={billStyles.section}>
           <SectionHead label="Message on the bill" />
@@ -355,15 +371,16 @@ export default function BillScreen({ route, navigation }) {
           ) : <Text style={billStyles.quiet}>{bill.message || 'No message'}</Text>}
         </View>
 
-        {draft && blockers.length ? (
+        {/* what stops the issue — only for who issues it (without takes_payments the office does) */}
+        {draft && payments && blockers.length ? (
           <View style={styles.blockers}>
             <Box kind="warn" icon="warn" title={blockers.some((b) => b.hard) ? 'The office has to fix this first' : 'Ask the office'} text={blockers.map((b) => b.text).join('\n')} />
           </View>
         ) : null}
       </ScrollView>
 
-      <Foot foot={foot} bottom={insets.bottom}>
-        {draft ? (
+      <Foot foot={foot} bottom={insets.bottom} quiet={perms.paymentsLine}>
+        {!payments ? null : draft ? (
           <MainButton text="Preview the bill" icon="eye" off={busy === 'message'}
             onPress={async () => { await saveMessage(); navigation.navigate('BillPreview', { id, visit }); }} />
         ) : bill.status === 'issued' ? (
@@ -383,7 +400,7 @@ export default function BillScreen({ route, navigation }) {
         onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onAddMine={diag.addMine} onSaveMine={diag.saveMine} onClose={diag.close} />
       <TaxSheet visible={taxOpen && draft && !!view.tax && view.tax.change} bill={bill} sending={busy === 'tax'} bottom={insets.bottom}
         onPick={pickTax} onClose={() => setTaxOpen(false)} />
-      <PriceBookSheet visible={bookOpen !== null} tab={bookOpen} book={book} failed={bookFailed} bill={bill} kindWord={kind}
+      <PriceBookSheet visible={bookOpen !== null && canEdit} tab={bookOpen} book={book} failed={bookFailed} bill={bill} kindWord={kind}
         adding={adding} bottom={insets.bottom} onTryAgain={loadBook} onAdd={addItem} onOwn={own}
         onClose={() => setBookOpen(null)} />
     </SafeAreaView>
@@ -409,5 +426,7 @@ const styles = StyleSheet.create({
   messageState: { fontSize: 13, color: colors.fgSecondary },
   blockers: { paddingHorizontal: 16, paddingTop: 12 },
   retryWrap: { alignSelf: 'stretch' },
+  permRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
+  permText: { flex: 1, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   diag: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
 });

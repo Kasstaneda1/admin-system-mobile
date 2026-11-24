@@ -113,8 +113,16 @@ test('checkDue: GET /api/me on return to the app at most once per 5 minutes', ()
 test('profileFromMe: /api/me in the shape the screens read (fullName), the rest kept', () => {
   const kept = { id: 7, username: 'nia', role: 'technician', fullName: 'Nia', subdomain: 'semix', isSuperAdmin: false };
   const me = { id: 7, username: 'nia', role: 'technician', full_name: 'Nia Test', is_super_admin: false };
-  assert.deepEqual(profileFromMe(me, kept), { ...kept, fullName: 'Nia Test' });
-  assert.deepEqual(profileFromMe(me, null), { id: 7, username: 'nia', role: 'technician', fullName: 'Nia Test', isSuperAdmin: false });
+  assert.deepEqual(profileFromMe(me, kept), { ...kept, fullName: 'Nia Test', permissions: null });
+  assert.deepEqual(profileFromMe(me, null), { id: 7, username: 'nia', role: 'technician', fullName: 'Nia Test', isSuperAdmin: false, permissions: null });
+});
+
+test('profileFromMe: the technician\'s four permissions (be#257), each on unless false', () => {
+  const me = { id: 7, username: 'nia', role: 'technician', full_name: 'Nia', permissions: { takes_payments: false, sees_customer_contacts: true, edits_bill_lines: false } };
+  assert.deepEqual(profileFromMe(me, null).permissions,
+    { takes_payments: false, sees_customer_contacts: true, edits_bill_lines: false, changes_bill_tax: true });
+  // a kept profile from before does not keep old permissions when /me has none
+  assert.equal(profileFromMe({ ...me, permissions: undefined }, { permissions: { takes_payments: false } }).permissions, null);
 });
 
 test('isAuthPath: sign in, refresh and sign out only', () => {

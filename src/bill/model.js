@@ -11,6 +11,7 @@
 // (locked); the tax: the technician with the office's leave (can_change_tax) picks the rate
 // and switches Taxable off (src/bill/tax.js), else sees it set by the office. Payments, the approve signature and the technician's signature come
 // later (BILLS_PLAN.md, PR 11–13).
+import { permissionRefusal } from '../perms/model.js';
 import { clock, kindWord, momentWall, parseWall, stateOf, firstName } from '../myDay/model.js';
 import { monthDay, unitText } from '../myDay/visit.js';
 import { textPatch } from './lineText.js';
@@ -83,6 +84,13 @@ export function lineName(line) {
 // its price; two of it say '2 × $50.00'; hours only where the item is by the hour.
 export function lineSub(line) {
   const q = qtyText(qtyMilli(line.quantity) || 1000);
+  // no price (takes_payments off: the server sends null) — the quantity alone, never «× —»
+  if (!Number.isFinite(line.unit_price_cents) && line.kind !== 'discount' && line.kind !== 'diagnostics_credit') {
+    if (line.kind === 'part' && line.warranty) return [CONDITIONS[line.part_condition] || null, 'Warranty'].filter(Boolean).join(' · ');
+    const many = (qtyMilli(line.quantity) || 1000) !== 1000;
+    const qty = isHour(line.unit) ? `${q} h` : many || line.kind === 'part' ? `Qty ${q}` : null;
+    return [line.kind === 'part' ? CONDITIONS[line.part_condition] || null : null, qty].filter(Boolean).join(' · ');
+  }
   const price = usd(line.unit_price_cents);
   switch (line.kind) {
     case 'discount':
@@ -117,19 +125,20 @@ export function changedText(line, userId) {
 
 // The bill's lines in the design's sections: { services, materials, credits, discounts },
 // each a list of rows { key, line, name, sub, amount, deduction, locked, badge, changed, editable }
-export function sectionsOf(bill, userId = null) {
-  const draft = bill.status === 'draft';
+// canEdit: may this technician change the lines (src/perms editsLines: the server's
+// can_edit_lines; an older server — a draft). No amount from the server — no amount (null).
+export function sectionsOf(bill, userId = null, canEdit = bill.status === 'draft') {
   const row = (line) => ({
     key: `l${line.id}`,
     line,
     name: lineName(line),
     sub: lineSub(line),
-    amount: usd(line.amount_cents),
+    amount: Number.isFinite(line.amount_cents) ? usd(line.amount_cents) : null,
     deduction: DEDUCTION_KINDS.includes(line.kind),
     locked: !!line.locked,
     badge: lineBadge(line),
     changed: changedText(line, userId),
-    editable: draft && !line.locked,
+    editable: !!canEdit && !line.locked,
   });
   const lines = Array.isArray(bill.lines) ? bill.lines : [];
   return {
@@ -158,6 +167,8 @@ export function taxOf(bill) {
 }
 // [{ key, label, sub?, value, kind: 'plain' | 'deduction' | 'total' | 'balance' }]
 export function totalsOf(bill) {
+  // no prices from the server (prices_visible false): no totals at all, not «—» or «$0.00»
+  if (bill.prices_visible === false) return [];
   const rows = [{ key: 'subtotal', label: 'Subtotal', value: usd(bill.subtotal_cents), kind: 'plain' }];
   if (bill.discount_cents > 0) rows.push({ key: 'discount', label: 'Discounts', value: usd(-bill.discount_cents), kind: 'deduction' });
   if (bill.credit_cents > 0) rows.push({ key: 'credit', label: 'Diagnostics credit', value: usd(-bill.credit_cents), kind: 'deduction' });
@@ -172,6 +183,7 @@ export const balanceOf = (bill) => (Number.isFinite(bill.balance_cents) ? bill.b
 // The line over the main button: 'Total $250.41 · balance due' and '$150.41'
 // switched-off tax says so instead (design app-tax-off «Total · no tax»): 'No tax · balance due'
 export function footOf(bill) {
+  if (bill.prices_visible === false) return null;
   return { text: taxIsOff(bill) ? 'No tax · balance due' : `Total ${usd(bill.total_cents)} · balance due`, big: usd(balanceOf(bill)) };
 }
 
@@ -251,9 +263,15 @@ export function draftedFrom(bill) {
   if (lines.some((l) => l.kind === 'part' && l.estimate_id)) parts.push('the part from the estimate');
   if (lines.some((l) => l.kind === 'diagnostics_credit')) parts.push('the diagnostics credit');
   const kind = kindWord({ visit_kind: bill.visit_kind });
-  if (!parts.length) return { title: 'The bill is started for you', text: `Nothing was found for a ${kind.toLowerCase()} visit. Add the lines from the price book.` };
+  // what the technician does next follows their permissions (src/perms, the bill's own flags):
+  // without the lines the office adds them; without the money the office issues the bill
+  const addsLines = bill.can_edit_lines !== false;
+  const issues = bill.can_take_payments !== false && bill.prices_visible !== false;
+  if (!parts.length) {
+    return { title: 'The bill is started for you', text: `Nothing was found for a ${kind.toLowerCase()} visit. ${addsLines ? 'Add the lines from the price book.' : 'The office adds the lines.'}` };
+  }
   const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-  return { title: 'The bill is drafted for you', text: `Made from the visit kind ${kind}: ${list}. Check it with the customer, then issue.` };
+  return { title: 'The bill is drafted for you', text: `Made from the visit kind ${kind}: ${list}. ${issues ? 'Check it with the customer, then issue.' : 'The office issues it.'}` };
 }
 
 // ---------- the visit's Bill button ----------
@@ -285,13 +303,17 @@ export function billTile(visit, known) {
   if (!canBill(visit)) return null;
   const status = known ? known.status : 'loading';
   const bill = known ? known.bill : null;
-  if (status === 'draft' && bill) return { title: 'Bill', line: `Draft · ${usd(bill.total_cents)}`, off: false, kind: 'draft' };
+  // no prices (takes_payments off): the words without an amount
+  const total = bill && Number.isFinite(bill.total_cents) ? usd(bill.total_cents) : null;
+  if (status === 'draft' && bill) return { title: 'Bill', line: total ? `Draft · ${total}` : 'Draft', off: false, kind: 'draft' };
   if (status === 'issued' && bill) {
     const label = bill.label || `#${bill.bill_number}`;
     // not given yet: in warning colour on the tile — the payment waits until the customer has it;
     // a company without the rule does not wait for it, the tile does not warn
     if (bill.delivered_at) return { title: 'Bill', line: `${label} · delivered`, warn: null, off: false, kind: 'issued' };
-    return { title: 'Bill', line: `${label} · ${usd(bill.total_cents)}`, warn: billFirst(bill) ? 'not given yet' : null, off: false, kind: 'issued' };
+    // the office gives it (takes_payments off: no delivery here) — no «not given yet» for them
+    const gives = bill.can_take_payments !== false && bill.prices_visible !== false;
+    return { title: 'Bill', line: total ? `${label} · ${total}` : label, warn: gives && billFirst(bill) ? 'not given yet' : null, off: false, kind: 'issued' };
   }
   const closed = stateOf(visit) === 'closed';
   if (!closed) return { title: 'Bill', line: 'After Finish', off: true, kind: 'wait' };
@@ -538,6 +560,11 @@ export function billError(error, { issue = false, company = null } = {}) {
     return { kind: 'refused', reapprove: true, text: `The bill grew over what the customer approved.${over} The customer signs again, or make the bill smaller.` };
   }
   if ((status === 409 || status === 400) && ISSUE_WORDS[data.code]) return { kind: 'refused', text: ISSUE_WORDS[data.code] };
+  // a permission the office switched off (src/perms): bill_lines_off, payments_off — the app's
+  // words; linesOff tells the screen to show the lines read only from now on
+  if (status === 403 && permissionRefusal(data.code)) {
+    return { kind: 'refused', text: permissionRefusal(data.code), linesOff: data.code === 'bill_lines_off', paymentsOff: data.code === 'payments_off' };
+  }
   if (status === 409 || status === 403 || status === 400) {
     return { kind: 'refused', text: said ? `${said.replace(/[.\s]*$/, '')}.` : 'The bill could not be changed.' };
   }
@@ -583,7 +610,8 @@ export function emailOf(bill) {
   const terms = bill.company && bill.company.payment_terms ? `, ${String(bill.company.payment_terms).toLowerCase()}` : '';
   const phone = bill.company && bill.company.phone ? ` Questions: ${bill.company.phone}.` : '';
   return {
-    to: customer.email ? `${customer.email} · from the job` : 'No email on the job',
+    // contacts hidden from this technician (src/perms): the customer says the address
+    to: bill.contacts_hidden === true ? 'Ask the customer for the address' : customer.email ? `${customer.email} · from the job` : 'No email on the job',
     subject: `Bill ${label} from ${company} — ${due} due`,
     message: `Hi ${firstName(customer.name) || 'there'}, thank you for choosing ${company}. Your bill ${label} is attached. Amount due: ${due}${terms}.${phone}`,
   };

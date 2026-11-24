@@ -23,7 +23,8 @@ export function AuthProvider({ children }) {
     lastCheck.current = Date.now();
     try {
       const me = await authAPI.me();
-      if (!session.signedIn) return;
+      // signed out, or another person signed in while it was on the way: not this one's profile
+      if (!session.signedIn || !session.user || !me || String(me.id) !== String(session.user.id)) return;
       const profile = profileFromMe(me, session.user);
       await session.updateUser(profile);
       setState((s) => (s.status === 'signedIn' ? { ...s, user: profile } : s));
@@ -59,9 +60,11 @@ export function AuthProvider({ children }) {
   const signIn = useCallback(async (data) => {
     await session.signIn({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
     checking.current = false;
-    lastCheck.current = Date.now();
     setState({ status: 'signedIn', user: data.user, notice: null });
-  }, []);
+    // GET /api/me at once: the sign in's answer has no permissions (src/perms), and what the
+    // screens hide by them (money, the customer's contacts) follows them from the first screen
+    check();
+  }, [check]);
 
   // Sign in shows at once; this phone's push token leaves the server while the session still
   // holds (bounded, quiet), then the session goes — unless someone signed in again meanwhile

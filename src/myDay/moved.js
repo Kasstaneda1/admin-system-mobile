@@ -76,7 +76,7 @@ function whoText(visit) {
 }
 
 // The times it had on the day, all struck through: window, plan, fee (an old task has no fee)
-function tilesOf(visit) {
+function tilesOf(visit, { prices = true } = {}) {
   const ws = parseWall(visit.scheduled_start);
   const we = parseWall(visit.scheduled_end);
   const plan = planOf(visit);
@@ -84,7 +84,7 @@ function tilesOf(visit) {
     { key: 'window', label: 'Window', big: ws ? windowText(ws, we) : '—', small: '', struck: true },
     { key: 'plan', label: 'Plan', big: plan ? clock(plan.start.minutes) : '—', small: plan ? durationText(plan.duration) : '', struck: true },
   ];
-  if (!visit.legacy) {
+  if (!visit.legacy && prices) {
     if (visit.visit_kind === 'recall') tiles.push({ key: 'fee', label: 'Fee', big: 'No charge', small: 'recall', struck: true });
     else {
       const fee = money(visit.service_call_fee_quoted_cents);
@@ -96,7 +96,8 @@ function tilesOf(visit) {
 
 // Everything the card shows. visit: the row's visit (office_change set); now: New York
 // { date, minutes }; date: the row's day (else the day of the visit's time then).
-export function movedCard(visit, now, date = null) {
+// prices: false — no Fee tile (takes_payments off, src/perms)
+export function movedCard(visit, now, date = null, { prices = true } = {}) {
   const day = isDay(date) ? date : visitDay(visit);
   const change = visit.office_change || null;
   const box = movedBox(change, day, now);
@@ -107,7 +108,7 @@ export function movedCard(visit, now, date = null) {
     name: (typeof visit.client_name === 'string' && visit.client_name.trim()) || 'Customer',
     address: addressLines(visit),
     box,
-    tiles: tilesOf(visit),
+    tiles: tilesOf(visit, { prices }),
     was: day ? `Was on ${dayLabel(day)} · ${whoText(visit)}` : `Was ${whoText(visit)}`,
     problem: typeof visit.description === 'string' && visit.description.trim() ? visit.description.trim() : null,
     appliances: appliancesOf(visit),

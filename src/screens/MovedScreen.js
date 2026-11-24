@@ -11,11 +11,16 @@ import { nowWall } from '../myDay/model';
 import { movedCard } from '../myDay/moved';
 import { Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
+import { useAuth } from '../session/AuthContext';
+import { takesPayments } from '../perms/model';
 
 export default function MovedScreen({ route, navigation }) {
   const { visit = null, date = null, skew = 0 } = route.params || {};
   const insets = useSafeAreaInsets();
-  const card = useMemo(() => (visit ? movedCard(visit, nowWall(Date.now(), skew), date) : null), [visit, date, skew]);
+  // no prices for this technician (takes_payments off, src/perms): no Fee tile
+  const { user } = useAuth();
+  const prices = takesPayments(user);
+  const card = useMemo(() => (visit ? movedCard(visit, nowWall(Date.now(), skew), date, { prices }) : null), [visit, date, skew, prices]);
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>

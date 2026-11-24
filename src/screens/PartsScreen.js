@@ -19,7 +19,7 @@ import { setUnreadFrom } from '../estimate/unread';
 export function PartCard({ card, onPress }) {
   return (
     <TouchableOpacity style={[styles.card, card.need && styles.cardNeed]} onPress={onPress} accessibilityRole="button"
-      accessibilityLabel={[card.client, card.unread ? 'new messages' : null, card.sub, card.tag.text, ...card.parts.map((p) => [p.name, p.number].filter(Boolean).join(' ')), card.note, `Estimate total ${card.total}`].filter(Boolean).join(', ')}>
+      accessibilityLabel={[card.client, card.unread ? 'new messages' : null, card.sub, card.tag.text, ...card.parts.map((p) => [p.name, p.number].filter(Boolean).join(' ')), card.note, card.total ? `Estimate total ${card.total}` : null].filter(Boolean).join(', ')}>
       <View style={styles.l1}>
         <View style={styles.who}>
           <View style={styles.clientRow}>
@@ -47,10 +47,12 @@ export function PartCard({ card, onPress }) {
           <Text style={styles.noteText}>{card.note}</Text>
         </View>
       ) : null}
-      <View style={styles.total}>
-        <Text style={styles.totalLabel}>Estimate total</Text>
-        <Text style={styles.totalValue}>{card.total}</Text>
-      </View>
+      {card.total ? (
+        <View style={styles.total}>
+          <Text style={styles.totalLabel}>Estimate total</Text>
+          <Text style={styles.totalValue}>{card.total}</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
