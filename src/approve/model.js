@@ -84,6 +84,26 @@ export function writtenText(auth) {
   return `The customer asked for it (${price}). The copy of this approval is the written estimate.`;
 }
 
+// A new signature once the work is done (NYC): the right to a written estimate is before the
+// repair, so the customer is not asked again — the answer of the earlier approval of this job
+// goes with the new one, said in a line the customer reads before signing (never copied
+// silently: it goes into the record and its PDF). The server wants it on every NYC approval
+// (CHECK va_nyc). «Архитектор ПО» on #87: only with an earlier approval that has the choice,
+// the visit finished and the rule nyc_20; else the question as before.
+// → { choice, price, text } (text: the line under «Written estimate») or null (ask as before)
+export function keptEstimate(latest, visit, rule) {
+  if (!needsEstimateChoice(rule) || !latest || !visit || visit.status !== 'completed') return null;
+  const chosen = ESTIMATE_CHOICES.find((c) => c.choice === latest.estimate_choice);
+  const price = latest.estimate_price_cents === null || latest.estimate_price_cents === undefined ? NaN : Number(latest.estimate_price_cents);
+  if (!chosen || !Number.isInteger(price) || price < 0) return null;
+  // the day of the earlier signature, in New York (the Designer: signed_on_device_at, else authorized_at)
+  const at = momentWall(latest.signed_on_device_at || latest.authorized_at || latest.created_at);
+  const when = at ? `, ${shortDay(at.date)}` : '';
+  // the Designer's words (on #89): the card «Written estimate» with this line
+  const answer = chosen.choice === 'written' ? `Yes, asked for (${price > 0 ? usd(price) : 'free'})` : 'No, not needed';
+  return { choice: chosen.choice, price, text: `${answer} — chosen before the work${when}.` };
+}
+
 // ---------- the terms ----------
 // The line of the company's approval terms: { title, sub } or null when none is published
 export function termsLineOf(terms, companyName) {
