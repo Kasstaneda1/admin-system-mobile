@@ -3,7 +3,7 @@
 // and nothing warns about it; true or no flag (an older server) — as before.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { billFirst, billTile, issuedText } from '../bill/model.js';
+import { billFirst, billTile, issuedText, pdfReadyText } from '../bill/model.js';
 import { chipOf, laterOf, noBillText, payTile, stageOf } from './model.js';
 import { ackError, ackStage, stageText } from '../ack/model.js';
 
@@ -76,6 +76,9 @@ test('words without an issued bill and after issuing', () => {
   assert.equal(issuedText(ON), 'It is frozen and has its PDF. Give it to the customer before taking the payment.');
   assert.equal(issuedText(NOT_GIVEN), 'It is frozen and has its PDF. Give it to the customer before taking the payment.');
   assert.equal(issuedText(OFF), 'It is frozen and has its PDF.');
+  assert.equal(pdfReadyText(ON), 'The PDF is ready. Give it to the customer before taking the payment.');
+  assert.equal(pdfReadyText(NOT_GIVEN), 'The PDF is ready. Give it to the customer before taking the payment.');
+  assert.equal(pdfReadyText(OFF), 'The PDF is ready.');
 });
 
 test('the signature «after the work»: open without the bill given only when the rule is off', () => {

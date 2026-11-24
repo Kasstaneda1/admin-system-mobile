@@ -274,6 +274,10 @@ export const billFirst = (bill) => !(bill && bill.bill_before_payment === false)
 export const issuedText = (bill) => (billFirst(bill)
   ? 'It is frozen and has its PDF. Give it to the customer before taking the payment.'
   : 'It is frozen and has its PDF.');
+// The same on the send screen, after «Frozen at 8:40.»
+export const pdfReadyText = (bill) => (billFirst(bill)
+  ? 'The PDF is ready. Give it to the customer before taking the payment.'
+  : 'The PDF is ready.');
 // The bill as the visit knows it: { status: 'loading' | 'none' | 'draft' | 'issued' | 'unknown', bill }
 // → the tile under the visit's buttons { title: 'Bill', line, warn?, off, kind } or null (no bill
 // for this technician). Before Finish there is no bill yet: the tile waits for it (off).

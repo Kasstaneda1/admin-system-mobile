@@ -20,7 +20,7 @@ import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { nowWall, clock, momentWall } from '../myDay/model';
 import { Sheet } from '../myDay/visitBar';
-import { CONSENT_WORDS, DELIVERY_CHOICES, billError, billFirst, deliverBody, deliveryOf, emailOf, pdfName } from '../bill/model';
+import { CONSENT_WORDS, DELIVERY_CHOICES, billError, billFirst, deliverBody, deliveryOf, emailOf, pdfName, pdfReadyText } from '../bill/model';
 import { downloadBillPdf } from '../bill/pdf';
 import { signedLine } from '../ack/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
@@ -172,7 +172,7 @@ export default function BillSendScreen({ route, navigation }) {
             <Box kind="done" icon="checkc" title={delivered.title} text={`${delivered.line}. The bill is with the customer.`} />
           ) : (
             <Box kind="done" icon="checkc" title={`Bill ${label} is issued`}
-              text={`${issuedAt ? `Frozen at ${clock(issuedAt.minutes)}. ` : ''}The PDF is ready. Give it to the customer before taking the payment.`} />
+              text={`${issuedAt ? `Frozen at ${clock(issuedAt.minutes)}. ` : ''}${pdfReadyText(bill)}`} />
           )}
           <TouchableOpacity style={styles.pdfRow} onPress={viewPdf} disabled={!!pdfBusy} accessibilityRole="button" accessibilityLabel={`View ${pdfName(bill)}`}>
             <Icon name="doc" size={24} color={colors.brandPressed} />
