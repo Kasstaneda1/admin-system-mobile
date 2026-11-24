@@ -13,6 +13,9 @@ test('initials: first and last word, one word, no name, nothing', () => {
   assert.equal(initials({ fullName: null, username: '  ' }), '');
   assert.equal(initials(null), '');
   assert.equal(initials({ fullName: 'Élodie Øst' }), 'ÉØ');
+  // a letter outside the basic plane is taken whole, not half of it
+  assert.equal(initials({ fullName: '𝐀lex 𝐁rown' }), '𝐀𝐁');
+  assert.equal(initials({ fullName: '', username: '😀tech' }), '😀');
 });
 
 test('nameLine: full name, else the username, else Technician', () => {
@@ -39,6 +42,7 @@ test('signedInLine: the username, none without it', () => {
 test('versionLine: version and build, version alone, nothing', () => {
   assert.equal(versionLine({ expo: { version: '1.0.0', ios: { buildNumber: '2' } } }), 'SEMIX Tech 1.0.0 (2)');
   assert.equal(versionLine({ version: '1.0.0', ios: { buildNumber: 3 } }), 'SEMIX Tech 1.0.0 (3)');
+  assert.equal(versionLine({ expo: { version: '1.0.0', ios: { buildNumber: 0 } } }), 'SEMIX Tech 1.0.0 (0)');
   assert.equal(versionLine({ expo: { version: '1.0.0' } }), 'SEMIX Tech 1.0.0');
   assert.equal(versionLine({ expo: { version: '1.0.0', ios: { buildNumber: ' ' } } }), 'SEMIX Tech 1.0.0');
   assert.equal(versionLine({ expo: {} }), 'SEMIX Tech');

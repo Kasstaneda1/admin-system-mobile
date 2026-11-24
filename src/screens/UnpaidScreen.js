@@ -10,7 +10,7 @@ import { useAuth } from '../session/AuthContext';
 import Icon from '../myDay/Icon';
 import { TopBar } from '../bill/parts';
 import { salaryMoneyAPI } from '../services/api';
-import { MANAGER_NOTES, NO_UNPAID, UNPAID_EMPTY, unpaidOf } from '../salary/money';
+import { MANAGER_NOTES, NO_UNPAID, UNPAID_EMPTY, unpaidOf, cameFrom } from '../salary/money';
 import { useAnswer } from '../salary/useAnswer';
 import { NoData, SalaryFrame, salaryStyles } from '../salary/parts';
 import { EmptyNote, Pill } from '../salary/moneyParts';
@@ -26,7 +26,7 @@ export default function UnpaidScreen({ route, navigation }) {
   const rows = u ? u[tab] : [];
 
   return (
-    <SalaryFrame navigation={navigation} top={<TopBar back={params.from || 'Salary'} title="Unpaid Clients" onBack={() => navigation.goBack()} />}>
+    <SalaryFrame navigation={navigation} tab={cameFrom(params)} top={<TopBar back={cameFrom(params)} title="Unpaid Clients" onBack={() => navigation.goBack()} />}>
       {!u ? <NoData problem={problem} onRetry={() => reload()} /> : (
         <>
           {u.none ? null : (

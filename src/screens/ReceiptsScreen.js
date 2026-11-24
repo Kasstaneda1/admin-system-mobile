@@ -9,7 +9,7 @@ import { colors } from '../constants/colors';
 import { Tag } from '../myDay/parts';
 import { SectionHead, TopBar, billStyles } from '../bill/parts';
 import { salaryMoneyAPI } from '../services/api';
-import { NO_RECEIPTS, WAITING, receiptsOf } from '../salary/money';
+import { NO_RECEIPTS, WAITING, receiptsOf, cameFrom } from '../salary/money';
 import { useAnswer } from '../salary/useAnswer';
 import { NoData, SalaryFrame, salaryStyles } from '../salary/parts';
 import { EmptyNote, Pill, moneyStyles } from '../salary/moneyParts';
@@ -22,7 +22,7 @@ export default function ReceiptsScreen({ route, navigation }) {
   const r = useMemo(() => (answer ? receiptsOf(answer) : null), [answer]);
 
   return (
-    <SalaryFrame navigation={navigation} top={<TopBar back={params.from || 'Salary'} title="Receipts" onBack={() => navigation.goBack()} />}>
+    <SalaryFrame navigation={navigation} tab={cameFrom(params)} top={<TopBar back={cameFrom(params)} title="Receipts" onBack={() => navigation.goBack()} />}>
       {!r ? <NoData problem={problem} onRetry={() => reload()} /> : (
         <ScrollView contentContainerStyle={salaryStyles.bottomSpace}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => reload({ pull: true })} tintColor={colors.brand} />}>

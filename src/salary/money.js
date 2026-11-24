@@ -108,6 +108,12 @@ export function monthOfParams(params, today = new Date()) {
   return { year, month };
 }
 
+// The tab lit under a money screen and its back word: opened from More — More, else Salary
+// (design-mockups/app-more: the tab you came from stays chosen)
+export function cameFrom(params) {
+  return params && params.from === 'More' ? 'More' : 'Salary';
+}
+
 // Why a screen has no data (salaryError has Salary's own words)
 export function moneyError(error, what) {
   const status = error && error.response ? error.response.status : 0;
