@@ -6,7 +6,7 @@
 // before it was added (a dev build with Metro), where the package throws on import. So it is
 // never imported at the top of a file (as stripeSdk.js does for Stripe); no module — push is
 // simply not there.
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
 import appConfig from '../../app.json';
 import { pushAPI } from '../services/api';
@@ -88,6 +88,24 @@ export async function forgetDevice() {
   } catch (error) {
     // nothing: the server drops a phone it has not seen for long
   }
+}
+
+// Push on this phone now: 'on', 'off' (said no: only Settings), 'ask' (not asked yet), 'none'
+// (a build without push). Never throws.
+export async function pushState() {
+  const N = notifications();
+  if (!N) return 'none';
+  try {
+    const step = permissionStep(await N.getPermissionsAsync());
+    return step === 'granted' ? 'on' : step;
+  } catch (error) {
+    return 'none';
+  }
+}
+
+// The app's page in iOS Settings (Notifications is on it)
+export function openPushSettings() {
+  Linking.openSettings().catch(() => {});
 }
 
 // A push that comes while the app is open is shown as a banner too

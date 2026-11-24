@@ -62,6 +62,16 @@ export function permissionStep(permission) {
   return 'off';
 }
 
+// What the More tab says about push: notifications turned off on this phone — a row with the
+// way to Settings (iOS asks only once; after «Don't Allow» only Settings can turn them on).
+// On, not asked yet, or a build without push — nothing.
+export const PUSH_OFF = {
+  title: 'Notifications are off',
+  text: 'Turn them on to hear about new and moved visits.',
+  button: 'Open Settings',
+};
+export const pushRowOf = (state) => (state === 'off' ? PUSH_OFF : null);
+
 // The server's answer to POST: 'ok'; 'quiet' — not for this person now (403) or the session is
 // gone (401): nothing to show; 'later' — no network or the server failed: the next start tries
 // again; 'bad' — the body was refused (400): a mistake of the app, logged

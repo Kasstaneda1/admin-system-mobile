@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  appVersionOf, deviceBody, isPushToken, permissionStep, projectIdOf, registerOutcome, responseKey, visitOfResponse,
+  PUSH_OFF, appVersionOf, deviceBody, isPushToken, permissionStep, projectIdOf, pushRowOf, registerOutcome, responseKey, visitOfResponse,
 } from './model.js';
 
 const PROJECT = 'fb311ee4-83cd-412b-9432-227f5210af87';
@@ -112,4 +112,10 @@ test('responseKey: the push\'s own id', () => {
   assert.equal(responseKey({ notification: { request: {} } }), null);
   assert.equal(responseKey({ notification: { request: { identifier: 5 } } }), null);
   assert.equal(responseKey(null), null);
+});
+
+test('pushRowOf: the More row only when notifications are off', () => {
+  assert.deepEqual(pushRowOf('off'), { title: 'Notifications are off', text: 'Turn them on to hear about new and moved visits.', button: 'Open Settings' });
+  assert.equal(pushRowOf('off'), PUSH_OFF);
+  for (const state of ['on', 'ask', 'none', null, undefined]) assert.equal(pushRowOf(state), null, String(state));
 });
