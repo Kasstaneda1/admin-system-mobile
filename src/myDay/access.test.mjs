@@ -61,3 +61,14 @@ test('one line for the NOW card', () => {
   assert.equal(accessLine('  \n '), null);
   assert.equal(accessLine(null), null);
 });
+
+// The Designer on #86: the visit marked NEXT on today's My day — where the technician drives
+// without pressing On my way — has the block up before its window too
+test('NEXT today: up before the window; not on another day, not when closed', () => {
+  assert.equal(accessUp(visit(), now('10:20'), { nextToday: true }), true);
+  assert.equal(accessUp(visit(), now('10:20'), { nextToday: false }), false);
+  assert.equal(accessUp(visit(), now('10:20', '2026-11-23'), { nextToday: true }), false);
+  assert.equal(accessUp(visit({ status: 'completed' }), now('10:20'), { nextToday: true }), false);
+  assert.equal(visitCard(visit(), { now: now('10:20'), nextToday: true }).accessUp, true);
+  assert.equal(visitCard(visit(), { now: now('10:20') }).accessUp, false);
+});

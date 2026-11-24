@@ -213,7 +213,8 @@ export function notesOf(visit, now) {
 // Everything the card shows. visit: the card from the server, or the list's visit (no
 // job_visits, notes: full false, the screen says those need the connection).
 // officeOpen: every office note shows, not two
-export function visitCard(visit, { n = null, now, officeOpen = false, prices = true }) {
+// nextToday: the visit is marked NEXT on today's My day (access.js accessUp)
+export function visitCard(visit, { n = null, now, officeOpen = false, prices = true, nextToday = false }) {
   const history = historyOf(visit, now);
   const notes = notesOf(visit, now);
   return {
@@ -226,8 +227,8 @@ export function visitCard(visit, { n = null, now, officeOpen = false, prices = t
     address: addressLines(visit),
     tiles: tilesOf(visit, now, { prices }),
     access: typeof visit.access_notes === 'string' && visit.access_notes.trim() ? visit.access_notes.trim() : null,
-    // «How to get in» under the address while on the way, on site or inside the window (access.js)
-    accessUp: accessUp(visit, now),
+    // «How to get in» under the address while on the way, on site, inside the window or NEXT today (access.js)
+    accessUp: accessUp(visit, now, { nextToday }),
     problem: typeof visit.description === 'string' && visit.description.trim() ? visit.description.trim() : null,
     appliances: appliancesOf(visit),
     team: teamOf(visit),
