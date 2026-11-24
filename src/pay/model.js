@@ -58,13 +58,15 @@ export function chosenMethod(tile, otherKey, otherName) {
 }
 // The word in the button and the banner: 'cash', 'check', 'bank transfer', 'Cash App'
 export const methodWord = (method, name = null) => (method === 'other' ? (name || 'other') : WORDS[method] || method);
-// The line under the main button: who has the money now (the server sets holder by the method)
-export function holderLine(method, { kind = 'payment', me = '' } = {}) {
+// The line under the main button: who has the money now (the server sets holder by the method).
+// Money with the technician: turn it in, nothing more — there is no list of checks and cash on
+// hand and no «turned in» mark yet (the office sees it only on the bill, «With <technician>»)
+export const TURN_IN = 'Money on hand: you. Turn it in to the office.';
+export function holderLine(method, { kind = 'payment' } = {}) {
   if (!method) return null;
   if (!inHand(method)) return 'Money on hand: the office. Nothing to turn in.';
   if (kind === 'tip') return 'Money on hand: you. The office sees it under Tips on the bill.';
-  if (method === 'check') return 'Money on hand: you. The office sees it in your checks to turn in.';
-  return `Money on hand: you. The office sees it as ${method === 'cash' ? 'cash' : 'money'} with ${me || 'you'} until you turn it in.`;
+  return TURN_IN;
 }
 
 // ---------- the Pay button of the visit (design pay-states) ----------
