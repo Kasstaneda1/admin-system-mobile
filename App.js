@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { colors } from './src/constants/colors';
 import { AppState, Linking } from 'react-native';
@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './src/session/AuthContext';
 import { outbox } from './src/estimate/outboxStore';
 import { approvals } from './src/approve/store';
 import { refreshUnread, setUnread } from './src/estimate/unread';
+import { listenTaps, registerDevice, showWhileOpen } from './src/push/push';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -44,6 +45,10 @@ import ReceiptsScreen from './src/screens/ReceiptsScreen';
 import UnpaidScreen from './src/screens/UnpaidScreen';
 
 const Stack = createNativeStackNavigator();
+const navigation = createNavigationContainerRef();
+
+// A push that comes while the app is open shows as a banner (src/push)
+showWhileOpen();
 
 // The splash (app.json, expo-splash-screen) stays until the kept session is read, so the first
 // screen follows it straight, without an empty frame
@@ -94,12 +99,25 @@ function Screens() {
     return () => sub.remove();
   }, [userId, fullName]);
 
+  // Push (src/push): this phone to the server at every start and after every sign in; a tap on a
+  // push opens its visit — once the screens are there (a tap that started the app waits for them)
+  const [ready, setReady] = React.useState(false);
+  useEffect(() => {
+    if (userId !== null && userId !== undefined) registerDevice();
+  }, [userId]);
+  useEffect(() => {
+    if (userId === null || userId === undefined || !ready) return undefined;
+    return listenTaps((id) => {
+      if (navigation.isReady()) navigation.navigate('Visit', { id });
+    });
+  }, [userId, ready]);
+
   if (status === 'loading') {
     return null;
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigation} onReady={() => setReady(true)}>
       <Stack.Navigator
         screenOptions={{
           headerStyle: {

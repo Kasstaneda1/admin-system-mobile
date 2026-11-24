@@ -2,6 +2,7 @@
   "expo": {
     "name": "SEMIX Technician",
     "slug": "semix-technician",
+    "owner": "semix-pro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -62,8 +63,14 @@
         {
           "enableGooglePay": false
         }
-      ]
+      ],
+      "expo-notifications"
     ],
-    "scheme": "semix-tech"
+    "scheme": "semix-tech",
+    "extra": {
+      "eas": {
+        "projectId": "fb311ee4-83cd-412b-9432-227f5210af87"
+      }
+    }
   }
 }

@@ -325,6 +325,14 @@ export const photosAPI = {
     return response.data;
   },
 };
+// This phone for the technician's push (P2-BE, src/push/model.js): register — POST 201, answered
+// as { status } and never thrown; forget — DELETE with the token in the body (not the path:
+// paths go to the host's logs), before the session goes on Sign out
+export const pushAPI = {
+  register: (body) => answer(api.post('/api/my/push-devices', body)),
+  forget: (token) => answer(api.delete('/api/my/push-devices', { data: { token } })),
+};
+
 export const photoUri = (path) => `${API_URL}${path}`;
 
 export default api;

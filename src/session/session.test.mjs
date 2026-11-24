@@ -293,6 +293,45 @@ test('sign out: what is kept goes at once, the server revokes the refresh token;
   assert.equal(w.server.requests.length, 0);
 });
 
+test('sign out: the work before it runs with the session still there; its failure does not stop the sign out', async () => {
+  const w = world();
+  await w.session.load();
+  let seen = null;
+  await w.session.signOut({ before: async () => { seen = await w.session.authHeader(); throw new Error('push server down'); } });
+  assert.ok(seen && /^Bearer /.test(seen.Authorization), 'before() still had the session');
+  assert.deepEqual(w.server.logouts, ['r0']);
+  assert.deepEqual(w.store.kept, { access: null, refresh: null, savedAt: null, user: null });
+  assert.equal(w.session.signedIn, false);
+});
+
+test('the work before the sign out refreshed the session: the new refresh token is revoked too', async () => {
+  const w = world({ accessLeftMs: -60000 });
+  await w.session.load();
+  await w.session.signOut({ before: () => w.session.authHeader() });
+  assert.equal(w.server.currentRefresh, 'r1', 'before() refreshed');
+  assert.deepEqual(w.server.logouts, ['r1', 'r0'], 'the live refresh token, and the one from before (a server with the repeat window still takes it)');
+  assert.deepEqual(w.store.kept, { access: null, refresh: null, savedAt: null, user: null });
+  assert.equal(w.session.signedIn, false);
+});
+
+test('signed in again while the sign out waits on its work: the new session stays, only the old token is revoked', async () => {
+  const w = world();
+  await w.session.load();
+  const fresh = access(w.now(), 15 * 60 * 1000);
+  let release;
+  const out = w.session.signOut({ before: () => new Promise((resolve) => { release = resolve; }) });
+  await tick(5);
+  await w.session.signIn({ accessToken: fresh, refreshToken: 'rN', user: { ...USER, id: 8 } });
+  release();
+  await out;
+  assert.deepEqual(w.server.logouts, ['r0'], 'the new refresh token is not revoked');
+  assert.equal(w.store.kept.refresh, 'rN', 'what the phone keeps is the new session');
+  assert.equal(w.store.kept.user.id, 8);
+  assert.equal(w.store.clears, 0);
+  assert.equal(w.session.signedIn, true);
+  assert.deepEqual(await w.session.authHeader(), { Authorization: `Bearer ${fresh}` });
+});
+
 test('sign out while a refresh runs: its answer is dropped, its new token revoked', async () => {
   const w = world({ accessLeftMs: -1000 });
   await w.session.load();

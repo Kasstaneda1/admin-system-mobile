@@ -47,6 +47,10 @@ test('versionLine: version and build, version alone, nothing', () => {
   assert.equal(versionLine({ expo: { version: '1.0.0', ios: { buildNumber: ' ' } } }), 'SEMIX Tech 1.0.0');
   assert.equal(versionLine({ expo: {} }), 'SEMIX Tech');
   assert.equal(versionLine(null), 'SEMIX Tech');
+  // the installed build's numbers win over app.json
+  assert.equal(versionLine({ expo: { version: '1.0.0', ios: { buildNumber: '1' } } }, { version: '1.0.0', build: '2' }), 'SEMIX Tech 1.0.0 (2)');
+  assert.equal(versionLine({ expo: { version: '1.0.0', ios: { buildNumber: '1' } } }, { version: '1.2.0', build: null }), 'SEMIX Tech 1.2.0');
+  assert.equal(versionLine({ expo: { version: '1.0.0', ios: { buildNumber: '1' } } }, { version: ' ', build: '7' }), 'SEMIX Tech 1.0.0 (1)');
 });
 
 test('versionLine reads the real app.json', () => {
