@@ -95,14 +95,17 @@ export function createSession({ store, http, now = () => Date.now(), sleep = pau
   // tokens and what the phone keeps stay.
   async function signOut({ before = null } = {}) {
     const started = generation;
-    const refresh = tokens.refresh;
+    const first = tokens.refresh;
     if (before) {
       try { await before(); } catch (error) { /* signing out never waits on it or fails by it */ }
       if (generation !== started) {
-        if (refresh && refresh !== tokens.refresh) await http.logout(refresh);
+        if (first && first !== tokens.refresh) await http.logout(first);
         return;
       }
     }
+    // before() may have refreshed the session (an access token run out): the current refresh token
+    // is revoked, and the one from before too if it is another
+    const refresh = tokens.refresh;
     ended = true;
     generation += 1;
     inFlight = null;
@@ -110,6 +113,7 @@ export function createSession({ store, http, now = () => Date.now(), sleep = pau
     user = null;
     await store.clear().catch(() => {});
     if (refresh) await http.logout(refresh);
+    if (first && first !== refresh) await http.logout(first);
   }
 
   async function doRefresh() {

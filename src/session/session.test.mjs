@@ -304,6 +304,16 @@ test('sign out: the work before it runs with the session still there; its failur
   assert.equal(w.session.signedIn, false);
 });
 
+test('the work before the sign out refreshed the session: the new refresh token is revoked too', async () => {
+  const w = world({ accessLeftMs: -60000 });
+  await w.session.load();
+  await w.session.signOut({ before: () => w.session.authHeader() });
+  assert.equal(w.server.currentRefresh, 'r1', 'before() refreshed');
+  assert.deepEqual(w.server.logouts, ['r1', 'r0'], 'the live refresh token, and the one from before (a server with the repeat window still takes it)');
+  assert.deepEqual(w.store.kept, { access: null, refresh: null, savedAt: null, user: null });
+  assert.equal(w.session.signedIn, false);
+});
+
 test('signed in again while the sign out waits on its work: the new session stays, only the old token is revoked', async () => {
   const w = world();
   await w.session.load();
