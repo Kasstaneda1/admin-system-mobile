@@ -49,6 +49,7 @@ import { AccessText, NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
 import { nextOfDay, stepsOf, stripLabel } from '../myDay/steps';
+import { nextTodayOf } from '../myDay/access';
 import { billHasParts } from '../ack/model';
 import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
 import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
@@ -248,7 +249,11 @@ export default function VisitScreen({ route, navigation }) {
   const perms = shown ? visitView(user, shown.visit, known && known.bill) : null;
   const payments = !perms || perms.money;
   const hidden = !!perms && perms.call === 'office';
-  const card = useMemo(() => (shown ? visitCard(shown.visit, { n, now, officeOpen, prices: payments }) : null), [shown, n, now, officeOpen, payments]);
+  // today's day as My day draws it (the week kept on the phone): its NEXT row for «How to get in»
+  // and the next visit for the last step
+  const myDay = useMemo(() => (dayVisits ? buildDay(dayVisits, now.date, now) : null), [dayVisits, now]);
+  const nextToday = nextTodayOf(myDay, id);
+  const card = useMemo(() => (shown ? visitCard(shown.visit, { n, now, officeOpen, prices: payments, nextToday }) : null), [shown, n, now, officeOpen, payments, nextToday]);
   // the band and the old words (only for a visit UPDATED when it was opened; stays while open)
   const updated = useMemo(() => (fresh === 'updated' && shown && before !== undefined
     ? updatedOf(shown.visit, before && before.visit, before && before.at) : null), [fresh, shown, before]);
@@ -272,7 +277,7 @@ export default function VisitScreen({ route, navigation }) {
   // The visit's steps (steps.js — their order and what each one is live there only): the strip over
   // the tiles and the big button at the bottom. Without steps (no money permission) a closed visit
   // keeps «Open the bill» as its big button; with them it is a link under the step
-  const next = useMemo(() => (dayVisits ? nextOfDay(buildDay(dayVisits, now.date, now), id) : null), [dayVisits, now, id]);
+  const next = useMemo(() => (myDay ? nextOfDay(myDay, id) : null), [myDay, id]);
   const steps = shown ? stepsOf({ visit: shown.visit, approve, known, ack: ackKnown, money: payments, next }) : null;
   const closedBill = !!(tile && card && card.state === 'closed');
   const billButton = closedBill && !steps ? { label: 'Open the bill', onPress: openBill } : null;
@@ -635,7 +640,7 @@ export default function VisitScreen({ route, navigation }) {
     session.authHeader().then((h) => { if (h) setPhotoHeader(sameHeader(h)); }).catch(() => {});
   };
 
-  // «How to get in»: under the address while on the way, on site or inside the window (card.accessUp,
+  // «How to get in»: under the address while on the way, on site, inside the window or NEXT today (card.accessUp,
   // myDay/access.js, usability п. 2), else under the tiles as before; the codes in large digits
   const accessBox = card && card.access ? (
     <View style={[styles.access, card.accessUp && styles.accessUp]}>
