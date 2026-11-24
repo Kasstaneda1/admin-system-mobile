@@ -25,7 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { authAPI } from '../services/api';
 import { colors } from '../constants/colors';
 import { useAuth } from '../session/AuthContext';
-import { loginFailureText } from '../session/model';
+import { loginErrorText } from '../session/model';
 import { logError } from '../utils/logError';
 
 const BACKGROUND = require('../../assets/login-bg.png');
@@ -88,8 +88,9 @@ export default function LoginScreen() {
       // password is not an app error and must not raise the development build's error banner.
       const status = error.response?.status;
       if (!status || status >= 500) logError('Login error:', error);
-      // A turned-off technician gets the app's phrase, any other refusal the server's words
-      fail(loginFailureText(status, error.response?.data));
+      // A turned-off technician gets the app's phrase, any other refusal the server's words; no
+      // answer is «No connection», a failure on this phone its own words (session/model.js)
+      fail(loginErrorText(error));
     } finally {
       setLoading(false);
     }

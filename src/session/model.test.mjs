@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   NOTICE, ACCESS_MARGIN_MS, REFRESH_LIFE_MS, CHECK_GAP_MS, REFRESH_RETRY_DELAYS_MS, REFRESH_RETRY_WINDOW_MS,
   accessExpiresAt, accessUsable, answerKind, refreshOutcome, startState, checkDue, profileFromMe, isAuthPath,
-  loginFailureText, LOGIN_FAILED_DEFAULT, LOGIN_OFFLINE, LOGIN_SERVER_FAILED,
+  loginFailureText, loginErrorText, LOGIN_FAILED_DEFAULT, LOGIN_OFFLINE, LOGIN_SERVER_FAILED, LOGIN_LOCAL_FAILED,
 } from './model.js';
 
 const NOW = Date.parse('2026-11-10T17:00:00Z');
@@ -238,4 +238,17 @@ test('a failed sign in: a turned-off user gets the app phrase, any other refusal
   assert.equal(loginFailureText(502, { error: 'Bad gateway' }), LOGIN_SERVER_FAILED);
   assert.equal(loginFailureText(503, undefined), LOGIN_SERVER_FAILED);
   assert.notEqual(LOGIN_SERVER_FAILED, LOGIN_FAILED_DEFAULT);
+});
+
+test('loginErrorText: an answer by its status, no answer is «No connection», a failure on the phone its own words', () => {
+  assert.equal(loginErrorText({ response: { status: 401, data: { error: 'Invalid username or password' } } }), 'Invalid username or password');
+  assert.equal(loginErrorText({ response: { status: 500, data: {} } }), LOGIN_SERVER_FAILED);
+  // axios with no answer: Network Error, a timeout
+  assert.equal(loginErrorText({ isAxiosError: true, message: 'Network Error', request: {} }), LOGIN_OFFLINE);
+  assert.equal(loginErrorText({ request: {}, code: 'ECONNABORTED' }), LOGIN_OFFLINE);
+  // after the answer: keeping the session failed, an answer without user
+  assert.equal(loginErrorText(new Error('SecureStore: could not save')), LOGIN_LOCAL_FAILED);
+  assert.equal(loginErrorText(new TypeError("Cannot read properties of undefined (reading 'role')")), LOGIN_LOCAL_FAILED);
+  assert.equal(loginErrorText(undefined), LOGIN_LOCAL_FAILED);
+  assert.equal(LOGIN_LOCAL_FAILED, 'Could not sign in. Try again.');
 });
