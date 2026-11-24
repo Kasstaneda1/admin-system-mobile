@@ -4,7 +4,7 @@ import {
   CONTACTS_HIDDEN_LINE, LINES_OFF_LINE, PAYMENTS_OFF_LINE,
   billView, contactsHidden, editsLines, permissionRefusal, permissionsOf, pricesShown, takesPayments, visitView,
 } from './model.js';
-import { billError, billTile, emailOf, footOf, lineSub, sectionsOf, totalsOf } from '../bill/model.js';
+import { billError, billTile, draftedFrom, emailOf, footOf, lineSub, sectionsOf, totalsOf } from '../bill/model.js';
 import { tilesOf } from '../myDay/visit.js';
 import { movedCard } from '../myDay/moved.js';
 import { noAccessWords } from '../myDay/actions.js';
@@ -15,10 +15,10 @@ const tech = (over = {}) => ({ id: 7, role: 'technician', permissions: { ...ALL_
 const OLD = { id: 7, role: 'technician', permissions: null };   // an older server: no permissions in /me
 const refusal = (status, code) => ({ response: { status, data: { error: 'x', code } } });
 
-test('the words are the contract\'s', () => {
-  assert.equal(PAYMENTS_OFF_LINE, 'Payments and prices are the office’s for you.');
+test('the words (the Designer\'s, #74)', () => {
+  assert.equal(PAYMENTS_OFF_LINE, 'The office handles payments and prices.');
   assert.equal(CONTACTS_HIDDEN_LINE, 'Customer contacts are hidden. Call the office.');
-  assert.equal(LINES_OFF_LINE, 'Bill lines are set by the office.');
+  assert.equal(LINES_OFF_LINE, 'The office sets the bill lines.');
 });
 
 test('permissionsOf: four booleans, each on unless false; not an object — none', () => {
@@ -176,4 +176,14 @@ test('the day\'s rows say when the customer\'s contacts are hidden (Office in pl
   const v = (id, hidden) => ({ id, status: 'scheduled', scheduled_start: `2026-11-24T${10 + id}:00:00`, scheduled_end: `2026-11-24T${11 + id}:00:00`, client_name: `C ${id}`, ...(hidden === undefined ? {} : { contacts_hidden: hidden }) });
   const day = buildDay([v(1, true), v(2, false), v(3)], '2026-11-24', { date: '2026-11-24', minutes: 480 });
   assert.deepEqual(day.rows.map((r) => r.contactsHidden), [true, false, false]);
+});
+
+test('the drafted bill\'s note: the office issues it, the office adds the lines', () => {
+  const draft = { status: 'draft', visit_kind: 'repair', lines: [{ id: 1, kind: 'labor' }] };
+  assert.match(draftedFrom(draft).text, /then issue\.$/);
+  assert.match(draftedFrom({ ...draft, can_take_payments: false }).text, /The office issues it\.$/);
+  assert.match(draftedFrom({ ...draft, prices_visible: false }).text, /The office issues it\.$/);
+  const empty = { ...draft, lines: [] };
+  assert.match(draftedFrom(empty).text, /Add the lines from the price book\.$/);
+  assert.match(draftedFrom({ ...empty, can_edit_lines: false }).text, /The office adds the lines\.$/);
 });

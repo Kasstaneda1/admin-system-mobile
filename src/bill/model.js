@@ -263,9 +263,15 @@ export function draftedFrom(bill) {
   if (lines.some((l) => l.kind === 'part' && l.estimate_id)) parts.push('the part from the estimate');
   if (lines.some((l) => l.kind === 'diagnostics_credit')) parts.push('the diagnostics credit');
   const kind = kindWord({ visit_kind: bill.visit_kind });
-  if (!parts.length) return { title: 'The bill is started for you', text: `Nothing was found for a ${kind.toLowerCase()} visit. Add the lines from the price book.` };
+  // what the technician does next follows their permissions (src/perms, the bill's own flags):
+  // without the lines the office adds them; without the money the office issues the bill
+  const addsLines = bill.can_edit_lines !== false;
+  const issues = bill.can_take_payments !== false && bill.prices_visible !== false;
+  if (!parts.length) {
+    return { title: 'The bill is started for you', text: `Nothing was found for a ${kind.toLowerCase()} visit. ${addsLines ? 'Add the lines from the price book.' : 'The office adds the lines.'}` };
+  }
   const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-  return { title: 'The bill is drafted for you', text: `Made from the visit kind ${kind}: ${list}. Check it with the customer, then issue.` };
+  return { title: 'The bill is drafted for you', text: `Made from the visit kind ${kind}: ${list}. ${issues ? 'Check it with the customer, then issue.' : 'The office issues it.'}` };
 }
 
 // ---------- the visit's Bill button ----------

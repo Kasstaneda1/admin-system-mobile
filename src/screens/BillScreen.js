@@ -21,6 +21,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
+import Icon from '../myDay/Icon';
 import { billAPI } from '../services/api';
 import { useAuth } from '../session/AuthContext';
 import { logError } from '../utils/logError';
@@ -309,8 +310,14 @@ export default function BillScreen({ route, navigation }) {
         ) : null}
 
         <View style={billStyles.section}>
-          {perms.linesLine ? <Text style={[billStyles.quiet, styles.permLine]}>{perms.linesLine}</Text> : null}
           <SectionHead label="Services" link={canEdit ? 'Price book' : null} icon="book" onLink={() => openBook('service')} />
+          {/* the lines are the office's for this technician (src/perms): said under the head, before the lines */}
+          {perms.linesLine ? (
+            <View style={styles.permRow}>
+              <Icon name="lock" size={16} color={colors.fgMutedField} />
+              <Text style={styles.permText}>{perms.linesLine}</Text>
+            </View>
+          ) : null}
           {sections.services.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
           {!sections.services.length && !canEdit ? <Text style={billStyles.quiet}>No services</Text> : null}
           {canEdit ? <AddRow text="Add service" onPress={() => openBook('service')} off={!!busy} /> : null}
@@ -372,7 +379,7 @@ export default function BillScreen({ route, navigation }) {
         ) : null}
       </ScrollView>
 
-      <Foot foot={foot} bottom={insets.bottom} note={perms.paymentsLine}>
+      <Foot foot={foot} bottom={insets.bottom} quiet={perms.paymentsLine}>
         {!payments ? null : draft ? (
           <MainButton text="Preview the bill" icon="eye" off={busy === 'message'}
             onPress={async () => { await saveMessage(); navigation.navigate('BillPreview', { id, visit }); }} />
@@ -419,6 +426,7 @@ const styles = StyleSheet.create({
   messageState: { fontSize: 13, color: colors.fgSecondary },
   blockers: { paddingHorizontal: 16, paddingTop: 12 },
   retryWrap: { alignSelf: 'stretch' },
-  permLine: { marginBottom: 10 },
+  permRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
+  permText: { flex: 1, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   diag: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
 });

@@ -149,9 +149,11 @@ export function PlainButton({ text, icon, onPress, off = false, waiting = false 
 }
 
 // The bar at the bottom: 'Total $250.41 · balance due   $150.41' over the buttons
-export function Foot({ foot, bottom, children, note = null }) {
+// quiet: one quiet line in place of «Total … balance due» (no money for this technician, src/perms)
+export function Foot({ foot, bottom, children, note = null, quiet = null }) {
   return (
     <View style={[styles.foot, { paddingBottom: Math.max(bottom, 10) }]}>
+      {quiet ? <Text style={styles.footQuiet}>{quiet}</Text> : null}
       {foot ? (
         <View style={styles.footRow} accessible accessibilityLabel={`${foot.text} ${foot.big}`}>
           <Text style={styles.footText} numberOfLines={1}>{foot.text}</Text>
@@ -229,6 +231,7 @@ const styles = StyleSheet.create({
   foot: { paddingHorizontal: 16, paddingTop: 10, gap: 8, borderTopWidth: 1, borderTopColor: colors.borderDefault, backgroundColor: colors.bgCard },
   footRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   footText: { flex: 1, fontSize: 15, color: colors.fgSecondary },
+  footQuiet: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary, textAlign: 'center' },
   footBig: { fontSize: 24, fontWeight: '800', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
   footNote: { fontSize: 14, lineHeight: 19, color: colors.fgSecondary, paddingBottom: 2 },
 });

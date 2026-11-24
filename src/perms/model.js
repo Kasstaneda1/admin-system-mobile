@@ -1,5 +1,5 @@
 // The technician's four permissions in the app (the Architect's contract «ЧЕТЫРЕ ПРАВА ТЕХНИКА»,
-// handoff/QUEUE.md; server be#257). The office switches them per technician; the app hides the
+// handoff/QUEUE.md; server be#257; the words — the Designer's, #74). The office switches them per technician; the app hides the
 // buttons by the flags, the server still refuses with 403 (payments_off, bill_lines_off,
 // no_tax_permission) — the words below answer those too.
 //   takes_payments         — Approve, Pay, Issue, the PDF and its delivery, deposits, card, QR,
@@ -13,9 +13,9 @@
 // /api/me gives the four for what has no such answer (the fee on the visit card, a visit before
 // its bill is read). An older server says none of them: everything on, as before.
 
-export const PAYMENTS_OFF_LINE = 'Payments and prices are the office’s for you.';
+export const PAYMENTS_OFF_LINE = 'The office handles payments and prices.';
 export const CONTACTS_HIDDEN_LINE = 'Customer contacts are hidden. Call the office.';
-export const LINES_OFF_LINE = 'Bill lines are set by the office.';
+export const LINES_OFF_LINE = 'The office sets the bill lines.';
 
 export const PERMISSION_FLAGS = ['takes_payments', 'sees_customer_contacts', 'edits_bill_lines', 'changes_bill_tax'];
 
