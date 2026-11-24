@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import PushPrompt from '../push/PushPrompt';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { myDayAPI } from '../services/api';
@@ -243,6 +244,7 @@ export default function MyDayScreen({ navigation }) {
       </ScrollView>
 
       <TabBar navigation={navigation} bottom={insets.bottom} fresh={fresh.total} />
+      <PushPrompt bottom={insets.bottom} />
     </SafeAreaView>
   );
 }

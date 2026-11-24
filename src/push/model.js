@@ -24,27 +24,29 @@ export function projectIdOf(config) {
   return typeof id === 'string' && UUID.test(id) ? id : null;
 }
 
-// «1.0.0 (2)» for the server's app_version (letters, digits, space . + ( ) _ -, up to 40); none
-// when app.json has no version
+// «1.0.0 (2)» for the server's app_version (letters, digits, space . + ( ) _ -, up to 40): the
+// installed build's own numbers (native: { version, build }, utils/nativeVersion.js) — after an
+// update without a build app.json is main's; app.json only on a build without that module
 const VERSION_CHARS = /^[A-Za-z0-9 .+()_-]{1,40}$/;
-export function appVersionOf(config) {
+export function appVersionOf(config, native = null) {
   const expo = expoOf(config);
-  const version = typeof expo.version === 'string' ? expo.version.trim() : '';
+  const fromNative = native && typeof native.version === 'string' && native.version.trim();
+  const version = fromNative ? native.version.trim() : typeof expo.version === 'string' ? expo.version.trim() : '';
   if (!version) return null;
-  const raw = expo.ios && expo.ios.buildNumber;
+  const raw = fromNative ? native.build : expo.ios && expo.ios.buildNumber;
   const build = raw === undefined || raw === null ? '' : String(raw).trim();
   const line = build ? `${version} (${build})` : version;
   return VERSION_CHARS.test(line) ? line : null;
 }
 
 // The body of POST /api/my/push-devices; null when there is nothing the server would take
-export function deviceBody({ token, platform, config }) {
+export function deviceBody({ token, platform, config, native = null }) {
   if (!isPushToken(token)) return null;
   if (platform !== 'ios' && platform !== 'android') return null;
   const project = projectIdOf(config);
   if (!project) return null;
   const body = { token, platform, expo_project: project };
-  const version = appVersionOf(config);
+  const version = appVersionOf(config, native);
   if (version) body.app_version = version;
   return body;
 }
@@ -62,15 +64,25 @@ export function permissionStep(permission) {
   return 'off';
 }
 
-// What the More tab says about push: notifications turned off on this phone — a row with the
-// way to Settings (iOS asks only once; after «Don't Allow» only Settings can turn them on).
-// On, not asked yet, or a build without push — nothing.
-export const PUSH_OFF = {
-  title: 'Notifications are off',
-  text: 'Turn them on to hear about new and moved visits.',
-  button: 'Open Settings',
+// iOS asks for notifications only once, so the app asks first in its own words (the Designer,
+// design-mockups/app-more README «Уведомления»): a sheet over My day once after the first sign in;
+// «Turn on notifications» brings the system window, «Not now» closes it for good.
+export const PUSH_PROMPT = {
+  title: 'Know when a visit is added or moved',
+  text: 'The office changes your day as calls come in. We’ll tell you right away, even when the app is closed.',
+  yes: 'Turn on notifications',
+  no: 'Not now',
 };
-export const pushRowOf = (state) => (state === 'off' ? PUSH_OFF : null);
+export const promptDue = (state, shownBefore) => state === 'ask' && !shownBefore;
+
+// The More card while notifications are not on: refused in the system window ('off') — only
+// Settings can turn them on; not asked yet or «Not now» ('ask') — the system window. On, or a
+// build without push — no card. action: 'settings' | 'ask'
+export const PUSH_ROWS = {
+  off: { title: 'Notifications are off', text: 'Turn them on in Settings to hear about new and moved visits.', button: 'Open Settings', action: 'settings' },
+  ask: { title: 'Notifications are not on', text: 'Turn them on to hear about new and moved visits.', button: 'Turn on notifications', action: 'ask' },
+};
+export const pushRowOf = (state) => PUSH_ROWS[state] || null;
 
 // The server's answer to POST: 'ok'; 'quiet' — not for this person now (403) or the session is
 // gone (401): nothing to show; 'later' — no network or the server failed: the next start tries

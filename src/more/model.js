@@ -58,12 +58,14 @@ export function signedInLine(user) {
   return login ? `Signed in as ${login}` : null;
 }
 
-// «SEMIX Tech 1.0.0 (2)» from app.json (expo.version, expo.ios.buildNumber): the release script
-// writes the build's number there before the build, so the line says the build on the phone
-export function versionLine(config) {
+// «SEMIX Tech 1.0.0 (2)»: the installed build's own numbers (native: { version, build },
+// utils/nativeVersion.js — after an update without a build app.json is main's); on a build
+// without that module app.json (expo.version, expo.ios.buildNumber, which the release script sets)
+export function versionLine(config, native = null) {
   const expo = (config && config.expo) || config || {};
-  const version = typeof expo.version === 'string' && expo.version.trim() ? expo.version.trim() : null;
-  const raw = expo.ios && expo.ios.buildNumber;
+  const fromNative = native && typeof native.version === 'string' && native.version.trim();
+  const version = fromNative ? native.version.trim() : typeof expo.version === 'string' && expo.version.trim() ? expo.version.trim() : null;
+  const raw = fromNative ? native.build : expo.ios && expo.ios.buildNumber;
   const build = raw === undefined || raw === null ? '' : String(raw).trim();
   if (!version) return 'SEMIX Tech';
   return build ? `SEMIX Tech ${version} (${build})` : `SEMIX Tech ${version}`;

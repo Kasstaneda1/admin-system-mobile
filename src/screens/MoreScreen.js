@@ -10,10 +10,11 @@ import Icon from '../myDay/Icon';
 import { SalaryFrame, TabTitle } from '../salary/parts';
 import { MORE_SECTIONS, SIGN_OUT, initials, nameLine, roleLine, signedInLine, versionLine } from '../more/model';
 import appConfig from '../../app.json';
-import { openPushSettings, pushState, registerDevice } from '../push/push';
+import { nativeVersion } from '../utils/nativeVersion';
+import { askPush, openPushSettings, pushState, registerDevice } from '../push/push';
 import { pushRowOf } from '../push/model';
 
-const VERSION = versionLine(appConfig);
+const VERSION = versionLine(appConfig, nativeVersion());
 
 // Push on this phone, read on every opening of More and on return from Settings; turned on in
 // Settings — the phone goes to the server at once
@@ -26,18 +27,25 @@ function usePushState() {
     last.current = now;
     setState(now);
   }, []);
+  // 'ask': the system window here (after it the state is read again)
+  const ask = useCallback(async () => {
+    const now = await askPush();
+    last.current = now;
+    setState(now);
+  }, []);
   useFocusEffect(useCallback(() => { read(); }, [read]));
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => { if (next === 'active') read(); });
     return () => sub.remove();
   }, [read]);
-  return state;
+  return { state, ask };
 }
 
 export default function MoreScreen({ navigation }) {
   const { user, signOut } = useAuth();
   const login = signedInLine(user);
-  const pushOff = pushRowOf(usePushState());
+  const push = usePushState();
+  const pushOff = pushRowOf(push.state);
 
   const askSignOut = () => {
     Alert.alert(SIGN_OUT.title, SIGN_OUT.text, [
@@ -60,7 +68,7 @@ export default function MoreScreen({ navigation }) {
                   <Text style={styles.offSub}>{pushOff.text}</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.offButton} onPress={openPushSettings} accessibilityRole="button">
+              <TouchableOpacity style={styles.offButton} onPress={pushOff.action === 'settings' ? openPushSettings : push.ask} accessibilityRole="button">
                 <Text style={styles.offButtonText}>{pushOff.button}</Text>
               </TouchableOpacity>
             </View>
@@ -119,11 +127,11 @@ const styles = StyleSheet.create({
   name: { fontSize: 19, lineHeight: 24, fontWeight: '800', color: colors.fgDefault },
   role: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   login: { fontSize: 14, lineHeight: 19, color: colors.fgMutedField },
-  off: { gap: 12, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
+  off: { gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   offHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   offText: { flex: 1, minWidth: 0 },
   offTitle: { fontSize: 17, lineHeight: 22, fontWeight: '700', color: colors.warningFg },
-  offSub: { fontSize: 14, lineHeight: 19, color: colors.warningFg },
+  offSub: { fontSize: 14, lineHeight: 19, color: colors.fgSecondary },
   offButton: { minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.warningBorder, backgroundColor: colors.bgCard },
   offButtonText: { fontSize: 16, fontWeight: '700', color: colors.warningFg },
   section: { marginTop: 14, backgroundColor: colors.bgCard, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.borderSubtle },

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  PUSH_OFF, appVersionOf, deviceBody, isPushToken, permissionStep, projectIdOf, pushRowOf, registerOutcome, responseKey, visitOfResponse,
+  PUSH_PROMPT, PUSH_ROWS, appVersionOf, deviceBody, isPushToken, permissionStep, projectIdOf, pushRowOf, registerOutcome, responseKey, visitOfResponse, promptDue,
 } from './model.js';
 
 const PROJECT = 'fb311ee4-83cd-412b-9432-227f5210af87';
@@ -48,11 +48,18 @@ test('appVersionOf: «1.0.0 (2)» in the server\'s letters, version alone, none'
   assert.equal(appVersionOf({ expo: { version: '1'.repeat(41) } }), null, 'over 40');
   assert.equal(appVersionOf({ expo: { version: '1'.repeat(40) } }), '1'.repeat(40));
   assert.equal(appVersionOf({ expo: {} }), null);
+  // the installed build's numbers win over app.json (an update without a build carries main's app.json)
+  assert.equal(appVersionOf(CONFIG, { version: '1.0.0', build: '3' }), '1.0.0 (3)');
+  assert.equal(appVersionOf(CONFIG, { version: '1.1.0', build: null }), '1.1.0');
+  assert.equal(appVersionOf(CONFIG, { version: '', build: '9' }), '1.0.0 (2)', 'no native version — app.json');
+  assert.equal(appVersionOf(CONFIG, null), '1.0.0 (2)');
 });
 
 test('deviceBody: token, platform, the project always, the version when known; nothing else', () => {
   assert.deepEqual(deviceBody({ token: TOKEN, platform: 'ios', config: CONFIG }),
     { token: TOKEN, platform: 'ios', expo_project: PROJECT, app_version: '1.0.0 (2)' });
+  assert.deepEqual(deviceBody({ token: TOKEN, platform: 'ios', config: CONFIG, native: { version: '1.0.0', build: '5' } }),
+    { token: TOKEN, platform: 'ios', expo_project: PROJECT, app_version: '1.0.0 (5)' });
   assert.deepEqual(deviceBody({ token: TOKEN, platform: 'android', config: { expo: { extra: { eas: { projectId: PROJECT } } } } }),
     { token: TOKEN, platform: 'android', expo_project: PROJECT });
   assert.equal(deviceBody({ token: TOKEN, platform: 'web', config: CONFIG }), null);
@@ -114,8 +121,21 @@ test('responseKey: the push\'s own id', () => {
   assert.equal(responseKey(null), null);
 });
 
-test('pushRowOf: the More row only when notifications are off', () => {
-  assert.deepEqual(pushRowOf('off'), { title: 'Notifications are off', text: 'Turn them on to hear about new and moved visits.', button: 'Open Settings' });
-  assert.equal(pushRowOf('off'), PUSH_OFF);
-  for (const state of ['on', 'ask', 'none', null, undefined]) assert.equal(pushRowOf(state), null, String(state));
+test('pushRowOf: the More card while notifications are not on — two kinds; none when on', () => {
+  assert.deepEqual(pushRowOf('off'), { title: 'Notifications are off', text: 'Turn them on in Settings to hear about new and moved visits.', button: 'Open Settings', action: 'settings' });
+  assert.deepEqual(pushRowOf('ask'), { title: 'Notifications are not on', text: 'Turn them on to hear about new and moved visits.', button: 'Turn on notifications', action: 'ask' });
+  assert.equal(pushRowOf('off'), PUSH_ROWS.off);
+  for (const state of ['on', 'none', 'later', null, undefined]) assert.equal(pushRowOf(state), null, String(state));
+});
+
+test('the sheet before the system window: once, only while never asked', () => {
+  assert.equal(promptDue('ask', false), true);
+  assert.equal(promptDue('ask', true), false, 'shown before (Not now) — never again by itself');
+  for (const state of ['on', 'off', 'none', null]) assert.equal(promptDue(state, false), false, String(state));
+  assert.deepEqual(PUSH_PROMPT, {
+    title: 'Know when a visit is added or moved',
+    text: 'The office changes your day as calls come in. We’ll tell you right away, even when the app is closed.',
+    yes: 'Turn on notifications',
+    no: 'Not now',
+  });
 });

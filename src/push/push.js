@@ -7,10 +7,12 @@
 // never imported at the top of a file (as stripeSdk.js does for Stripe); no module — push is
 // simply not there.
 import { Linking, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireOptionalNativeModule } from 'expo';
 import appConfig from '../../app.json';
 import { pushAPI } from '../services/api';
 import { logError } from '../utils/logError';
+import { nativeVersion } from '../utils/nativeVersion';
 import { deviceBody, permissionStep, projectIdOf, registerOutcome, responseKey, visitOfResponse } from './model';
 
 let lib;
@@ -42,15 +44,13 @@ async function tokenOf(N, ms) {
 async function register() {
   const N = notifications();
   if (!N) return 'none';
-  let step = permissionStep(await N.getPermissionsAsync());
-  if (step === 'ask') {
-    step = permissionStep(await N.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } }));
-  }
-  if (step !== 'granted') return 'off';
+  // the system window is asked only by askPush (the sheet over My day, the card in More)
+  const step = permissionStep(await N.getPermissionsAsync());
+  if (step !== 'granted') return step;
   const token = await tokenOf(N, 15000);
   if (!token) return 'later';
   known = token;
-  const body = deviceBody({ token, platform: Platform.OS, config: appConfig });
+  const body = deviceBody({ token, platform: Platform.OS, config: appConfig, native: nativeVersion() });
   if (!body) return 'none';
   let status = 0;
   try {
@@ -88,6 +88,28 @@ export async function forgetDevice() {
   } catch (error) {
     // nothing: the server drops a phone it has not seen for long
   }
+}
+
+// The system window (once in the phone's life), then this phone to the server; the state after it
+export async function askPush() {
+  const N = notifications();
+  if (!N) return 'none';
+  try {
+    await N.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } });
+  } catch (error) {
+    logError('Push permission failed:', error);
+  }
+  await registerDevice();
+  return pushState();
+}
+
+// The sheet before the system window shows once on this phone
+const PROMPTED = 'push.prompted.v1';
+export async function promptShown() {
+  try { return (await AsyncStorage.getItem(PROMPTED)) === '1'; } catch (error) { return false; }
+}
+export async function markPromptShown() {
+  try { await AsyncStorage.setItem(PROMPTED, '1'); } catch (error) { /* shows again next time */ }
 }
 
 // Push on this phone now: 'on', 'off' (said no: only Settings), 'ask' (not asked yet), 'none'

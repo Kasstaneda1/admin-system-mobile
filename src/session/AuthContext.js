@@ -64,12 +64,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Sign in shows at once; this phone's push token leaves the server while the session still
-  // holds (bounded, quiet), then the session goes
+  // holds (bounded, quiet), then the session goes — unless someone signed in again meanwhile
+  // (session.signOut keeps the new session then)
   const signOut = useCallback(async () => {
     checking.current = false;
     setState({ status: 'signedOut', user: null, notice: null });
-    await forgetDevice();
-    await session.signOut();
+    await session.signOut({ before: forgetDevice });
   }, []);
 
   const value = useMemo(() => ({ ...state, signIn, signOut }), [state, signIn, signOut]);

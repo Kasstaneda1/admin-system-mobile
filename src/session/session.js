@@ -88,9 +88,21 @@ export function createSession({ store, http, now = () => Date.now(), sleep = pau
   }
 
   // Sign out: kept tokens go at once, then the server revokes the refresh token if it can be
-  // reached (no network: it simply runs out in 7 days)
-  async function signOut() {
+  // reached (no network: it simply runs out in 7 days).
+  // `before` — work that still needs this session (the push token off the server, src/push); it
+  // runs first, its failure does not stop the sign out. Signed in again meanwhile (the sign-in
+  // screen is already there): only this session's refresh token is revoked; the new session, its
+  // tokens and what the phone keeps stay.
+  async function signOut({ before = null } = {}) {
+    const started = generation;
     const refresh = tokens.refresh;
+    if (before) {
+      try { await before(); } catch (error) { /* signing out never waits on it or fails by it */ }
+      if (generation !== started) {
+        if (refresh && refresh !== tokens.refresh) await http.logout(refresh);
+        return;
+      }
+    }
     ended = true;
     generation += 1;
     inFlight = null;
