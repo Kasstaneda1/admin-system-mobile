@@ -60,6 +60,7 @@ import { approveError, approveTile, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
 import { VISIT_HINT, depositRow } from '../deposit/model';
 import { approvals } from '../approve/store';
+import { acks } from '../ack/store';
 import { diagnosisBlock, diagnosisOf, finishAsksDiagnosis, finishDiagnosisChanged, finishNeedsDiagnosis, finishWaitsForDiagnosis } from '../diagnosis/model';
 import { estimateRequestOf } from '../myDay/estimateRequest';
 import { DiagnosisBody, DiagnosisHead, DiagnosisSheet } from '../diagnosis/parts';
@@ -113,13 +114,21 @@ export default function VisitScreen({ route, navigation }) {
   }, [id]);
 
   // The customer's signature after the work (src/ack), for the visit's steps (steps.js): read with
-  // an issued bill that has replaced parts — only then is it a step. { status, signed } | null
+  // an issued bill that has replaced parts — only then is it a step. { status, signed } | null.
+  // The phone's signatures go first (ack/queue.js); one of this visit still on the phone counts as
+  // signed (it goes by itself), as the approval's.
   const [ackKnown, setAckKnown] = useState(null);
   const ackSeq = useRef(0);
   const loadAck = useCallback(async (bill) => {
     if (!bill || bill.status !== 'issued' || !billHasParts(bill)) return;
     const seq = ++ackSeq.current;
     setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'loading' }));
+    if (userId !== null) {
+      await acks.flushAll(userId).catch(() => {});
+      const kept = await acks.pendingOf(id, userId).catch(() => null);
+      if (seq !== ackSeq.current) return;
+      if (kept && !kept.failed) { setAckKnown({ status: 'ok', signed: true }); return; }
+    }
     try {
       const data = await ackAPI.get(id);
       if (seq === ackSeq.current) setAckKnown({ status: 'ok', signed: !!(data && data.acknowledgment) });
@@ -128,7 +137,7 @@ export default function VisitScreen({ route, navigation }) {
       if (error.response?.status >= 500) logError('Error loading the bill acknowledgment:', error);
       setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'unknown' }));
     }
-  }, [id]);
+  }, [id, userId]);
 
   // The visit's bill (src/bill): { status, bill } as GET …/bill answered, for the Bill tile and
   // «Open the bill»; read with the card, only where this technician works on the bill

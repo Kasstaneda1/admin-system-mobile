@@ -10,8 +10,12 @@
 //     after the signature is drawn wipes it, they sign again.
 //   - The company's acknowledgment terms (latest version), if it has any — Read shows them; their
 //     version goes with the signature. None — nothing is sent about them.
-//   - No queue on the phone: without the connection «Try again online» and the signature stays
-//     in the box for the next try (the delivery before it needs the server too).
+//   - Kept on the phone, then sent (ack/queue.js, USABILITY §10): without the connection
+//     «Signed · saved on this phone», it goes by itself when the phone is back online, the screen
+//     can be left. Refused meanwhile (the terms or the bill changed) — the screen says why, the
+//     customer signs again. The copy comes once the office has the signature. Opening the screen
+//     still needs the server (the bill, the terms).
+//   - A failed try is said over «Save the signature» (the Designer, §10).
 //   - Signed: the line «Signed 12:50 · parts returned» and the customer's copy (Share the copy /
 //     Handed a printed copy), as the approval's.
 import React, { useCallback, useRef, useState } from 'react';
@@ -21,20 +25,24 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { ackAPI, approveAPI, billAPI } from '../services/api';
+import { useAuth } from '../session/AuthContext';
 import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { nowWall } from '../myDay/model';
 import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
-import { ackBody, ackError, ackStage, ackTermsLine, billHasParts, billHeadOf, initialParts, partsChoicesOf, partsNote, partsOf, pickParts, signedLine, stageText } from '../ack/model';
+import { ackBody, ackStage, ackTermsLine, billHasParts, billHeadOf, initialParts, partsChoicesOf, partsNote, partsOf, pickParts, signedLine, stageText } from '../ack/model';
 import { downloadAckPdf } from '../ack/pdf';
 import SignaturePad from '../approve/SignaturePad';
+import { acks } from '../ack/store';
 
 export default function AckScreen({ route, navigation }) {
   const { id, visit } = route.params || {};
   const insets = useSafeAreaInsets();
   const today = nowWall(Date.now()).date;
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   // ---------- what the server says ----------
   const [state, setState] = useState({ status: 'loading' }); // loading | ready | problem
@@ -42,10 +50,17 @@ export default function AckScreen({ route, navigation }) {
   const [ack, setAck] = useState(null);
   const [terms, setTerms] = useState(null);
   const [rule, setRule] = useState('none');
+  const [pending, setPending] = useState(null);       // the signature kept on this phone (ack/queue.js), or null
+  const [waitWhy, setWaitWhy] = useState(null);       // why the last signature stayed on the phone: 'offline' | 'failed' (the server broke)
   const seq = useRef(0);
 
   const load = useCallback(async () => {
     const n = ++seq.current;
+    // the phone's signatures go first: back online, this visit's goes before the screen reads the server
+    if (userId !== null) await acks.flushAll(userId).catch(() => {});
+    const kept = userId === null ? null : await acks.pendingOf(id, userId).catch(() => null);
+    if (n !== seq.current) return;
+    setPending(kept);
     try {
       const [billAnswer, ackAnswer, termsAnswer, listAnswer] = await Promise.all([
         billAPI.get(id), ackAPI.get(id), ackAPI.terms(id), approveAPI.list(id),
@@ -62,7 +77,7 @@ export default function AckScreen({ route, navigation }) {
       if (failed.kind === 'failed') logError('Error loading the acknowledgment:', error);
       setState({ status: 'problem', failed });
     }
-  }, [id]);
+  }, [id, userId]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // ---------- the form ----------
@@ -76,12 +91,10 @@ export default function AckScreen({ route, navigation }) {
   const [termsOpen, setTermsOpen] = useState(false);
   const [scroll, setScroll] = useState(true);
   const pad = useRef(null);
-  const requestId = useRef(null);                     // one id per signature: a retry after a lost answer is not a second one
 
   const startOver = () => {
     if (pad.current) pad.current.clear();
     setDrawn(false);
-    requestId.current = null;
   };
   // a choice: another one after the signature is drawn wipes the signature
   const choose = (next) => {
@@ -94,32 +107,34 @@ export default function AckScreen({ route, navigation }) {
     }
   };
 
+  // One request id per signature: the queue sends it again with the same one, the server takes it once
   const sign = async () => {
-    if (sending) return;
+    if (sending || userId === null) return;
+    const signedMs = Date.now();                      // the moment the customer signed, by this phone's clock
     const png = pad.current ? await pad.current.png() : null;
-    if (!requestId.current) requestId.current = newRequestId();
-    const { body, error } = ackBody({ name, png, parts: picked, terms, requestId: requestId.current, bill });
+    const { body, error } = ackBody({ name, png, parts: picked, terms, requestId: newRequestId(), bill });
     if (error) { setSaid({ kind: 'refused', text: error }); return; }
     setSending(true);
     setSaid(null);
-    try {
-      const data = await ackAPI.sign(id, body);
-      setAck(data.acknowledgment || null);
-      requestId.current = null;
-    } catch (e) {
-      const failed = ackError(e);
-      if (failed.kind === 'failed') logError('Error saving an acknowledgment:', e);
-      setSaid(failed);
-      if (failed.kind === 'gone') {
-        Alert.alert('The visit changed', failed.text, [{ text: 'OK', onPress: () => navigation.goBack() }]);
-      } else if (failed.kind === 'resign') {
-        startOver();
-        load();
-      } else if (failed.kind === 'signed' || failed.kind === 'stage') {
-        load();
-      }
-    } finally {
-      setSending(false);
+    const r = await acks.sign({ visitId: id, userId, body, at: signedMs, billId: bill ? bill.id : null });
+    setSending(false);
+    if (r.result === 'sent') {
+      setPending(null);
+      setAck(r.acknowledgment);
+      return;
+    }
+    setPending(await acks.pendingOf(id, userId));
+    if (r.result === 'busy') return;
+    // waiting: the box over the screen says it (keptText), the queue sends it again by itself
+    if (r.result === 'waiting') { setWaitWhy(r.failed.kind); return; }
+    setSaid(r.failed);
+    if (r.result === 'gone') {
+      Alert.alert('The visit changed', r.failed.text, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+    } else if (r.result === 'resign' || r.result === 'bill_changed') {
+      startOver();
+      load();
+    } else if (r.result === 'signed' || r.result === 'stage') {
+      load();
     }
   };
 
@@ -173,6 +188,7 @@ export default function AckScreen({ route, navigation }) {
         <View style={styles.center}>
           {state.status === 'loading' ? <ActivityIndicator color={colors.brandPressed} /> : (
             <>
+              {pending && !pending.failed ? <Box kind="done" icon="checkc" title={KEPT_TITLE} text={keptText(null)} style={styles.keptGap} /> : null}
               <Text style={styles.problem}>{state.failed.kind === 'offline' ? 'No connection. The bill comes from the office’s server: try again online.' : state.failed.text}</Text>
               <PlainButton text="Try again" icon="retry" onPress={load} />
             </>
@@ -185,7 +201,10 @@ export default function AckScreen({ route, navigation }) {
   const stage = ackStage(bill);
   const head = billHeadOf(bill, today);
   const termsLine = ackTermsLine(terms);
-  const signing = !ack && stage === 'open';
+  const waitingOnPhone = !ack && !!pending && !pending.failed;
+  const signing = !ack && stage === 'open' && !waitingOnPhone;
+  const refusedOnPhone = !ack && pending && pending.failed ? pending.failed : null;
+  const keptParts = waitingOnPhone ? partsOf(pending.body && pending.body.replaced_parts) : null;
   const hasParts = billHasParts(bill);
   const choices = partsChoicesOf(bill);
   const chosen = choices.find((p) => p.choice === picked) || null;
@@ -206,7 +225,31 @@ export default function AckScreen({ route, navigation }) {
               </View>
             </View>
           ) : null}
-          {said ? <Box kind="warn" icon="warn" text={said.text} style={styles.boxGap} /> : null}
+          {waitingOnPhone ? <Box kind="done" icon="checkc" title={KEPT_TITLE} text={keptText(waitWhy)} style={styles.boxGap} /> : null}
+          {refusedOnPhone ? <Box kind="warn" icon="warn" title="The signature was not accepted" text={refusedOnPhone.text} style={styles.boxGap} /> : null}
+
+          {waitingOnPhone ? (
+            <View style={styles.pad}>
+              <Text style={styles.label}>THE CUSTOMER SIGNED</Text>
+              <View style={styles.card} accessible accessibilityLabel={`${keptLine(pending, today)}, by ${pending.body.signer_name}`}>
+                <View style={styles.rowTop}>
+                  <Text style={styles.cardTitle}>{head ? head.label : 'Bill'}</Text>
+                  {head ? <Text style={styles.big}>{head.total}</Text> : null}
+                </View>
+                <View style={[styles.tag, styles.tagGap]}><Icon name="checkc" size={16} color={colors.successFg} /><Text style={styles.tagText}>{keptLine(pending, today)}</Text></View>
+                <Text style={styles.sub}>{pending.body.signer_name}</Text>
+              </View>
+              {keptParts ? (
+                <View style={[styles.card, styles.termsRow]}>
+                  <Icon name="doc" size={22} color={colors.fgSecondary} />
+                  <View style={styles.flex}>
+                    <Text style={styles.termsTitle}>{keptParts.title}</Text>
+                    {keptParts.words ? <Text style={styles.sub}>“{keptParts.words}”</Text> : null}
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {ack ? (
             <View style={styles.pad}>
@@ -238,7 +281,7 @@ export default function AckScreen({ route, navigation }) {
             </View>
           ) : null}
 
-          {!ack && stage !== 'open' ? (
+          {!ack && !waitingOnPhone && stage !== 'open' ? (
             <View style={styles.pad}>
               <Box kind="info" icon="info" text={stageText(stage, bill)} />
             </View>
@@ -299,13 +342,13 @@ export default function AckScreen({ route, navigation }) {
               </View>
               {choiceNote ? <Box kind="warn" icon="warn" text="The choice changed: the customer signs again." style={styles.noteOverPad} /> : null}
               <View onTouchStart={() => setScroll(false)} onTouchEnd={() => setScroll(true)} onTouchCancel={() => setScroll(true)}>
-                <SignaturePad ref={pad} onDrawn={(d) => { setDrawn(d); if (d) setChoiceNote(false); else requestId.current = null; }} disabled={sending || mustChoose} />
+                <SignaturePad ref={pad} onDrawn={(d) => { setDrawn(d); if (d) setChoiceNote(false); }} disabled={sending || mustChoose} />
               </View>
             </>
           ) : null}
         </ScrollView>
 
-        <Foot bottom={insets.bottom}>
+        <Foot bottom={insets.bottom} failure={said && !(refusedOnPhone && said.text === refusedOnPhone.text) ? said.text : null}>
           {signing ? (
             <MainButton text="Save the signature" icon="check" onPress={sign} waiting={sending} off={!drawn || !name.trim() || mustChoose} />
           ) : (
@@ -327,10 +370,23 @@ export default function AckScreen({ route, navigation }) {
   );
 }
 
+// The signature kept on this phone (ack/queue.js) — as the approval's, without «start the repair»
+const KEPT_TITLE = 'Signed · saved on this phone';
+// why: 'offline' — no connection at the signature; 'failed' — the office's server broke; null — not
+// known (the screen opened again on a signature already on the phone)
+const keptText = (why) => `${why === 'failed'
+  ? 'The office’s server did not answer. The signature goes again by itself.'
+  : why === 'offline'
+    ? 'No connection. The signature goes to the office by itself when the phone is back online.'
+    : 'The signature goes to the office by itself when the phone is online.'} The customer’s copy is here once the office has it.`;
+// 'Signed 12:50 · parts returned' by the moment on the phone
+const keptLine = (entry, today) => signedLine({ signed_at: entry.at, replaced_parts: entry.body && entry.body.replaced_parts }, today);
+
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 14 },
   problem: { fontSize: 15, lineHeight: 21, color: colors.fgSecondary, textAlign: 'center' },
   gapTop: { marginTop: 10 },
+  keptGap: { alignSelf: 'stretch' },
   body: { paddingTop: 12, paddingBottom: 24 },
   pad: { paddingHorizontal: 16, paddingBottom: 12 },
   boxGap: { marginHorizontal: 16, marginBottom: 12 },

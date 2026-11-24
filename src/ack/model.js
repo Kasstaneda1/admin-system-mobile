@@ -133,7 +133,7 @@ function shortDay(date) {
 
 // ---------- a failed request ----------
 // { kind, text }:
-//   offline — no answer; signed — the customer already signed for this bill (read it again);
+//   offline — no answer (the signature waits on the phone, ack/queue.js); signed — the customer already signed for this bill (read it again);
 //   stage — the bill is not ready for a signature (draft, void, not delivered);
 //   resign — the company's terms changed: the customer reads them and signs again;
 //   refused — the server's reason in words; gone — the visit is no longer this technician's or
@@ -143,7 +143,7 @@ export function ackError(error) {
   const status = response ? response.status : 0;
   const data = (response && response.data) || {};
   const said = typeof data.error === 'string' && data.error ? data.error : '';
-  if (!status) return { kind: 'offline', text: 'No connection. Try again online: the signature goes to the office’s server.' };
+  if (!status) return { kind: 'offline', text: 'No connection. The signature is kept on this phone and goes to the office by itself.' };
   if (status === 409 && data.code === 'already_signed') return { kind: 'signed', text: 'The customer already signed for this bill.' };
   if (status === 409 && data.code === 'not_issued') return { kind: 'stage', text: stageText('draft') };
   if (status === 409 && data.code === 'not_delivered') return { kind: 'stage', text: stageText('undelivered') };
