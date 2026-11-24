@@ -30,6 +30,8 @@ test('projectIdOf: the UUID of extra.eas.projectId, else none', () => {
 test('the real app.json names the Expo project', () => {
   const config = JSON.parse(readFileSync(new URL('../../app.json', import.meta.url), 'utf8'));
   assert.equal(projectIdOf(config), PROJECT);
+  assert.equal(config.expo.owner, 'semix-pro', 'the Expo organisation of the project');
+  assert.equal(config.expo.slug, 'semix-technician');
   assert.match(config.expo.updates.url, new RegExp(`^https://u\\.expo\\.dev/${PROJECT}$`), 'updates come from the same project');
   assert.equal(config.expo.updates.requestHeaders, undefined, 'the channel is the build\'s (Expo.plist), not app.json\'s: it would change the fingerprint');
   assert.deepEqual(config.expo.runtimeVersion, { policy: 'fingerprint' });
