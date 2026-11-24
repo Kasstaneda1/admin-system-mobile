@@ -265,6 +265,19 @@ export function canBill(visit) {
   if (state === 'cancelled' || state === 'moved') return false;
   return !NO_WORK_OUTCOMES.includes(visit.outcome);
 }
+// The company's rule «Bill before payment» (BILLS_MV_DESIGN §3.2а): true — the customer gets the
+// issued bill before paying and before signing for it (NYC §2-255); false — payment and the
+// signature go without it, and nothing warns about it. The server sends it with every bill answer;
+// an older server does not — then the stricter rule, as before.
+export const billFirst = (bill) => !(bill && bill.bill_before_payment === false);
+// The words after the bill is issued (the send screen opens next)
+export const issuedText = (bill) => (billFirst(bill)
+  ? 'It is frozen and has its PDF. Give it to the customer before taking the payment.'
+  : 'It is frozen and has its PDF.');
+// The same on the send screen, after «Frozen at 8:40.»
+export const pdfReadyText = (bill) => (billFirst(bill)
+  ? 'The PDF is ready. Give it to the customer before taking the payment.'
+  : 'The PDF is ready.');
 // The bill as the visit knows it: { status: 'loading' | 'none' | 'draft' | 'issued' | 'unknown', bill }
 // → the tile under the visit's buttons { title: 'Bill', line, warn?, off, kind } or null (no bill
 // for this technician). Before Finish there is no bill yet: the tile waits for it (off).
@@ -275,10 +288,10 @@ export function billTile(visit, known) {
   if (status === 'draft' && bill) return { title: 'Bill', line: `Draft · ${usd(bill.total_cents)}`, off: false, kind: 'draft' };
   if (status === 'issued' && bill) {
     const label = bill.label || `#${bill.bill_number}`;
-    // not given yet: in warning colour on the tile — the payment waits until the customer has it
-    return bill.delivered_at
-      ? { title: 'Bill', line: `${label} · delivered`, warn: null, off: false, kind: 'issued' }
-      : { title: 'Bill', line: `${label} · ${usd(bill.total_cents)}`, warn: 'not given yet', off: false, kind: 'issued' };
+    // not given yet: in warning colour on the tile — the payment waits until the customer has it;
+    // a company without the rule does not wait for it, the tile does not warn
+    if (bill.delivered_at) return { title: 'Bill', line: `${label} · delivered`, warn: null, off: false, kind: 'issued' };
+    return { title: 'Bill', line: `${label} · ${usd(bill.total_cents)}`, warn: billFirst(bill) ? 'not given yet' : null, off: false, kind: 'issued' };
   }
   const closed = stateOf(visit) === 'closed';
   if (!closed) return { title: 'Bill', line: 'After Finish', off: true, kind: 'wait' };

@@ -16,7 +16,7 @@
 //   text with the same id (the server writes it once); the text stays in the field until then.
 //   Not here yet: the diagnosis required (Д-2, server PR D2-BE), Estimate needed (D3).
 import { actionError, newRequestId } from '../myDay/actions.js';
-import { clockAmPm, dayLabel, momentWall, parseWall, stateOf } from '../myDay/model.js';
+import { clockAmPm, dayLabel, momentWall, nowWall, parseWall, stateOf } from '../myDay/model.js';
 import { cleanNote } from '../myDay/notesPhotos.js';
 import { monthDay, techName } from '../myDay/visit.js';
 
@@ -86,17 +86,80 @@ function byLine(d) {
   return [d.updatedBy, whenText(d.updatedAt)].filter(Boolean).join(' · ') || null;
 }
 
+// ---------- the diagnosis of the diagnostics visit (spec §3.7) ----------
+// A visit that needs no diagnosis of its own (a repair) and has none shows what the job's
+// diagnostics found: the server's inherited_diagnosis { from_visit_id, from_visit_kind,
+// from_visit_date 'YYYY-MM-DD', text, addenda, updated_by_name, updated_at } | null, on the visit
+// (GET /my/visits/:id) and on the bill's draft. Read only: it is changed on that visit. The
+// visit's own text always wins; one written here replaces it on this visit's bill. The words are
+// the site's (fe billDiagnosisModel.js).
+const KIND_WORDS = { diagnostics: 'diagnostics', repair: 'repair', recall: 'recall', installation: 'installation' };
+const visitWords = (kind) => `the ${KIND_WORDS[kind] || 'diagnostics'} visit`;
+const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+// 'YYYY-MM-DD' → 'Nov 12' (this year) or 'Nov 12, 2025'; '' when it is not such a date
+function dayWords(day, today) {
+  const m = DAY_RE.exec(String(day || ''));
+  if (!m || Number(m[2]) < 1 || Number(m[2]) > 12) return '';
+  const text = `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}`;
+  return today && String(today).slice(0, 4) === m[1] ? text : `${text}, ${m[1]}`;
+}
+// The diagnosis taken from another visit of the job, made safe, or null: none given, no text, or
+// the holder (the visit, the draft) has its own (text or additions)
+// { text, addenda: [{ id, text, author, at }], kind, date, by }
+export function inheritedOf(holder) {
+  if (!holder) return null;
+  const own = diagnosisOf(holder);
+  if (own && (own.text || own.addenda.length)) return null;
+  const inh = holder.inherited_diagnosis;
+  if (!inh || typeof inh !== 'object' || Array.isArray(inh) || !words(inh.text)) return null;
+  const { addenda } = diagnosisOf({ diagnosis: { text: inh.text, addenda: inh.addenda } });
+  return { text: words(inh.text), addenda, kind: inh.from_visit_kind || null, date: inh.from_visit_date || null, by: words(inh.updated_by_name) };
+}
+// 'From the diagnostics visit, Nov 12' (no date: 'From the diagnostics visit'); today: 'YYYY-MM-DD'
+export function fromWords(kind, date, today = nowWall(Date.now()).date) {
+  const day = dayWords(date, today);
+  return `From ${visitWords(kind)}${day ? `, ${day}` : ''}`;
+}
+// Under the text: 'Ivan Petrov · change it on the diagnostics visit'
+export function whereWords(inherited) {
+  const where = visitWords(inherited && inherited.kind);
+  return inherited && inherited.by ? `${inherited.by} · change it on ${where}` : `Change it on ${where}`;
+}
+export const OWN_LABEL = 'Write its own diagnosis';
+export const replacesWords = (kind) => `Saved here, it replaces the one from ${visitWords(kind)} on this visit’s bill.`;
+// The block of a taken diagnosis: may the visit still get its own text (no issued bill yet) —
+// then «Write its own diagnosis» opens the sheet as «Add diagnosis» (mode 'own', opens 'write')
+function inheritedBlock(inh, writable, today) {
+  const mode = writable ? 'own' : null;
+  return {
+    text: inh.text,
+    from: fromWords(inh.kind, inh.date, today),
+    by: whereWords(inh),
+    addenda: inh.addenda.map(addendumRow),
+    mode,
+    opens: mode ? 'write' : null,
+    button: mode ? OWN_LABEL : null,
+    hint: mode ? replacesWords(inh.kind) : null,
+    empty: false,
+  };
+}
+
 // What the Diagnosis block of the visit shows (design app-visit-empty, app-after,
 // app-after-bill), or null when the visit has no diagnosis in it, or none may be written and
 // none was:
-// { text, by, addenda: [{ key, head, text }], mode, button, hint, empty }
+// { text, from, by, addenda: [{ key, head, text }], mode, opens, button, hint, empty }
+//   from — 'From the diagnostics visit, Nov 12' over a taken text (§3.7), else null;
 //   mode — what the button does: 'write' (none yet: «Add diagnosis»), 'edit' («Edit»), 'add'
-//          (the bill is issued: «Add to diagnosis»), or null (nothing may be written here);
+//          (the bill is issued: «Add to diagnosis»), 'own' (a taken text: «Write its own
+//          diagnosis»), or null (nothing may be written here); opens — the sheet it opens;
 //   hint — the line of the design under the title (none yet) or under the button (issued).
-export function diagnosisBlock(visit) {
+export function diagnosisBlock(visit, today) {
   const d = diagnosisOf(visit);
   if (!d) return null;
   const writable = canWriteDiagnosis(visit);
+  // a repair without its own: the diagnostics visit's (§3.7); its own text only before the bill
+  const inh = inheritedOf(visit);
+  if (inh) return inheritedBlock(inh, writable && !d.locked, today);
   // a visit where nothing may be written and nothing was: no block (no access, cancelled)
   if (!writable && !d.text && !d.addenda.length) return null;
   let mode = null;
@@ -107,9 +170,11 @@ export function diagnosisBlock(visit) {
   else if (mode === 'add') hint = LOCKED_HINT;
   return {
     text: d.text,
+    from: null,
     by: byLine(d),
     addenda: d.addenda.map(addendumRow),
     mode,
+    opens: mode,
     button,
     hint,
     empty: !d.text && !d.addenda.length,
@@ -218,23 +283,33 @@ export function finishDiagnosisChanged(visit, text) {
 // a draft shows the visit's diagnosis as it is now (the issue prints it), with Edit while the
 // technician may write it; an issued or void bill shows what it printed (printed_diagnosis),
 // nothing to change there. { text, addenda: [{ key, head, text }], mode, button, hint }
-export function billDiagnosis(bill) {
+export function billDiagnosis(bill, today) {
   if (!bill) return null;
   if (bill.status === 'draft') {
     const d = diagnosisOf(bill);
+    // a repair without its own: the issue prints the diagnostics visit's (§3.7)
+    const inh = inheritedOf(bill);
+    if (inh) return inheritedBlock(inh, !!d && !d.locked, today);
     if (!d) return null;
     const mode = d.locked ? null : d.text ? 'edit' : 'write';
     return {
       text: d.text,
+      from: null,
       addenda: d.addenda.map(addendumRow),
       mode,
+      opens: mode,
       button: { write: 'Add diagnosis', edit: 'Edit' }[mode] || null,
       hint: mode === 'write' ? DIAGNOSIS_HINT : null,
     };
   }
   const printed = diagnosisOf({ diagnosis: bill.printed_diagnosis });
   if (!printed || (!printed.text && !printed.addenda.length)) return null;
-  return { text: printed.text, addenda: printed.addenda.map(addendumRow), mode: null, button: null, hint: null };
+  // printed from the diagnostics visit (the snapshot's from_visit { id, kind, date })
+  const from = bill.printed_diagnosis.from_visit || null;
+  return {
+    text: printed.text, from: from && printed.text ? fromWords(from.kind, from.date, today) : null,
+    addenda: printed.addenda.map(addendumRow), mode: null, opens: null, button: null, hint: null,
+  };
 }
 
 // What the PDF prints (backend billPdf.js, the Designer's sheet): the text; '— Ivan Petrov,
@@ -245,11 +320,19 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const longDay = (date) => `${MONTHS[Number(date.slice(5, 7)) - 1]} ${Number(date.slice(8, 10))}, ${date.slice(0, 4)}`;
 export function previewDiagnosis(bill, visit) {
   if (!bill) return null;
-  const d = bill.status === 'draft' ? diagnosisOf(bill) : diagnosisOf({ diagnosis: bill.printed_diagnosis });
+  // taken from the diagnostics visit (§3.7): a draft prints it when it has none of its own, an
+  // issued bill printed it with from_visit; signed as the PDF does — '— Diagnostics visit, Nov 12, 2026'
+  const inh = bill.status === 'draft' ? inheritedOf(bill) : null;
+  const printedFrom = bill.status !== 'draft' && bill.printed_diagnosis ? bill.printed_diagnosis.from_visit || null : null;
+  const from = inh ? { kind: inh.kind, date: inh.date } : printedFrom;
+  const d = inh || (bill.status === 'draft' ? diagnosisOf(bill) : diagnosisOf({ diagnosis: bill.printed_diagnosis }));
   if (!d || (!d.text && !d.addenda.length)) return null;
   const start = visit ? parseWall(visit.scheduled_start) : null;
   const who = bill.technician && words(bill.technician.name);
-  const signature = d.text ? [who, start ? longDay(start.date) : null].filter(Boolean).join(', ') : '';
+  const fromKind = from ? `${(KIND_WORDS[from.kind] || 'diagnostics')[0].toUpperCase()}${(KIND_WORDS[from.kind] || 'diagnostics').slice(1)} visit` : null;
+  const fromDay = from && DAY_RE.test(String(from.date || '')) ? longDay(from.date) : null;
+  const signature = !d.text ? '' : from ? [fromKind, fromDay].filter(Boolean).join(', ')
+    : [who, start ? longDay(start.date) : null].filter(Boolean).join(', ');
   return {
     text: d.text,
     signature: signature ? `— ${signature}` : null,

@@ -17,7 +17,7 @@ import { colors } from '../constants/colors';
 import { billAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { nowWall } from '../myDay/model';
-import { billError, blockersOf, issueAsk, previewOf, retryTax } from '../bill/model';
+import { billError, blockersOf, issueAsk, issuedText, previewOf, retryTax } from '../bill/model';
 import { previewDiagnosis } from '../diagnosis/model';
 import { Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 
@@ -63,7 +63,7 @@ export default function BillPreviewScreen({ route, navigation }) {
       setBill(data.bill);
       const label = data.label || (data.bill && data.bill.label) || '';
       // the next step is giving it (design send): the send screen, back goes to the bill
-      Alert.alert(`Bill ${label} is issued`, 'It is frozen and has its PDF. Give it to the customer before taking the payment.',
+      Alert.alert(`Bill ${label} is issued`, issuedText(data.bill),
         [{ text: 'OK', onPress: () => navigation.replace('BillSend', { id, visit }) }]);
     } catch (error) {
       const failed = billError(error, { issue: true, company: bill.company && (bill.company.name || bill.company.legal_name) });

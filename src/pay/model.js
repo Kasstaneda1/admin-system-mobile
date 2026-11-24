@@ -14,7 +14,7 @@
 // connection: the server checks the balance so two phones never count the same money twice.
 // One record — one method; two methods are two records one after another. A tip (kind tip) is
 // not the bill's money: never in paid, balance or status.
-import { canBill, usd } from '../bill/model.js';
+import { billFirst, canBill, usd } from '../bill/model.js';
 import { moneyError, parseMoney } from '../utils/money.js';
 import { clockAmPm as clock, firstName, momentWall } from '../myDay/model.js';
 import { monthDay } from '../myDay/visit.js';
@@ -70,7 +70,8 @@ export function holderLine(method, { kind = 'payment', me = '' } = {}) {
 // ---------- the Pay button of the visit (design pay-states) ----------
 // The bill as the visit knows it (src/bill/model.js knownOf, or { status: 'unknown', bill } of
 // the last answer) → { title, line, kind, off } or null (no Pay for this technician):
-//   wait — no issued bill (a draft, none, void); show — issued, not given («Give the bill first»); due — unpaid;
+//   wait — no issued bill (a draft, none, void); show — issued, not given («Give the bill first»; only
+//   with «Bill before payment»); due — unpaid;
 //   left — partly paid; paid — paid in full (green); free — nothing to pay; offline — the last
 //   known balance without the connection; loading.
 export function payTile(visit, known, { offline = false } = {}) {
@@ -87,7 +88,7 @@ export function payTile(visit, known, { offline = false } = {}) {
     if (issued.payment_status === 'paid') return { title: 'Pay', line: 'Paid · offline', kind: 'offline', off: false };
     return { title: 'Pay', line: `${usd(due)} due · offline`, kind: 'offline', off: false };
   }
-  if (!issued.delivered_at && !paymentsOf(issued).some((p) => p.kind === 'payment' && !p.voided_at)) {
+  if (billFirst(issued) && !issued.delivered_at && !paymentsOf(issued).some((p) => p.kind === 'payment' && !p.voided_at)) {
     return { title: 'Pay', line: 'Give the bill first', kind: 'show', off: false };
   }
   switch (issued.payment_status) {
@@ -119,6 +120,8 @@ export function chipOf(bill, now) {
     return { text: `Bill ${label} · given${at ? ` ${whenText(at, now)}` : ''}`, kind: 'done' };
   }
   const at = momentWall(bill.issued_at);
+  // a company without «Bill before payment»: not given is not a warning there
+  if (!billFirst(bill)) return { text: `Bill ${label} · issued${at ? ` ${whenText(at, now)}` : ''}`, kind: 'neutral' };
   return { text: `Bill ${label} · issued${at ? ` ${whenText(at, now)}` : ''}, not given`, kind: 'warn' };
 }
 function whenText(at, now) {
@@ -145,11 +148,24 @@ export function stageOf(bill) {
   if (bill.status === 'void') return 'void';
   if (bill.payment_status === 'no_charge') return 'free';
   if (bill.payment_status === 'paid' || bill.payment_status === 'overpaid') return 'paid';
-  if (!bill.delivered_at && !paymentsOf(bill).some((p) => p.kind === 'payment' && !p.voided_at && p.before_delivery)) return 'show';
+  if (billFirst(bill) && !bill.delivered_at && !paymentsOf(bill).some((p) => p.kind === 'payment' && !p.voided_at && p.before_delivery)) return 'show';
   return 'collect';
 }
 // A payment of this bill already went «before delivery» (the bill sent later): the next one may too
 export const laterReasonGiven = (bill) => paymentsOf(bill).some((p) => p.kind === 'payment' && !p.voided_at && p.before_delivery);
+// What goes with the payment about the delivery ({ reason } → before_delivery and its reason) or
+// null: the technician's own reason («Customer gets the bill later…»), or, when an earlier payment
+// of this bill not given yet already went «before delivery», the same again (the server asks each
+// one). Never for a company without «Bill before payment»: its payments need no reason.
+export function laterOf(bill, later) {
+  if (!billFirst(bill)) return null;
+  if (later) return later;
+  return !bill.delivered_at && laterReasonGiven(bill) ? { reason: 'The bill is sent later, as with the first payment' } : null;
+}
+// The words when there is no issued bill to pay yet (none, a draft)
+export const noBillText = (bill) => (billFirst(bill)
+  ? 'The customer pays an issued bill. Open the bill, issue it, then give it to the customer.'
+  : 'The customer pays an issued bill. Open the bill and issue it.');
 
 // ---------- the history ----------
 // The bill's payments and tips, oldest first, as rows: { key, payment, title, sub, amount, tip,

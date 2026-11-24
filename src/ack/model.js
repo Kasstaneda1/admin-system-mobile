@@ -5,13 +5,14 @@
 // GET/POST /api/my/visits/:id/bill/acknowledgment, the copy …/bill/acknowledgment/pdf and /copies.
 //
 // The rules are the server's:
-//   - only an issued bill that was delivered (409 not_issued / void / not_delivered);
+//   - only an issued bill that was delivered (409 not_issued / void / not_delivered); delivered —
+//     only for a company with «Bill before payment» (bill_before_payment, BILLS_MV_DESIGN §3.2а);
 //   - one signature per bill (409 already_signed; the same client_request_id again → 200, no
 //     second one);
 //   - replaced_parts is required: returned / waived (giving them up is only in writing, NYC
 //     §2-259) / none; nothing is chosen until the customer chooses;
 //   - the company's latest acknowledgment terms go by their version (409 when they changed).
-import { usd } from '../bill/model.js';
+import { billFirst, usd } from '../bill/model.js';
 import { clock, momentWall } from '../myDay/model.js';
 
 // ---------- the replaced parts ----------
@@ -59,16 +60,19 @@ export function pickParts(current, next, drawn) {
 // ---------- may the customer sign now ----------
 // By the visit's bill as GET /my/visits/:id/bill answers it:
 //   'none' — no bill; 'draft' — not issued yet; 'void'; 'undelivered' — issued, not given to the
-//   customer yet; 'open' — the customer can sign
+//   customer yet (only with «Bill before payment», bill/model.js billFirst); 'open' — the customer
+//   can sign
 export function ackStage(bill) {
   if (!bill) return 'none';
   if (bill.status === 'draft') return 'draft';
   if (bill.status === 'void') return 'void';
   if (bill.status !== 'issued') return 'none';
-  return bill.delivered_at ? 'open' : 'undelivered';
+  return bill.delivered_at || !billFirst(bill) ? 'open' : 'undelivered';
 }
-// What the technician reads when the customer cannot sign yet (null when they can)
-export function stageText(stage) {
+// What the technician reads when the customer cannot sign yet (null when they can); `bill` — the
+// visit's bill, for the company's «Bill before payment» (without it giving the bill is not asked)
+export function stageText(stage, bill = null) {
+  if ((stage === 'draft' || stage === 'none') && !billFirst(bill)) return 'Issue the bill first. Then the customer signs for it.';
   if (stage === 'draft' || stage === 'none') return 'Issue the bill and give it to the customer first. Then they sign that they got it.';
   if (stage === 'undelivered') return 'Give the bill to the customer first: share the PDF or hand a printed copy. Then they sign that they got it.';
   if (stage === 'void') return 'This bill is void. The customer does not sign for it.';
