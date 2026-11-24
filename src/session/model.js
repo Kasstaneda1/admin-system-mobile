@@ -141,7 +141,7 @@ export function refreshOutcome(status, body) {
 export const LOGIN_FAILED_DEFAULT = 'Invalid username or password';
 export const LOGIN_OFFLINE = 'No connection. Try again when you are back online.';
 export const LOGIN_SERVER_FAILED = 'Could not sign in: something went wrong on the server. Try again in a minute.';
-export const LOGIN_LOCAL_FAILED = 'Could not sign in. Try again.';
+export const LOGIN_LOCAL_FAILED = 'Could not sign in. Try again. If it keeps happening, call the office.';
 export function loginFailureText(status, body) {
   if (!status) return LOGIN_OFFLINE;
   if (status >= 500) return LOGIN_SERVER_FAILED;

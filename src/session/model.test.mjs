@@ -250,5 +250,5 @@ test('loginErrorText: an answer by its status, no answer is «No connection», a
   assert.equal(loginErrorText(new Error('SecureStore: could not save')), LOGIN_LOCAL_FAILED);
   assert.equal(loginErrorText(new TypeError("Cannot read properties of undefined (reading 'role')")), LOGIN_LOCAL_FAILED);
   assert.equal(loginErrorText(undefined), LOGIN_LOCAL_FAILED);
-  assert.equal(LOGIN_LOCAL_FAILED, 'Could not sign in. Try again.');
+  assert.equal(LOGIN_LOCAL_FAILED, 'Could not sign in. Try again. If it keeps happening, call the office.');
 });
