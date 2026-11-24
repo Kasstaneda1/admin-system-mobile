@@ -9,7 +9,7 @@ import { useAuth } from '../session/AuthContext';
 import Icon from '../myDay/Icon';
 import { SectionHead, TopBar, billStyles } from '../bill/parts';
 import { salaryMoneyAPI } from '../services/api';
-import { NO_PAYMENTS, monthOfParams, paymentsOf } from '../salary/money';
+import { NO_PAYMENTS, monthOfParams, paymentsOf, cameFrom } from '../salary/money';
 import { useAnswer } from '../salary/useAnswer';
 import { NoData, SalaryFrame, salaryStyles } from '../salary/parts';
 import { EmptyNote, moneyStyles } from '../salary/moneyParts';
@@ -24,7 +24,7 @@ export default function PaymentsScreen({ route, navigation }) {
   const p = useMemo(() => (answer ? paymentsOf(answer, year, month) : null), [answer, year, month]);
 
   return (
-    <SalaryFrame navigation={navigation} top={<TopBar back={params.from || 'Salary'} title="Payments" onBack={() => navigation.goBack()} />}>
+    <SalaryFrame navigation={navigation} tab={cameFrom(params)} top={<TopBar back={cameFrom(params)} title="Payments" onBack={() => navigation.goBack()} />}>
       {!p ? <NoData problem={problem} onRetry={() => reload()} /> : (
         <ScrollView contentContainerStyle={salaryStyles.bottomSpace}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => reload({ pull: true })} tintColor={colors.brand} />}>
