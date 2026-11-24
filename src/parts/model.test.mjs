@@ -66,6 +66,10 @@ test('cards of the design: sub line, partner, note, total, Arrived marked', () =
   assert.equal(cardOf(ROWS[2], { me, thisYear: 2026 }).note, null);
   assert.equal(cardOf(ROWS[2], { me, thisYear: 2026 }).need, false);
   assert.equal(cardOf({ id: 3, status: 'on_board', name_parts: 'x', total: null }, { thisYear: 2026 }).sub, '');
+  // no prices for this technician (takes_payments off): no amount, not «$0.00»
+  assert.equal(cardOf({ id: 3, status: 'on_board', name_parts: 'x', total: null }, { thisYear: 2026 }).total, null);
+  assert.equal(cardOf({ id: 3, status: 'on_board', name_parts: 'x' }, { thisYear: 2026 }).total, null);
+  assert.equal(cardOf({ id: 3, status: 'on_board', name_parts: 'x', total: 0 }, { thisYear: 2026 }).total, '$0.00');
 });
 
 test('the partner from this technician\'s side', () => {

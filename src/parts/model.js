@@ -83,7 +83,9 @@ export function cardOf(estimate, { me = null, thisYear } = {}) {
     need: estimate.status === 'arrived',
     parts: partsOf(estimate),
     note,
-    total: money(estimate.total),
+    // no prices for this technician (takes_payments off: the server sends total null): no line,
+    // not «$0.00» (contract «ЧЕТЫРЕ ПРАВА ТЕХНИКА»: no amount — no row)
+    total: estimate.total === null || estimate.total === undefined || estimate.total === '' ? null : money(estimate.total),
     // messages from the office this technician has not read (TECH_APP_ESTIMATE_SCREEN_SPEC.md §5)
     unread: estimate.has_unread_comments === true,
   };

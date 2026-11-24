@@ -22,7 +22,8 @@ export function AuthProvider({ children }) {
     lastCheck.current = Date.now();
     try {
       const me = await authAPI.me();
-      if (!session.signedIn) return;
+      // signed out, or another person signed in while it was on the way: not this one's profile
+      if (!session.signedIn || !session.user || !me || String(me.id) !== String(session.user.id)) return;
       const profile = profileFromMe(me, session.user);
       await session.updateUser(profile);
       setState((s) => (s.status === 'signedIn' ? { ...s, user: profile } : s));

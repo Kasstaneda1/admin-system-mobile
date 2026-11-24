@@ -43,6 +43,10 @@ test('Bill tile: «not given yet» warns only with the rule', () => {
   assert.equal(tile(ON).warn, 'not given yet');
   assert.equal(tile(NOT_GIVEN).warn, 'not given yet');
   assert.equal(tile(OFF).warn, null);
+  // the office gives it when either flag is off (takes_payments off), whatever the rule
+  assert.equal(tile({ ...ON, can_take_payments: false }).warn, null);
+  assert.equal(tile({ ...ON, prices_visible: false }).warn, null);
+  assert.equal(tile({ ...ON, can_take_payments: true, prices_visible: true }).warn, 'not given yet');
   assert.equal(tile(OFF).line, 'NY-1048 · $175.29');
   assert.equal(tile({ ...OFF, delivered_at: '2026-11-17T19:22:00Z' }).line, 'NY-1048 · delivered');
 });

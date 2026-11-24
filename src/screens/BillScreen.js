@@ -400,7 +400,7 @@ export default function BillScreen({ route, navigation }) {
         onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onAddMine={diag.addMine} onSaveMine={diag.saveMine} onClose={diag.close} />
       <TaxSheet visible={taxOpen && draft && !!view.tax && view.tax.change} bill={bill} sending={busy === 'tax'} bottom={insets.bottom}
         onPick={pickTax} onClose={() => setTaxOpen(false)} />
-      <PriceBookSheet visible={bookOpen !== null} tab={bookOpen} book={book} failed={bookFailed} bill={bill} kindWord={kind}
+      <PriceBookSheet visible={bookOpen !== null && canEdit} tab={bookOpen} book={book} failed={bookFailed} bill={bill} kindWord={kind}
         adding={adding} bottom={insets.bottom} onTryAgain={loadBook} onAdd={addItem} onOwn={own}
         onClose={() => setBookOpen(null)} />
     </SafeAreaView>
