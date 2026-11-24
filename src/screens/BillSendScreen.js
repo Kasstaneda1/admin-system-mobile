@@ -26,7 +26,9 @@ import { signedLine } from '../ack/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 
 export default function BillSendScreen({ route, navigation }) {
-  const { id, visit } = route.params || {};
+  // back: the word of the back button — the screen it goes back to (Bill, or Visit / Payment when
+  // opened from there: Дизайнер, #84)
+  const { id, visit, back = 'Bill' } = route.params || {};
   const insets = useSafeAreaInsets();
   const [bill, setBill] = useState(null);
   const [ack, setAck] = useState(null);               // the customer's signature for the bill, once they signed
@@ -148,7 +150,7 @@ export default function BillSendScreen({ route, navigation }) {
     return (
       <SafeAreaView edges={['top']} style={billStyles.screen}>
         <StatusBar style="dark" />
-        <TopBar back="Bill" title="Send" onBack={() => navigation.goBack()} />
+        <TopBar back={back} title="Send" onBack={() => navigation.goBack()} />
         <View style={billStyles.noData}>
           {problem ? (
             <>
@@ -165,7 +167,7 @@ export default function BillSendScreen({ route, navigation }) {
   return (
     <SafeAreaView edges={['top']} style={billStyles.screen}>
       <StatusBar style="dark" />
-      <TopBar back="Bill" title={`Send ${label}`} onBack={() => navigation.goBack()} />
+      <TopBar back={back} title={`Send ${label}`} onBack={() => navigation.goBack()} />
       <ScrollView style={billStyles.page} contentContainerStyle={styles.body}>
         <View style={styles.head}>
           {delivered ? (

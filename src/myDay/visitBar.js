@@ -19,7 +19,7 @@ import { PART_NAME_MAX, PART_NUMBER_MAX } from './actions';
 // with no step to press now, the server's bar as before.
 // bill: «Open the bill» as the big amber button of a closed visit without steps (no money
 // permission: the office issues the bill); billLink: the same as an underlined link under the
-// step (design usab-u1): { label, onPress } or null
+// step (design usab-u1), not while Undo shows: { label, onPress } or null
 export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null, bill = null, steps = null, onStep = null, billLink = null }) {
   const main = steps && steps.main ? steps.main : null;
   if (bar.empty && !failure && !main) return null;
@@ -124,7 +124,8 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
           <Text style={styles.mainText}>{bill.label}</Text>
         </TouchableOpacity>
       ) : null}
-      {billLink ? (
+      {/* while Undo shows, the Bill tile is right over the bar: no link, the bar 44 pt lower (Дизайнер, #84) */}
+      {billLink && !bar.undo ? (
         <TouchableOpacity style={styles.link} onPress={billLink.onPress} accessibilityRole="button">
           <Text style={styles.billLinkText}>{billLink.label}</Text>
         </TouchableOpacity>

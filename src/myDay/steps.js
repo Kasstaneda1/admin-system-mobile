@@ -22,8 +22,9 @@
 //   button(ctx, state) — { label, icon, tone? } of its button (tone 'brand': the dark button of
 //              «all done», not the amber one).
 //
-// What a company has is worked out today from what the app already knows: a recall has no
-// Approve; «Bill before payment» off — no Give before Pay; a bill without parts — no signature
+// What a company has is worked out today from what the app already knows: a recall and a
+// diagnostics visit have no Approve step (at diagnostics nothing is found yet: the Approve tile stays,
+// the technician opens it if they repair on the spot — Дизайнер, #84); «Bill before payment» off — no Give before Pay; a bill without parts — no signature
 // for them. A company's own settings of the steps (on or off, the order, required or not) will
 // replace on, required and the order of this list — here and nowhere else.
 //
@@ -48,13 +49,14 @@ const issuedOf = (ctx) => {
 };
 const billUnknown = (ctx) => !ctx.known || ctx.known.status === 'loading' || ctx.known.status === 'unknown';
 const PAID = ['paid', 'overpaid', 'no_charge'];
+const NO_APPROVE_KINDS = ['recall', 'diagnostics'];
 
 export const VISIT_STEPS = [
   {
     key: 'approve',
     label: 'Approve',
     required: false,
-    on: (ctx) => !!ctx.approve && ctx.visit.visit_kind !== 'recall',
+    on: (ctx) => !!ctx.approve && !NO_APPROVE_KINDS.includes(ctx.visit.visit_kind),
     state: (ctx) => (['signed', 'pending'].includes(ctx.approve.kind) ? 'done' : ['unknown', 'loading'].includes(ctx.approve.kind) ? 'unknown' : 'todo'),
     // the signature before the work goes with today's open visit, as Finish
     can: (ctx) => finishAllowed(ctx),
@@ -114,6 +116,8 @@ export const VISIT_STEPS = [
     // only when the bill has replaced parts (ack/model billHasParts)
     on: (ctx) => billHasParts(billOf(ctx)),
     state: (ctx) => (ctx.ack && ctx.ack.status === 'ok' ? (ctx.ack.signed ? 'done' : 'todo') : 'unknown'),
+    // note: the set has no pen; the Designer's pen, if one is added (viewBox 24, the same stroke):
+    // <path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>
     button: () => ({ label: 'Customer signs for parts', icon: 'note' }),
   },
   {

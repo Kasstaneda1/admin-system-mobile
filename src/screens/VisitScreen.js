@@ -410,7 +410,7 @@ export default function VisitScreen({ route, navigation }) {
       approve: openApprove,
       finish: () => press('finish'),
       bill: openBill,
-      give: () => navigation.navigate('BillSend', { id, visit: shown.visit }),
+      give: () => navigation.navigate('BillSend', { id, visit: shown.visit, back: 'Visit' }),
       pay: openPay,
       signs: () => navigation.navigate('Ack', { id, visit: shown.visit }),
       next: () => (next ? navigation.replace('Visit', { id: next.id, visit: next.visit, n: next.n, skew: skew.current }) : navigation.goBack()),

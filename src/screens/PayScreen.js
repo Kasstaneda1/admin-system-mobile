@@ -296,7 +296,7 @@ export default function PayScreen({ route, navigation }) {
             </>
           ) : stage === 'show' ? (
             <>
-              <MainButton text="Give the bill" icon="doc" onPress={() => navigation.navigate('BillSend', { id, visit })} />
+              <MainButton text="Give the bill" icon="doc" onPress={() => navigation.navigate('BillSend', { id, visit, back: 'Payment' })} />
               <PlainButton text="Customer gets the bill later…" onPress={() => { setLaterChip(null); setLaterText(''); setLaterOpen(true); }} />
             </>
           ) : choice ? (
