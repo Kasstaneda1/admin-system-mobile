@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   NOTICE, ACCESS_MARGIN_MS, REFRESH_LIFE_MS, CHECK_GAP_MS, REFRESH_RETRY_DELAYS_MS, REFRESH_RETRY_WINDOW_MS,
   accessExpiresAt, accessUsable, answerKind, refreshOutcome, startState, checkDue, profileFromMe, isAuthPath,
-  loginFailureText, LOGIN_FAILED_DEFAULT,
+  loginFailureText, LOGIN_FAILED_DEFAULT, LOGIN_OFFLINE, LOGIN_SERVER_FAILED,
 } from './model.js';
 
 const NOW = Date.parse('2026-11-10T17:00:00Z');
@@ -228,7 +228,14 @@ test('a failed sign in: a turned-off user gets the app phrase, any other refusal
   // everything else as before: the server's text, else the default
   assert.equal(loginFailureText(401, { error: 'Invalid username or password' }), 'Invalid username or password');
   assert.equal(loginFailureText(429, { error: 'Too many login attempts, please try again later' }), 'Too many login attempts, please try again later');
-  assert.equal(loginFailureText(500, {}), LOGIN_FAILED_DEFAULT);
-  assert.equal(loginFailureText(undefined, undefined), LOGIN_FAILED_DEFAULT);
+  assert.equal(loginFailureText(401, {}), LOGIN_FAILED_DEFAULT);
   assert.equal(LOGIN_FAILED_DEFAULT, 'Invalid username or password');
+  // no answer (Network Error, a timeout) and a server failure are not a wrong password
+  assert.equal(loginFailureText(undefined, undefined), LOGIN_OFFLINE);
+  assert.equal(loginFailureText(0, undefined), LOGIN_OFFLINE);
+  assert.equal(LOGIN_OFFLINE, 'No connection. Try again when you are back online.');
+  assert.equal(loginFailureText(500, {}), LOGIN_SERVER_FAILED);
+  assert.equal(loginFailureText(502, { error: 'Bad gateway' }), LOGIN_SERVER_FAILED);
+  assert.equal(loginFailureText(503, undefined), LOGIN_SERVER_FAILED);
+  assert.notEqual(LOGIN_SERVER_FAILED, LOGIN_FAILED_DEFAULT);
 });

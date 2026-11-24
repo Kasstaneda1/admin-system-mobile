@@ -135,9 +135,15 @@ export function refreshOutcome(status, body) {
 
 // What a failed sign in (POST /api/login) says on the screen. A turned-off user hears the app's
 // own phrase, the same as when the session ends that way: 403 account_blocked (an older server
-// without codes: its words). Any other refusal: the server's text; none (no answer): the default.
+// without codes: its words). No answer at all (no network, the server unreachable) and a failure
+// of the server are not a wrong password (QA before build 2: «Network Error» showed «Invalid
+// username or password»): their own words. Any other refusal: the server's text, else the default.
 export const LOGIN_FAILED_DEFAULT = 'Invalid username or password';
+export const LOGIN_OFFLINE = 'No connection. Try again when you are back online.';
+export const LOGIN_SERVER_FAILED = 'Could not sign in: something went wrong on the server. Try again in a minute.';
 export function loginFailureText(status, body) {
+  if (!status) return LOGIN_OFFLINE;
+  if (status >= 500) return LOGIN_SERVER_FAILED;
   const code = codeOf(body);
   const blocked = code
     ? CODE_OUTCOME[code] === 'blocked'
