@@ -1,9 +1,12 @@
 // Picking the day on My day (design-mockups/app-myday-date, the owner from the phone, build 1:
 // «no Today button; not clear whether the days swipe; a calendar would be nice»):
-// - DateBar: ‹ a day back · [calendar · the day ▾] opens the month · › a day forward, and Today
-//   on the right, only when another day is open;
+// - DateBar: ‹ a day back · [calendar · the day ▾] opens the month · › a day forward. The arrows
+//   stay where they are on every day (QA before build 2: two taps on › in one place hit Today and
+//   went back): ‹ at the left end, › at the right end; Today, only when another day is open, comes
+//   in between the day and ›, the day's button gives it the room;
 // - DaySheet: «Pick a day» with Today, the month with ‹ ›, today ringed, the open day filled, a
-//   dot under the days with visits the phone already knows (datePick.js knownCounts). A tap on
+//   dot under the days with visits the phone already knows (datePick.js knownCounts); Today only
+//   when another day is open, as in the bar. A tap on
 //   a day opens it and closes the sheet; no OK / Cancel (a tap on the dim or a drag down closes).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -34,11 +37,10 @@ export function DateBar({ selected, today, onStep, onPick, onToday }) {
         <Text style={styles.pickText} numberOfLines={1}>{dateButtonText(selected, today)}</Text>
         <Icon name="chevd" size={16} color={colors.fgMutedField} />
       </TouchableOpacity>
+      {selected !== today ? <TodayPill onPress={onToday} /> : null}
       <TouchableOpacity style={styles.step} onPress={() => onStep(1)} accessibilityRole="button" accessibilityLabel="Next day">
         <Icon name="chev" size={22} color={colors.brandPressed} />
       </TouchableOpacity>
-      <View style={styles.grow} />
-      {selected !== today ? <TodayPill onPress={onToday} /> : null}
     </View>
   );
 }
@@ -60,7 +62,7 @@ export function DaySheet({ visible, selected, today, counts, bottom, onPick, onC
       <View {...pan.panHandlers} style={styles.sheetBody}>
         <View style={styles.head}>
           <Text style={styles.title} accessibilityRole="header">Pick a day</Text>
-          <TodayPill onPress={() => onPick(today)} />
+          {selected !== today ? <TodayPill onPress={() => onPick(today)} /> : null}
         </View>
         <View style={styles.monthRow}>
           <TouchableOpacity style={styles.step} onPress={() => setMonth((m) => addMonths(m, -1))} accessibilityRole="button" accessibilityLabel="Previous month">
@@ -105,16 +107,16 @@ export function DaySheet({ visible, selected, today, counts, bottom, onPick, onC
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 6 },
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   step: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  pick: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.borderDefault, borderRadius: 12, backgroundColor: colors.bgCard },
+  // the room between the arrows (and Today): the arrows keep their places whatever the day's width
+  pick: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.borderDefault, borderRadius: 12, backgroundColor: colors.bgCard },
   pickText: { flexShrink: 1, fontSize: 17, fontWeight: '700', color: colors.fgDefault },
-  grow: { flex: 1 },
   today: { minHeight: 44, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.brand, borderRadius: 22, backgroundColor: colors.brandSoft },
   todayText: { fontSize: 16, fontWeight: '700', color: colors.brandSoftFg },
 
   sheetBody: { gap: 10 },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
   title: { fontSize: 20, fontWeight: '800', color: colors.fgDefault },
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   monthText: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
