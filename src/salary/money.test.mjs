@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NO_RECEIPTS, NO_UNPAID, UNPAID_EMPTY, cameFrom, moneyError, monthOfParams, paymentsOf, receiptsOf, unpaidOf } from './money.js';
+import { NO_RECEIPTS, NO_UNPAID, UNPAID_EMPTY, cameFrom, canNextMonth, moneyError, monthOfParams, paymentsOf, receiptsOf, stepMonth, unpaidOf } from './money.js';
 
 test('payments: the month asked, newest first, the total and the count (design salary-payments)', () => {
   const answer = { payments: [
@@ -73,4 +73,16 @@ test('cameFrom: opened from More keeps the More tab and back word, else Salary',
   assert.equal(cameFrom({ from: 'Salary', year: 2026, month: 10 }), 'Salary');
   assert.equal(cameFrom({}), 'Salary');
   assert.equal(cameFrom(undefined), 'Salary');
+});
+
+test('Payments from More: the month switcher steps over the year, not past this month', () => {
+  const today = new Date(2026, 10, 24);
+  assert.deepEqual(stepMonth({ year: 2026, month: 10 }, -1), { year: 2026, month: 9 });
+  assert.deepEqual(stepMonth({ year: 2026, month: 0 }, -1), { year: 2025, month: 11 });
+  assert.deepEqual(stepMonth({ year: 2025, month: 11 }, 1), { year: 2026, month: 0 });
+  assert.deepEqual(stepMonth({ year: 2026, month: 10 }, -13), { year: 2025, month: 9 });
+  assert.equal(canNextMonth({ year: 2026, month: 10 }, today), false);
+  assert.equal(canNextMonth({ year: 2026, month: 9 }, today), true);
+  assert.equal(canNextMonth({ year: 2025, month: 11 }, today), true);
+  assert.equal(canNextMonth({ year: 2026, month: 11 }, today), false);
 });
