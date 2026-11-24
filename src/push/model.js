@@ -25,8 +25,8 @@ export function projectIdOf(config) {
 }
 
 // «1.0.0 (2)» for the server's app_version (letters, digits, space . + ( ) _ -, up to 40): the
-// installed build's own numbers (native: { version, build }, utils/nativeVersion.js) — after an
-// update without a build app.json is main's; app.json only on a build without that module
+// installed build's own numbers (native: { version, build }, utils/nativeVersion.js); app.json
+// only on a build without that module
 const VERSION_CHARS = /^[A-Za-z0-9 .+()_-]{1,40}$/;
 export function appVersionOf(config, native = null) {
   const expo = expoOf(config);

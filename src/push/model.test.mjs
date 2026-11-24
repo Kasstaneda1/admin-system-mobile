@@ -32,9 +32,12 @@ test('the real app.json names the Expo project', () => {
   assert.equal(projectIdOf(config), PROJECT);
   assert.equal(config.expo.owner, 'semix-pro', 'the Expo organisation of the project');
   assert.equal(config.expo.slug, 'semix-technician');
-  assert.match(config.expo.updates.url, new RegExp(`^https://u\\.expo\\.dev/${PROJECT}$`), 'updates come from the same project');
-  assert.equal(config.expo.updates.requestHeaders, undefined, 'the channel is the build\'s (Expo.plist), not app.json\'s: it would change the fingerprint');
-  assert.deepEqual(config.expo.runtimeVersion, { policy: 'fingerprint' });
+  // no updates without a build for now (the lead, 24.11): fixes come as builds through TestFlight,
+  // so the app never asks Expo for an update
+  assert.equal(config.expo.updates, undefined, 'no expo-updates settings');
+  assert.equal(config.expo.runtimeVersion, undefined, 'no runtimeVersion');
+  const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  assert.equal(pkg.dependencies['expo-updates'], undefined, 'expo-updates is not in the build');
   // aps-environment stays «development» in the entitlements (the plugin's default): the archive is
   // signed for development, the App Store export makes it «production» (testflight-ios.sh checks the .ipa)
   assert.ok(config.expo.plugins.includes('expo-notifications'));
@@ -48,7 +51,7 @@ test('appVersionOf: «1.0.0 (2)» in the server\'s letters, version alone, none'
   assert.equal(appVersionOf({ expo: { version: '1'.repeat(41) } }), null, 'over 40');
   assert.equal(appVersionOf({ expo: { version: '1'.repeat(40) } }), '1'.repeat(40));
   assert.equal(appVersionOf({ expo: {} }), null);
-  // the installed build's numbers win over app.json (an update without a build carries main's app.json)
+  // the installed build's numbers win over app.json
   assert.equal(appVersionOf(CONFIG, { version: '1.0.0', build: '3' }), '1.0.0 (3)');
   assert.equal(appVersionOf(CONFIG, { version: '1.1.0', build: null }), '1.1.0');
   assert.equal(appVersionOf(CONFIG, { version: '', build: '9' }), '1.0.0 (2)', 'no native version — app.json');

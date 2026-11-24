@@ -59,7 +59,7 @@ export function signedInLine(user) {
 }
 
 // «SEMIX Tech 1.0.0 (2)»: the installed build's own numbers (native: { version, build },
-// utils/nativeVersion.js — after an update without a build app.json is main's); on a build
+// utils/nativeVersion.js); on a build
 // without that module app.json (expo.version, expo.ios.buildNumber, which the release script sets)
 export function versionLine(config, native = null) {
   const expo = (config && config.expo) || config || {};

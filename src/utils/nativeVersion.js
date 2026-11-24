@@ -1,6 +1,6 @@
 // The version and build number of the installed app as iOS knows them (expo-application:
-// CFBundleShortVersionString, CFBundleVersion). Not app.json: after an update without a build
-// (expo-updates) the JS carries main's app.json, while the phone still runs the build it got.
+// CFBundleShortVersionString, CFBundleVersion). Not app.json: the build number is set by the
+// release script at build time, and the phone's build is what the office needs to see.
 // A build without the module (made before it was added) — null, and the callers use app.json.
 import { requireOptionalNativeModule } from 'expo';
 
