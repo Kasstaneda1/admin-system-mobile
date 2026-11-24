@@ -63,7 +63,14 @@ export function phonesOf(visit) {
 }
 
 // Call: straight to the one phone; a choice when the customer has several
+// (contacts hidden from this technician, src/perms: the office's phone is the way — the screens
+// show «Call the office» in its place; this only guards a visit kept from before)
 export function callCustomer(visit, userId) {
+  if (visit && visit.contacts_hidden === true) {
+    if (userId == null) Alert.alert('Customer contacts are hidden', 'Call the office.');
+    else callOffice(userId);
+    return;
+  }
   const phones = phonesOf(visit);
   if (!phones.length) {
     askOffice('No phone number', 'This visit has no phone number.', userId);

@@ -66,11 +66,19 @@ export function finishSubtitle(visit, n = null) {
 
 // ---------- No access ----------
 // Step 1 «Call the customer first?», step 2 «Close as no access?»
-export function noAccessWords(visit) {
+// hidden: the customer's contacts are hidden from this technician (src/perms contactsHidden) —
+// the first step calls the office instead
+export function noAccessWords(visit, hidden = false) {
   const name = (typeof visit.client_name === 'string' && visit.client_name.trim()) || 'the customer';
   const first = firstName(visit.client_name) || 'the customer';
   return {
-    call: {
+    call: hidden ? {
+      step: 'No access · step 1 of 2',
+      title: 'Call the office first?',
+      text: `${name}. Customer contacts are hidden. Next step: close the visit as no access.`,
+      button: 'Call the office',
+      skip: 'Skip the call',
+    } : {
       step: 'No access · step 1 of 2',
       title: 'Call the customer first?',
       text: [name, visit.phone].filter(Boolean).join(' · ') + '. Next step: close the visit as no access.',

@@ -76,6 +76,12 @@ export default function BillLineScreen({ route, navigation }) {
         Alert.alert(f.text, 'It is no longer on your day.', [{ text: 'OK', onPress: () => navigation.popToTop() }]);
         return;
       }
+      // the office switched the lines off meanwhile (403 bill_lines_off): back to the bill, which
+      // reads again and shows its lines read only
+      if (f.linesOff) {
+        Alert.alert(f.text, null, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+        return;
+      }
       if (f.kind === 'failed') logError('Error saving a bill line:', error);
       setFailed(f.text);
     } finally {

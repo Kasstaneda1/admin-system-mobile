@@ -6,6 +6,8 @@
 // minutes and a refresh token for 7 days; POST /api/auth/refresh swaps the refresh token for a
 // new one (the old one is revoked) and gives a new access token; POST /api/auth/logout revokes it.
 
+import { permissionsOf } from '../perms/model.js';
+
 export const ACCESS_MARGIN_MS = 30 * 1000;            // refresh this long before the access token ends
 export const REFRESH_LIFE_MS = 7 * 24 * 60 * 60 * 1000; // the server's refresh token life
 export const CHECK_GAP_MS = 5 * 60 * 1000;            // GET /api/me on return to the app, at most this often
@@ -170,6 +172,8 @@ export function profileFromMe(me, kept) {
     role: me.role,
     fullName: me.full_name,
     isSuperAdmin: !!me.is_super_admin,
+    // the technician's four permissions (src/perms/model.js); none from an older server
+    permissions: permissionsOf(me.permissions),
   };
 }
 

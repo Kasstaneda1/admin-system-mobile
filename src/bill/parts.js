@@ -62,7 +62,7 @@ export function LineRow({ row, onPress, note = null }) {
         ) : null}
         {note ? <Text style={styles.lineNote}>{note}</Text> : null}
       </View>
-      <Text style={[styles.amount, row.deduction && styles.deduction]}>{row.amount}</Text>
+      {row.amount ? <Text style={[styles.amount, row.deduction && styles.deduction]}>{row.amount}</Text> : null}
       {row.editable ? <Icon name="chev" size={18} color={colors.fgSecondary} /> : null}
       {row.locked ? <Icon name="lock" size={18} color={colors.fgSecondary} /> : null}
     </Wrap>

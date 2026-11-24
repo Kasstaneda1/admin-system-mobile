@@ -34,6 +34,7 @@ import { taxPick, taxRefusal, taxSection } from '../bill/tax';
 import { billDiagnosis, diagnosisOf } from '../diagnosis/model';
 import { DiagnosisBody, DiagnosisHead, DiagnosisSheet } from '../diagnosis/parts';
 import { useDiagnosis } from '../diagnosis/useDiagnosis';
+import { billView } from '../perms/model';
 
 export default function BillScreen({ route, navigation }) {
   const { id, visit = null, create = false } = route.params || {};
@@ -214,14 +215,19 @@ export default function BillScreen({ route, navigation }) {
   const view = useMemo(() => (bill ? {
     status: statusOf(bill, now),
     parties: partiesOf(bill, visit),
-    sections: sectionsOf(bill, userId),
+    sections: sectionsOf(bill, userId, billView(user, bill).edit),
     totals: totalsOf(bill),
     foot: footOf(bill),
     blockers: blockersOf(bill),
     creditNote: creditNote(bill),
     tax: taxSection(bill),
-  } : null), [bill, visit, userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  } : null), [bill, visit, userId, user]); // eslint-disable-line react-hooks/exhaustive-deps
   const draft = !!bill && bill.status === 'draft';
+  // The technician's permissions (src/perms, the bill's own flags): the lines (can_edit_lines),
+  // the money and giving the bill (can_take_payments; without it no amounts, no Preview or PDF)
+  const perms = billView(user, bill);
+  const canEdit = perms.edit;
+  const payments = perms.give;
   const kind = kindWord({ visit_kind: (bill && bill.visit_kind) || (visit && visit.visit_kind) });
 
   const top = <TopBar back="Visit" title="Bill" onBack={() => navigation.goBack()} />;
@@ -303,17 +309,18 @@ export default function BillScreen({ route, navigation }) {
         ) : null}
 
         <View style={billStyles.section}>
-          <SectionHead label="Services" link={draft ? 'Price book' : null} icon="book" onLink={() => openBook('service')} />
+          {perms.linesLine ? <Text style={[billStyles.quiet, styles.permLine]}>{perms.linesLine}</Text> : null}
+          <SectionHead label="Services" link={canEdit ? 'Price book' : null} icon="book" onLink={() => openBook('service')} />
           {sections.services.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
-          {!sections.services.length && !draft ? <Text style={billStyles.quiet}>No services</Text> : null}
-          {draft ? <AddRow text="Add service" onPress={() => openBook('service')} off={!!busy} /> : null}
+          {!sections.services.length && !canEdit ? <Text style={billStyles.quiet}>No services</Text> : null}
+          {canEdit ? <AddRow text="Add service" onPress={() => openBook('service')} off={!!busy} /> : null}
         </View>
 
         <View style={billStyles.section}>
-          <SectionHead label="Materials" link={draft ? 'Parts & price book' : null} icon="box" onLink={() => openBook('material')} />
+          <SectionHead label="Materials" link={canEdit ? 'Parts & price book' : null} icon="box" onLink={() => openBook('material')} />
           {sections.materials.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
-          {!sections.materials.length && !draft ? <Text style={billStyles.quiet}>No materials</Text> : null}
-          {draft ? <AddRow text="Add material" onPress={() => openBook('material')} off={!!busy} /> : null}
+          {!sections.materials.length && !canEdit ? <Text style={billStyles.quiet}>No materials</Text> : null}
+          {canEdit ? <AddRow text="Add material" onPress={() => openBook('material')} off={!!busy} /> : null}
         </View>
 
         {sections.credits.length ? (
@@ -323,11 +330,11 @@ export default function BillScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {sections.discounts.length || draft ? (
+        {sections.discounts.length || canEdit ? (
           <View style={billStyles.section}>
             <SectionHead label="Discounts" />
             {sections.discounts.map((row) => <LineRow key={row.key} row={row} onPress={openLine} />)}
-            {draft ? <AddRow text="Add discount" onPress={() => openBook('discount')} off={!!busy} /> : null}
+            {canEdit ? <AddRow text="Add discount" onPress={() => openBook('discount')} off={!!busy} /> : null}
           </View>
         ) : null}
 
@@ -337,10 +344,12 @@ export default function BillScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        <View style={billStyles.section}>
-          <SectionHead label="Totals" />
-          <Totals rows={totals} />
-        </View>
+        {totals.length ? (
+          <View style={billStyles.section}>
+            <SectionHead label="Totals" />
+            <Totals rows={totals} />
+          </View>
+        ) : null}
 
         <View style={billStyles.section}>
           <SectionHead label="Message on the bill" />
@@ -355,15 +364,16 @@ export default function BillScreen({ route, navigation }) {
           ) : <Text style={billStyles.quiet}>{bill.message || 'No message'}</Text>}
         </View>
 
-        {draft && blockers.length ? (
+        {/* what stops the issue — only for who issues it (without takes_payments the office does) */}
+        {draft && payments && blockers.length ? (
           <View style={styles.blockers}>
             <Box kind="warn" icon="warn" title={blockers.some((b) => b.hard) ? 'The office has to fix this first' : 'Ask the office'} text={blockers.map((b) => b.text).join('\n')} />
           </View>
         ) : null}
       </ScrollView>
 
-      <Foot foot={foot} bottom={insets.bottom}>
-        {draft ? (
+      <Foot foot={foot} bottom={insets.bottom} note={perms.paymentsLine}>
+        {!payments ? null : draft ? (
           <MainButton text="Preview the bill" icon="eye" off={busy === 'message'}
             onPress={async () => { await saveMessage(); navigation.navigate('BillPreview', { id, visit }); }} />
         ) : bill.status === 'issued' ? (
@@ -409,5 +419,6 @@ const styles = StyleSheet.create({
   messageState: { fontSize: 13, color: colors.fgSecondary },
   blockers: { paddingHorizontal: 16, paddingTop: 12 },
   retryWrap: { alignSelf: 'stretch' },
+  permLine: { marginBottom: 10 },
   diag: { paddingHorizontal: 16, paddingBottom: 14, gap: 8 },
 });

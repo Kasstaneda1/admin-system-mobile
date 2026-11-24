@@ -43,6 +43,8 @@ import { dropCard, keepCard, keptCard, updatedOf, visitCard } from '../myDay/vis
 import { actionBody, actionError, barOf, defaultOutcome, finishChoices, finishSubtitle, keepActed, newRequestId, noAccessWords } from '../myDay/actions';
 import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
+import { callOffice } from '../myDay/officeStore';
+import { visitView } from '../perms/model';
 import { NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import { ActionBar, FinishSheet, NoAccessSheet } from '../myDay/visitBar';
@@ -213,12 +215,17 @@ export default function VisitScreen({ route, navigation }) {
 
   // the office's notes beyond the first two show after «+N more»
   const [officeOpen, setOfficeOpen] = useState(false);
-  const card = useMemo(() => (shown ? visitCard(shown.visit, { n, now, officeOpen }) : null), [shown, n, now, officeOpen]);
+  // The technician's permissions (src/perms): money by the bill's answer (else /api/me), the
+  // customer's contacts by the visit's answer — without them no Approve, Pay, Deposit, amounts or Call
+  const perms = shown ? visitView(user, shown.visit, known && known.bill) : null;
+  const payments = !perms || perms.money;
+  const hidden = !!perms && perms.call === 'office';
+  const card = useMemo(() => (shown ? visitCard(shown.visit, { n, now, officeOpen, prices: payments }) : null), [shown, n, now, officeOpen, payments]);
   // the band and the old words (only for a visit UPDATED when it was opened; stays while open)
   const updated = useMemo(() => (fresh === 'updated' && shown && before !== undefined
     ? updatedOf(shown.visit, before && before.visit, before && before.at) : null), [fresh, shown, before]);
   const tile = shown ? billTile(shown.visit, known) : null;
-  const approve = shown ? approveTile(shown.visit, approveKnown, approveKept, now.date) : null;
+  const approve = shown && payments ? approveTile(shown.visit, approveKnown, approveKept, now.date) : null;
   // signed (here or on this phone, not sent yet) — the brand tile with a tick; not signed or not
   // known yet — white with a border, no tick, so «to do» never looks like «done» (Дизайнер, #44)
   const approveDone = !!approve && (approve.kind === 'signed' || approve.kind === 'pending');
@@ -237,9 +244,9 @@ export default function VisitScreen({ route, navigation }) {
   const billButton = tile && card && card.state === 'closed' ? { label: 'Open the bill', onPress: openBill } : null;
   // «Pay» (src/pay): what the bill's money says under the button; the last known balance without
   // the connection (recording waits for it)
-  const pay = shown ? payTile(shown.visit, known, { offline: problem === 'offline' }) : null;
+  const pay = shown && payments ? payTile(shown.visit, known, { offline: problem === 'offline' }) : null;
   // Deposit (DEP-APP, design deposits app-states): under Pay, only with the server's visit.deposits
-  const deposit = shown ? depositRow(shown.visit, { offline: problem === 'offline' }) : null;
+  const deposit = shown && payments ? depositRow(shown.visit, { offline: problem === 'offline' }) : null;
   const openDeposit = useCallback(() => {
     if (shown && deposit && deposit.tap) navigation.navigate('Deposit', { id, visit: shown.visit, mode: deposit.tap, bill: known && known.bill ? known.bill : null });
   }, [shown, deposit, known, id, navigation]);
@@ -632,11 +639,19 @@ export default function VisitScreen({ route, navigation }) {
                 <Icon name="nav" size={22} color={colors.fgOnFill} />
                 <Text style={[styles.bigText, { color: colors.fgOnFill }]}>Directions</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.bigBtn, styles.bigGhost]} onPress={() => callCustomer(shown.visit, userId)} accessibilityRole="button" accessibilityLabel={`Call ${card.name}`}>
-                <Icon name="phone" size={22} color={colors.brandPressed} />
-                <Text style={[styles.bigText, { color: colors.brandPressed }]}>Call</Text>
-              </TouchableOpacity>
+              {hidden ? (
+                <TouchableOpacity style={[styles.bigBtn, styles.bigGhost]} onPress={() => callOffice(userId)} accessibilityRole="button" accessibilityLabel="Call the office">
+                  <Icon name="phone" size={22} color={colors.brandPressed} />
+                  <Text style={[styles.bigText, { color: colors.brandPressed }]} numberOfLines={1} adjustsFontSizeToFit>Call the office</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={[styles.bigBtn, styles.bigGhost]} onPress={() => callCustomer(shown.visit, userId)} accessibilityRole="button" accessibilityLabel={`Call ${card.name}`}>
+                  <Icon name="phone" size={22} color={colors.brandPressed} />
+                  <Text style={[styles.bigText, { color: colors.brandPressed }]}>Call</Text>
+                </TouchableOpacity>
+              )}
             </View>
+            {perms && perms.contactsLine ? <Text style={styles.permLine}>{perms.contactsLine}</Text> : null}
 
             <View style={styles.tiles}>
               {card.tiles.map((t) => {
@@ -709,6 +724,7 @@ export default function VisitScreen({ route, navigation }) {
               </TouchableOpacity>
             ) : null}
             {deposit && deposit.tap === 'take' ? <Text style={styles.depositHint}>{VISIT_HINT}</Text> : null}
+            {perms && perms.paymentsLine ? <Text style={styles.permLine}>{perms.paymentsLine}</Text> : null}
             {drafted ? <Box kind="info" icon="doc" title={drafted.title} text={drafted.text} style={styles.drafted} /> : null}
             {estimateRequest ? (
               <TouchableOpacity style={styles.estReq} onPress={() => navigation.navigate('Estimate', { id: estimateRequest.id, from: 'Visit' })}
@@ -857,9 +873,9 @@ export default function VisitScreen({ route, navigation }) {
             } : null} />
           <DiagnosisSheet {...diag.sheet} visible={diag.sheet.visible && !!diagBlock} bottom={insets.bottom}
             onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onAddMine={diag.addMine} onSaveMine={diag.saveMine} onClose={diag.close} />
-          <NoAccessSheet step={noAccessStep} words={noAccessWords(shown.visit)} bottom={insets.bottom}
+          <NoAccessSheet step={noAccessStep} words={noAccessWords(shown.visit, hidden)} bottom={insets.bottom}
             onClose={() => setNoAccessStep(null)}
-            onCall={() => { callCustomer(shown.visit, userId); setNoAccessStep('close'); }}
+            onCall={() => { if (hidden) callOffice(userId); else callCustomer(shown.visit, userId); setNoAccessStep('close'); }}
             onNext={() => setNoAccessStep('close')}
             onConfirm={() => { setNoAccessStep(null); send({ action: 'no_access', requestId: newRequestId(Date.now() + skew.current) }); }} />
           <NoteSheet visible={noteOpen && extras} text={noteText} sending={!!(noteSend && noteSend.sending)} failure={noteSend ? noteSend.failed : null}
@@ -960,6 +976,8 @@ const styles = StyleSheet.create({
   approveSigned: { color: colors.successFg },
   drafted: { marginTop: 10 },
   depositHint: { marginTop: 8, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
+  // a permission the office switched off (src/perms): one quiet line in place of what is hidden
+  permLine: { marginTop: 10, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   accessBody: { flex: 1 },
   accessTitle: { fontSize: 15, fontWeight: '700', color: colors.warningFg },

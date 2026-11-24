@@ -58,9 +58,11 @@ export function AuthProvider({ children }) {
   const signIn = useCallback(async (data) => {
     await session.signIn({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
     checking.current = false;
-    lastCheck.current = Date.now();
     setState({ status: 'signedIn', user: data.user, notice: null });
-  }, []);
+    // GET /api/me at once: the sign in's answer has no permissions (src/perms), and what the
+    // screens hide by them (money, the customer's contacts) follows them from the first screen
+    check();
+  }, [check]);
 
   const signOut = useCallback(async () => {
     checking.current = false;
