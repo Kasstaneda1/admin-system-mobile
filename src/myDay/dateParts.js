@@ -8,7 +8,7 @@
 //   dot under the days with visits the phone already knows (datePick.js knownCounts); Today only
 //   when another day is open, as in the bar. A tap on
 //   a day opens it and closes the sheet; no OK / Cancel (a tap on the dim or a drag down closes).
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from './Icon';
@@ -46,9 +46,11 @@ export function DateBar({ selected, today, onStep, onPick, onToday }) {
 }
 
 export function DaySheet({ visible, selected, today, counts, bottom, onPick, onClose }) {
-  // the month shown: the open day's, each time the sheet opens
+  // the month shown: the open day's, each time the sheet opens. A layout effect, not a plain one:
+  // it runs before the frame is drawn, so the sheet never slides in with the month left from the
+  // last time (the Teamlead's note on #75)
   const [month, setMonth] = useState(monthOf(selected));
-  useEffect(() => { if (visible) setMonth(monthOf(selected)); }, [visible, selected]);
+  useLayoutEffect(() => { if (visible) setMonth(monthOf(selected)); }, [visible, selected]);
   const rows = useMemo(() => monthRows(month), [month]);
   // a drag down closes the sheet, as the grab on its top says
   const closeRef = useRef(onClose);

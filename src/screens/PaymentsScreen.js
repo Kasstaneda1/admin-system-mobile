@@ -53,7 +53,7 @@ export default function PaymentsScreen({ route, navigation }) {
             <View style={[salaryStyles.card, moneyStyles.total]} accessible accessibilityLabel={`Total Payments ${p.total}, ${p.line}`}>
               <Text style={moneyStyles.totalLabel}>TOTAL PAYMENTS</Text>
               {/* no adjustsFontSizeToFit here: on iOS it drew the amount tiny once the month changed; a long
-                  amount ($100,000.00 and more) takes a smaller size instead */}
+                  amount ($1,000,000.00 and more: over 11 characters) takes a smaller size instead */}
               <Text style={[moneyStyles.totalBig, p.total.length > 11 && styles.totalLong]} numberOfLines={1}>{p.total}</Text>
               <Text style={moneyStyles.totalSub}>{p.line}</Text>
             </View>
