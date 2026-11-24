@@ -8,6 +8,7 @@ import {
   OUTCOMES, clock, clockAmPm, closedMoment, dayLabel, daysBetween, durationText, kindWord,
   momentWall, parseWall, planOf, stateOf, tagOf, visitDay, windowText,
 } from './model.js';
+import { accessUp } from './access.js';
 
 export const MAX_CARDS_KEPT = 40;   // visit cards the phone keeps for offline
 const OLD_CLOSED = { invoiced: 'Invoiced', awaiting_payment: 'Awaiting payment', paid: 'Paid' };
@@ -225,6 +226,8 @@ export function visitCard(visit, { n = null, now, officeOpen = false, prices = t
     address: addressLines(visit),
     tiles: tilesOf(visit, now, { prices }),
     access: typeof visit.access_notes === 'string' && visit.access_notes.trim() ? visit.access_notes.trim() : null,
+    // «How to get in» under the address while on the way, on site or inside the window (access.js)
+    accessUp: accessUp(visit, now),
     problem: typeof visit.description === 'string' && visit.description.trim() ? visit.description.trim() : null,
     appliances: appliancesOf(visit),
     team: teamOf(visit),

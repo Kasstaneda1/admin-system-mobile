@@ -45,7 +45,7 @@ import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { callOffice } from '../myDay/officeStore';
 import { visitView } from '../perms/model';
-import { NoticeBar, Tag } from '../myDay/parts';
+import { AccessText, NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
 import { nextOfDay, stepsOf, stripLabel } from '../myDay/steps';
@@ -635,6 +635,19 @@ export default function VisitScreen({ route, navigation }) {
     session.authHeader().then((h) => { if (h) setPhotoHeader(sameHeader(h)); }).catch(() => {});
   };
 
+  // «How to get in»: under the address while on the way, on site or inside the window (card.accessUp,
+  // myDay/access.js, usability п. 2), else under the tiles as before; the codes in large digits
+  const accessBox = card && card.access ? (
+    <View style={[styles.access, card.accessUp && styles.accessUp]}>
+      <Icon name="key" size={18} color={colors.warningFg} />
+      <View style={styles.accessBody}>
+        <Text style={styles.accessTitle}>How to get in</Text>
+        <AccessText text={card.access} style={styles.accessText} bigStyle={styles.accessCode} />
+        {updated && updated.was.access ? <ChangedWas text={updated.was.access} /> : null}
+      </View>
+    </View>
+  ) : null;
+
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <StatusBar style="dark" />
@@ -683,6 +696,7 @@ export default function VisitScreen({ route, navigation }) {
               {card.address.line2 ? <Text style={styles.addr2}>{card.address.line2}</Text> : null}
               {updated && updated.was.address ? <ChangedWas text={updated.was.address} /> : null}
             </View>
+            {card.access && card.accessUp ? accessBox : null}
 
             <View style={styles.buttons}>
               <TouchableOpacity style={[styles.bigBtn, styles.bigFill]} onPress={() => openDirections(shown.visit, userId)} accessibilityRole="button" accessibilityLabel={`Directions to ${card.name}`}>
@@ -789,16 +803,7 @@ export default function VisitScreen({ route, navigation }) {
               </TouchableOpacity>
             ) : null}
 
-            {card.access ? (
-              <View style={styles.access}>
-                <Icon name="key" size={18} color={colors.warningFg} />
-                <View style={styles.accessBody}>
-                  <Text style={styles.accessTitle}>How to get in</Text>
-                  <Text style={styles.accessText}>{card.access}</Text>
-                  {updated && updated.was.access ? <ChangedWas text={updated.was.access} /> : null}
-                </View>
-              </View>
-            ) : null}
+            {card.access && !card.accessUp ? accessBox : null}
 
             {card.office ? (
               <View style={styles.office} accessibilityRole="summary" onLayout={placed('office')}>
@@ -1032,7 +1037,11 @@ const styles = StyleSheet.create({
   access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   accessBody: { flex: 1 },
   accessTitle: { fontSize: 15, fontWeight: '700', color: colors.warningFg },
-  accessText: { fontSize: 15, lineHeight: 20, color: colors.warningFg },
+  accessText: { fontSize: 15, lineHeight: 22, color: colors.warningFg },
+  // the code in large digits (design usab-u2: «door code 4521»)
+  accessCode: { fontSize: 20, fontWeight: '800', letterSpacing: 1, color: colors.fgDefault },
+  // under the address: a stronger border, the same room above as the buttons have
+  accessUp: { marginTop: 12, borderWidth: 1.5 },
   office: { marginTop: 10, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4, borderRadius: 14, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
   officeTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   officeTitle: { fontSize: 15, fontWeight: '700', color: colors.infoFg },

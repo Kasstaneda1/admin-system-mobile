@@ -8,6 +8,17 @@ import Icon from './Icon';
 import { dayOfMonth, weekdayLetter, weekdayOf } from './model';
 import { FRESH_TEXT, badgeText, markLabel, tabLabel } from './fresh';
 import { useUnread } from '../estimate/unread';
+import { accessLine, accessParts } from './access';
+
+// «How to get in» text with its codes in large digits (access.js accessParts): style — the text's,
+// bigStyle — the codes'
+export function AccessText({ text, style, bigStyle, numberOfLines }) {
+  return (
+    <Text style={style} numberOfLines={numberOfLines}>
+      {accessParts(text).map((p, i) => (p.big ? <Text key={i} style={bigStyle}>{p.text}</Text> : p.text))}
+    </Text>
+  );
+}
 
 // ---------- tags ----------
 export const TAG_FAMILIES = {
@@ -113,6 +124,8 @@ export function Strip({ strip }) {
 // ---------- the list ----------
 export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
   const open = row.current || row.next;
+  // NOW: «How to get in» in one line, the code without opening the visit (usability п. 2)
+  const access = row.current ? accessLine(row.visit.access_notes) : null;
   const address = [row.visit.address_line, row.visit.address_unit ? `Apt ${row.visit.address_unit}`.replace(/^Apt (apt|unit|#)/i, '$1') : null].filter(Boolean).join(', ');
   const body = (
     <>
@@ -146,6 +159,12 @@ export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
   return (
     <View style={[styles.row, styles.rowOpen, row.current ? styles.rowCurrent : styles.rowNext]}>
       <Pressable style={styles.openTop} onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined}>{body}</Pressable>
+      {access ? (
+        <View style={styles.access} accessible accessibilityLabel={`How to get in: ${access}`}>
+          <Icon name="key" size={16} color={colors.warningFg} />
+          <AccessText text={access} style={styles.accessText} bigStyle={styles.accessCode} numberOfLines={2} />
+        </View>
+      ) : null}
       <View style={styles.openActions}>
         <View style={styles.where}>
           <Icon name="pin" size={14} color={row.current ? colors.infoFg : colors.brandSoftFg} />
@@ -301,6 +320,10 @@ const styles = StyleSheet.create({
   rowNext: { borderColor: colors.brand, borderBottomColor: colors.brand, backgroundColor: colors.brandSoft },
   openTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   openActions: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10 },
+  // «How to get in» on the NOW card (design usab-u2): the warning family, as on the visit
+  access: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginLeft: 10, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: colors.warningBg },
+  accessText: { flex: 1, fontSize: 15, lineHeight: 20, color: colors.warningFg },
+  accessCode: { fontWeight: '800', color: colors.fgDefault },
   where: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
   whereText: { flex: 1, fontSize: 12, fontWeight: '700' },
   left: { width: 92, paddingLeft: 30 },
