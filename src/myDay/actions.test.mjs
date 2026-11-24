@@ -178,16 +178,18 @@ test('after an answer the phone keeps the card and the visit in its week', () =>
   let cache = keepWeek(null, 7, '2026-11-08', [visit(), visit({ id: 9 })], savedAt);
   cache = keepCard(cache, 7, { ...visit(), job_visits: [], notes: [], office_notes: null }, savedAt);
   const acted = { ...visit({ status: 'omw', actions: ['finish'] }), job_visits: [], notes: [{ id: 1 }], office_notes: 'x', office_messages: [{ id: 5, text: 'y', seen_at: null }],
-    diagnosis: { text: 'Relay failed.', version: 1, locked: false, addenda: [] } };
+    diagnosis: { text: 'Relay failed.', version: 1, locked: false, addenda: [] },
+    inherited_diagnosis: { from_visit_id: 3, from_visit_date: '2026-11-09', text: 'Compressor dead.', addenda: [], updated_by_name: 'Ivan', updated_at: '2026-11-09T15:00:00Z' } };
   const after = keepActed(cache, 7, acted, savedAt + 1000);
   assert.equal(keptCard(after, 7, 4).card.status, 'omw');
   assert.equal(keptCard(after, 7, 4).card.notes.length, 1);
   const week = keptWeek(after, 7, '2026-11-08').visits;
   assert.deepEqual(week.map((v) => [v.id, v.status]), [[4, 'omw'], [9, 'scheduled']]);
   assert.equal('notes' in week[0], false, 'the list keeps the list\'s fields');
-  assert.deepEqual(['job_visits', 'office_notes', 'office_messages', 'diagnosis'].filter((k) => k in week[0]), [], 'nor the card\'s');
+  assert.deepEqual(['job_visits', 'office_notes', 'office_messages', 'diagnosis', 'inherited_diagnosis'].filter((k) => k in week[0]), [], 'nor the card\'s');
   assert.equal(keptCard(after, 7, 4).card.office_messages.length, 1);
   assert.equal(keptCard(after, 7, 4).card.diagnosis.text, 'Relay failed.');
+  assert.equal(keptCard(after, 7, 4).card.inherited_diagnosis.text, 'Compressor dead.', 'the diagnosis of the diagnostics visit stays on the card');
   // another technician's phone cache: only their own card, nothing of the first
   assert.equal(keptCard(keepActed(cache, 8, acted, savedAt), 7, 4), null);
 });
