@@ -2,7 +2,8 @@
 // Times are New York: Tuesday Nov 24 2026.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { accessUp, accessParts, accessLine } from './access.js';
+import { accessUp, accessParts, accessLine, nextTodayOf } from './access.js';
+import { buildDay } from './model.js';
 import { visitCard } from './visit.js';
 
 const now = (hhmm, date = '2026-11-24') => ({ date, minutes: Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3)) });
@@ -71,4 +72,21 @@ test('NEXT today: up before the window; not on another day, not when closed', ()
   assert.equal(accessUp(visit({ status: 'completed' }), now('10:20'), { nextToday: true }), false);
   assert.equal(visitCard(visit(), { now: now('10:20'), nextToday: true }).accessUp, true);
   assert.equal(visitCard(visit(), { now: now('10:20') }).accessUp, false);
+});
+
+// «Тимлид» on #88: buildDay keeps its next row while another visit is on the way, but My day marks
+// it NEXT only when none is — the block follows the mark, not the row
+test('nextTodayOf: the visit marked NEXT; not while another visit is on the way', () => {
+  const patel = visit({ id: 4 });
+  const chen = visit({ id: 5, client_name: 'Wei Chen', scheduled_start: '2026-11-24 15:00:00', scheduled_end: '2026-11-24 18:00:00' });
+  const at = now('10:20');
+  assert.equal(nextTodayOf(buildDay([patel, chen], at.date, at), 4), true);
+  assert.equal(nextTodayOf(buildDay([patel, chen], at.date, at), '4'), true);
+  assert.equal(nextTodayOf(buildDay([patel, chen], at.date, at), 5), false);
+  // on the way to Chen: Chen is NOW, Patel is not marked NEXT
+  const onWay = buildDay([patel, { ...chen, status: 'omw' }], at.date, at);
+  assert.equal(nextTodayOf(onWay, 4), false);
+  // another day: no NEXT
+  assert.equal(nextTodayOf(buildDay([patel, chen], '2026-11-24', now('10:20', '2026-11-23')), 4), false);
+  assert.equal(nextTodayOf(null, 4), false);
 });

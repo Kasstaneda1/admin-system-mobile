@@ -49,6 +49,7 @@ import { AccessText, NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
 import { nextOfDay, stepsOf, stripLabel } from '../myDay/steps';
+import { nextTodayOf } from '../myDay/access';
 import { billHasParts } from '../ack/model';
 import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
 import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
@@ -251,7 +252,7 @@ export default function VisitScreen({ route, navigation }) {
   // today's day as My day draws it (the week kept on the phone): its NEXT row for «How to get in»
   // and the next visit for the last step
   const myDay = useMemo(() => (dayVisits ? buildDay(dayVisits, now.date, now) : null), [dayVisits, now]);
-  const nextToday = !!(myDay && myDay.next && String(myDay.next.id) === String(id));
+  const nextToday = nextTodayOf(myDay, id);
   const card = useMemo(() => (shown ? visitCard(shown.visit, { n, now, officeOpen, prices: payments, nextToday }) : null), [shown, n, now, officeOpen, payments, nextToday]);
   // the band and the old words (only for a visit UPDATED when it was opened; stays while open)
   const updated = useMemo(() => (fresh === 'updated' && shown && before !== undefined

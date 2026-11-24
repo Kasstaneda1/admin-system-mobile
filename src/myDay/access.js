@@ -9,6 +9,13 @@
 //   - a door code, a buzzer or a gate number (a word of 3 to 8 digits) in large digits.
 import { parseWall, stateOf } from './model.js';
 
+// Is the visit the one My day marks NEXT today? day: buildDay's answer. buildDay keeps its next
+// row even while another visit is on the way (NOW), but marks it NEXT (row.next) only when none
+// is — the same as My day shows («Тимлид» on #88)
+export function nextTodayOf(day, id) {
+  return !!(day && day.next && day.next.next && String(day.next.id) === String(id));
+}
+
 // Does the block stand under the address now? now: New York wall clock { date, minutes };
 // nextToday: the visit is the one marked NEXT on today's My day (buildDay's next row)
 export function accessUp(visit, now, { nextToday = false } = {}) {
