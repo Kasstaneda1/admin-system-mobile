@@ -178,7 +178,7 @@ test('tomorrow: no now, the summary is the time span, free time at the end', () 
   assert.deepEqual(day.gaps.map((g) => g.text), ['Free 4:00–7:00 PM · 3h']);
   assert.equal(day.rows[2].tag.text, 'Helping Mark');
   assert.equal(day.rows[2].duration, null);
-  assert.equal(headerLine(W, NOW, 'Ivan Petrov'), 'Tomorrow · Wed, Nov 11');
+  assert.equal(headerLine(W, NOW, 'Ivan Petrov'), 'Tomorrow');
 });
 
 test('an empty day, the offer of the next busy day', () => {
@@ -291,7 +291,7 @@ test('a past day: closed visits, no free time', () => {
   assert.deepEqual(day.summary, { big: '1 visit', small: '1 done' });
   assert.deepEqual(day.gaps, []);
   assert.equal(day.rows[0].timeText, 'done 10:00');
-  assert.equal(headerLine(MON, NOW), 'Yesterday · Mon, Nov 9');
+  assert.equal(headerLine(MON, NOW), 'Yesterday');
 });
 
 test('the close time: closed_at; updated_at only when the server has no such field', () => {
@@ -469,9 +469,11 @@ test('the strip: windows on two tracks, plans, now, ticks', () => {
 });
 
 test('the header line', () => {
-  assert.equal(headerLine(TUE, NOW, 'Ivan Petrov'), 'Good morning, Ivan · Tue, Nov 10');
-  assert.equal(headerLine(TUE, { date: TUE, minutes: 15 * 60 }, ''), 'Good afternoon · Tue, Nov 10');
-  assert.equal(headerLine('2026-11-13', NOW, 'Ivan'), 'Fri, Nov 13');
+  assert.equal(headerLine(TUE, NOW, 'Ivan Petrov'), 'Good morning, Ivan');
+  assert.equal(headerLine(TUE, { date: TUE, minutes: 15 * 60 }, ''), 'Good afternoon');
+  assert.equal(headerLine('2026-11-13', NOW, 'Ivan'), 'In 3 days');
+  assert.equal(headerLine('2026-11-03', NOW, 'Ivan'), '7 days ago');
+  assert.equal(headerLine('2026-12-25', NOW), 'In 45 days');
 });
 
 test('the week: visits per day, as the days show them', () => {
