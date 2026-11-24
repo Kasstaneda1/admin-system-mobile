@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ESTIMATE_CHOICES, RESIGN_WORDS, agreedOf, approveError, approveTile, authBody, canApprove, copyName, countText, estimatePriceOf, estimatePriceText, estimateText, writtenText,
-  latestOf, needsEstimateChoice, pickEstimate, ruleText, signHead, signedText, termsLineOf, signedAtOf, withSignedAt, CLOCK_SKEW_MS, CLOCK_QUEUED_WORDS, clockOff, queuedClockText, clockBoxNow,
+  latestOf, needsEstimateChoice, pickEstimate, ruleText, signHead, signedText, keptEstimate, termsLineOf, signedAtOf, withSignedAt, CLOCK_SKEW_MS, CLOCK_QUEUED_WORDS, clockOff, queuedClockText, clockBoxNow,
 } from './model.js';
 
 // The design's draft (design-mockups/app-invoice «Числа сходятся»): $230.00 before tax, $250.41 with it
@@ -191,4 +191,35 @@ test('signHead: the first signature before the work; a new one for the new total
   assert.equal(signHead({ id: 3 }, { status: 'completed' }), 'THE WORK IS DONE · THE CUSTOMER AGREES TO THE NEW TOTAL');
   assert.equal(signHead({ id: 3 }, { status: 'in_progress' }), 'BEFORE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL');
   assert.equal(signHead({ id: 3 }, null), 'BEFORE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL');
+});
+
+// «Архитектор ПО» on #87: a new NYC signature after the work keeps the earlier answer about the
+// written estimate, said in a line — never asked again, never copied silently
+test('keptEstimate: after Finish the earlier answer goes with the new signature, in words', () => {
+  const done = { status: 'completed' };
+  const earlier = { id: 3, estimate_choice: 'waived', estimate_price_cents: 0, authorized_at: '2026-11-20 11:31:00' };
+  assert.deepEqual(keptEstimate(earlier, done, 'nyc_20'),
+    { choice: 'waived', price: 0, text: 'Written estimate: No — chosen before the work, Nov 20 ($0.00)' });
+  assert.deepEqual(keptEstimate({ ...earlier, estimate_choice: 'written', estimate_price_cents: 2500 }, done, 'nyc_20'),
+    { choice: 'written', price: 2500, text: 'Written estimate: Yes — chosen before the work, Nov 20 ($25.00)' });
+});
+
+test('keptEstimate: asked as before — no earlier answer, not finished, not NYC', () => {
+  const done = { status: 'completed' };
+  const earlier = { id: 3, estimate_choice: 'waived', estimate_price_cents: 0, authorized_at: '2026-11-20 11:31:00' };
+  assert.equal(keptEstimate(null, done, 'nyc_20'), null);
+  assert.equal(keptEstimate(earlier, { status: 'in_progress' }, 'nyc_20'), null);
+  assert.equal(keptEstimate(earlier, null, 'nyc_20'), null);
+  assert.equal(keptEstimate(earlier, done, 'nj_any'), null);
+  // an earlier approval without the choice (by phone, before the rule): ask
+  assert.equal(keptEstimate({ ...earlier, estimate_choice: null }, done, 'nyc_20'), null);
+  assert.equal(keptEstimate({ ...earlier, estimate_price_cents: null }, done, 'nyc_20'), null);
+});
+
+test('authBody: the kept answer goes as the estimate choice of the new signature', () => {
+  const kept = keptEstimate({ id: 3, estimate_choice: 'waived', estimate_price_cents: 0, authorized_at: '2026-11-20 11:31:00' }, { status: 'completed' }, 'nyc_20');
+  const { body } = authBody({ name: 'Sanjay Patel', png: 'data:image/png;base64,AA==', agreed: { amount: 30500 }, terms: null, rule: 'nyc_20',
+    estimate: { choice: kept.choice, price: kept.price }, requestId: 'r1' });
+  assert.equal(body.estimate_choice, 'waived');
+  assert.equal(body.estimate_price_cents, 0);
 });

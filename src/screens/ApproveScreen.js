@@ -13,7 +13,9 @@
 //     changed meanwhile — the server refuses, the customer sees the new and signs again.
 //   - By phone: the office records it (the technician cannot), the screen says so.
 //   - A visit with an approval opens on it: its copy, and «The customer signs again»; from a
-//     refused issue (over the approved amount) it opens on the new signature at once.
+//     refused issue (over the approved amount) it opens on the new signature at once. Once the
+//     work is done (NYC) the new signature keeps the earlier answer about the written estimate,
+//     said in a line instead of the question (keptEstimate).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -29,7 +31,7 @@ import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody, usd } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 import {
-  ESTIMATE_CHOICES, ESTIMATE_RIGHT, agreedOf, authBody, pickEstimate, countText, estimatePriceOf, estimatePriceText, writtenText, latestOf, needsEstimateChoice, ruleText, signHead, signedText, termsLineOf, clockBoxNow,
+  ESTIMATE_CHOICES, ESTIMATE_RIGHT, agreedOf, authBody, pickEstimate, countText, estimatePriceOf, estimatePriceText, writtenText, keptEstimate, latestOf, needsEstimateChoice, ruleText, signHead, signedText, termsLineOf, clockBoxNow,
 } from '../approve/model';
 import { approvals } from '../approve/store';
 import { downloadApprovalPdf } from '../approve/pdf';
@@ -103,7 +105,10 @@ export default function ApproveScreen({ route, navigation }) {
   const termsLine = termsLineOf(terms, bill && bill.company && (bill.company.name || bill.company.legal_name));
   const nyc = needsEstimateChoice(rule);
   const signing = !latest || again || (pending && pending.failed);
-  const mustChoose = nyc && !estimate;               // NYC: the customer chooses about the written estimate before signing
+  // NYC after the work: the earlier answer about the written estimate goes again, said in a line
+  // (approve/model.js keptEstimate); else the customer chooses before signing
+  const kept = signing ? keptEstimate(latest, visit, rule) : null;
+  const mustChoose = nyc && !estimate && !kept;
   const written = writtenText(latest);
 
   const approve = async () => {
@@ -113,7 +118,7 @@ export default function ApproveScreen({ route, navigation }) {
     const png = pad.current ? await pad.current.png() : null;
     const { body, error } = authBody({
       name, png, agreed, terms, rule,
-      estimate: estimate ? { choice: estimate, price: estimatePrice } : null,
+      estimate: kept ? { choice: kept.choice, price: kept.price } : estimate ? { choice: estimate, price: estimatePrice } : null,
       requestId: newRequestId(),
     });
     if (error) { setSaid({ kind: 'refused', text: error }); return; }
@@ -279,7 +284,15 @@ export default function ApproveScreen({ route, navigation }) {
                 ) : null}
               </View>
 
-              {nyc ? (
+              {nyc && kept ? (
+                <View style={styles.pad}>
+                  <Text style={styles.label} accessibilityRole="header">WRITTEN ESTIMATE</Text>
+                  <View style={[styles.card, styles.termsRow]} accessible accessibilityLabel={kept.text}>
+                    <Icon name="doc" size={22} color={colors.fgSecondary} />
+                    <Text style={[styles.sub, styles.flex]}>{kept.text}</Text>
+                  </View>
+                </View>
+              ) : nyc ? (
                 <View style={styles.pad} accessibilityRole="radiogroup" accessibilityLabel="Written estimate">
                   <Text style={styles.label} accessibilityRole="header">WRITTEN ESTIMATE</Text>
                   <Text style={styles.right}>{ESTIMATE_RIGHT} <Text style={styles.rightPrice}>{estimatePriceText(estimatePrice)}</Text></Text>
