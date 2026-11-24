@@ -189,3 +189,30 @@ test('the next visit of today: the one on the way, else the next planned; never 
   assert.equal(nextOfDay(dayAfter, 4), null);
   assert.equal(nextOfDay(null, 4), null);
 });
+
+// The Designer on #87: the bill draft grew over the customer's approval (the server's needs_new,
+// bill/model overApproval) — the Issue refuses it, so Approve is back to do and is the big button
+const overDraft = () => ({ status: 'draft', bill: bill({ status: 'draft', authorization: { needs_new: true, current_cents: 30500, authorization: { amount_cents: 23000 } } }) });
+test('over the approval after Finish: Approve again is the big button, Approve not done in the strip', () => {
+  const s = stepsOf(ctx({ visit: done(), approve: signed, known: overDraft() }));
+  assert.deepEqual(keys(s), ['approve', null]);
+  assert.equal(s.main.label, 'Approve again');
+  assert.equal(marks(s), 'Approve:now Bill:todo Given:todo Pay:todo Signs:todo');
+});
+
+test('over the approval before Finish: Approve again, Finish beside it', () => {
+  const s = stepsOf(ctx({ approve: signed, known: overDraft() }));
+  assert.deepEqual(keys(s), ['approve', 'finish']);
+  assert.equal(s.main.label, 'Approve again');
+});
+
+test('over, but a new signature waits on this phone: it covers the bill — as signed', () => {
+  assert.deepEqual(keys(stepsOf(ctx({ visit: done(), approve: { kind: 'pending' }, known: overDraft() }))), ['bill', null]);
+});
+
+test('within the rule (needs_new false) or an issued bill: as before', () => {
+  const within = { status: 'draft', bill: bill({ status: 'draft', authorization: { needs_new: false, current_cents: 25000, authorization: { amount_cents: 23000 } } }) };
+  assert.deepEqual(keys(stepsOf(ctx({ visit: done(), approve: signed, known: within }))), ['bill', null]);
+  const issued = { status: 'issued', bill: bill({ authorization: { needs_new: true, current_cents: 30500, authorization: { amount_cents: 23000 } } }) };
+  assert.equal(stepsOf(ctx({ visit: done(), approve: signed, known: issued })).main.key, 'give');
+});

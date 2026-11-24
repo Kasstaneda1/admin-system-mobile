@@ -54,7 +54,7 @@ import { billHasParts } from '../ack/model';
 import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
 import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
 import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
-import { billError, billTile, canBill, draftedFrom, knownOf } from '../bill/model';
+import { billError, billTile, canBill, draftedFrom, knownOf, overApproval } from '../bill/model';
 import { Box } from '../bill/parts';
 import { approveError, approveTile, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
@@ -261,10 +261,14 @@ export default function VisitScreen({ route, navigation }) {
   const approve = shown && payments ? approveTile(shown.visit, approveKnown, approveKept, now.date) : null;
   // signed (here or on this phone, not sent yet) — the brand tile with a tick; not signed or not
   // known yet — white with a border, no tick, so «to do» never looks like «done» (Дизайнер, #44)
-  const approveDone = !!approve && (approve.kind === 'signed' || approve.kind === 'pending');
+  // the draft grew over the customer's approval (bill/model overApproval, usability п. 6): the
+  // signature is to do again — the tile is not «done», says why, and opens the new signature
+  const over = !!(known && known.status === 'draft' && overApproval(known.bill));
+  const approveShown = approve && over && approve.kind === 'signed' ? { ...approve, kind: 'over', warn: 'the bill grew · signs again' } : approve;
+  const approveDone = !!approveShown && (approveShown.kind === 'signed' || approveShown.kind === 'pending');
   const openApprove = useCallback(() => {
-    if (shown) navigation.navigate('Approve', { id, visit: shown.visit });
-  }, [navigation, id, shown]);
+    if (shown) navigation.navigate('Approve', { id, visit: shown.visit, again: over });
+  }, [navigation, id, shown, over]);
   const drafted = tile && card && card.state === 'closed' && known && known.status === 'draft' ? draftedFrom(known.bill) : null;
   // D3: the estimate this visit asked for (Estimate needed), when the technician may open it
   const estimateRequest = shown ? estimateRequestOf(shown.visit) : null;
@@ -738,15 +742,15 @@ export default function VisitScreen({ route, navigation }) {
             </View>
 
             {steps && steps.strip.length > 1 ? <StepStrip strip={steps.strip} label={stripLabel(steps.strip)} /> : null}
-            {approve ? (
+            {approveShown ? (
               <TouchableOpacity style={[styles.billTile, !approveDone && styles.approveTodo]} onPress={openApprove} accessibilityRole="button"
-                accessibilityLabel={`${approve.title}, ${approve.line}${approve.warn ? `, ${approve.warn}` : ''}`}>
-                <Icon name={approveDone ? 'checkc' : 'doc'} size={26} color={approve.kind === 'signed' ? colors.successFg : approveDone ? colors.brandPressed : colors.fgSecondary} />
+                accessibilityLabel={`${approveShown.title}, ${approveShown.line}${approveShown.warn ? `, ${approveShown.warn}` : ''}`}>
+                <Icon name={approveDone ? 'checkc' : 'doc'} size={26} color={approveShown.kind === 'signed' ? colors.successFg : approveDone ? colors.brandPressed : colors.fgSecondary} />
                 <View style={styles.billTileBody}>
-                  <Text style={styles.billTileTitle}>{approve.title}</Text>
-                  <Text style={[styles.billTileLine, approve.kind === 'signed' && styles.approveSigned, !approveDone && styles.approveTodoLine]}>
-                    {approve.line}
-                    {approve.warn ? <Text style={styles.billTileWarn}>{` · ${approve.warn}`}</Text> : null}
+                  <Text style={styles.billTileTitle}>{approveShown.title}</Text>
+                  <Text style={[styles.billTileLine, approveShown.kind === 'signed' && styles.approveSigned, !approveDone && styles.approveTodoLine]}>
+                    {approveShown.line}
+                    {approveShown.warn ? <Text style={styles.billTileWarn}>{` · ${approveShown.warn}`}</Text> : null}
                   </Text>
                 </View>
                 <Icon name="chev" size={20} color={colors.fgSecondary} />

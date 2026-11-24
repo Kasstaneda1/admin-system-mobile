@@ -20,7 +20,10 @@
 //   server   — its press goes to the server (waits for the connection, a spinner on it); else it
 //              opens a screen, which says itself what works without the connection;
 //   button(ctx, state) — { label, icon, tone? } of its button (tone 'brand': the dark button of
-//              «all done», not the amber one).
+//              «all done», not the amber one);
+//   blocks(ctx) — the step is back to do and nothing after it can go now: the big button is its
+//              (Approve while the bill draft is over the customer's approval — the issue refuses it,
+//              bill/model overApproval, usability п. 6; the Designer on #87).
 //
 // What a company has is worked out today from what the app already knows: a recall and a
 // diagnostics visit have no Approve step (at diagnostics nothing is found yet: the Approve tile stays,
@@ -35,7 +38,7 @@
 //   ack      — the signature after the work: { status: 'loading' | 'ok' | 'unknown', signed } or null;
 //   money    — this technician takes the money (src/perms visitView money);
 //   next     — the next visit of the day (nextOfDay) or null.
-import { billFirst, canBill, usd } from '../bill/model.js';
+import { billFirst, canBill, overApproval, usd } from '../bill/model.js';
 import { billHasParts } from '../ack/model.js';
 import { clock, stateOf } from './model.js';
 import { dueOf } from '../pay/model.js';
@@ -47,6 +50,8 @@ const issuedOf = (ctx) => {
   const bill = billOf(ctx);
   return ctx.known && ctx.known.status === 'issued' && bill ? bill : null;
 };
+// the draft is over the customer's approval by the rule of the place (the server's needs_new)
+const overBill = (ctx) => !!(ctx.known && ctx.known.status === 'draft' && overApproval(ctx.known.bill));
 const billUnknown = (ctx) => !ctx.known || ctx.known.status === 'loading' || ctx.known.status === 'unknown';
 const PAID = ['paid', 'overpaid', 'no_charge'];
 const NO_APPROVE_KINDS = ['recall', 'diagnostics'];
@@ -57,10 +62,15 @@ export const VISIT_STEPS = [
     label: 'Approve',
     required: false,
     on: (ctx) => !!ctx.approve && !NO_APPROVE_KINDS.includes(ctx.visit.visit_kind),
-    state: (ctx) => (['signed', 'pending'].includes(ctx.approve.kind) ? 'done' : ['unknown', 'loading'].includes(ctx.approve.kind) ? 'unknown' : 'todo'),
-    // the signature before the work goes with today's open visit, as Finish
-    can: (ctx) => finishAllowed(ctx),
-    button: () => ({ label: 'Approve the repair', icon: 'doc' }),
+    // signed, but the bill grew over it: to do again (a signature still on the phone covers it)
+    state: (ctx) => (ctx.approve.kind === 'pending' ? 'done'
+      : overBill(ctx) ? 'todo'
+        : ctx.approve.kind === 'signed' ? 'done' : ['unknown', 'loading'].includes(ctx.approve.kind) ? 'unknown' : 'todo'),
+    blocks: (ctx) => ctx.approve.kind !== 'pending' && overBill(ctx),
+    // the signature before the work goes with today's open visit, as Finish; a new one over a grown
+    // bill also after it (the server takes it, marked late)
+    can: (ctx) => finishAllowed(ctx) || overBill(ctx),
+    button: (ctx) => (overBill(ctx) ? { label: 'Approve again', icon: 'doc' } : { label: 'Approve the repair', icon: 'doc' }),
   },
   {
     key: 'finish',
@@ -143,7 +153,9 @@ export function stepsOf(ctx, steps = VISIT_STEPS) {
   const list = steps.filter((s) => s.on(ctx)).map((s) => ({ step: s, state: s.state(ctx) }));
   let last = -1;
   list.forEach((s, i) => { if (s.state === 'done') last = i; });
-  const at = Math.min(last + 1, list.length - 1);
+  // a step back to do that holds the rest (blocks) is the one to do now; else the first after the last done
+  const held = list.findIndex((s) => s.step.blocks && s.step.blocks(ctx));
+  const at = held >= 0 ? held : Math.min(last + 1, list.length - 1);
   const current = list[at];
   const buttonOf = (s) => (!s.step.can || s.step.can(ctx) ? { key: s.step.key, server: !!s.step.server, ...s.step.button(ctx, s.state) } : null);
   const main = buttonOf(current);
