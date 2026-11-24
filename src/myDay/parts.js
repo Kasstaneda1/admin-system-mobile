@@ -124,8 +124,9 @@ export function Strip({ strip }) {
 // ---------- the list ----------
 export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
   const open = row.current || row.next;
-  // NOW: «How to get in» in one line, the code without opening the visit (usability п. 2)
-  const access = row.current ? accessLine(row.visit.access_notes) : null;
+  // NOW, and NEXT open as the card to go to (today only, buildDay): «How to get in» in one line,
+  // the code without opening the visit (usability п. 2; NEXT — the Designer on #86)
+  const access = open ? accessLine(row.visit.access_notes) : null;
   const address = [row.visit.address_line, row.visit.address_unit ? `Apt ${row.visit.address_unit}`.replace(/^Apt (apt|unit|#)/i, '$1') : null].filter(Boolean).join(', ');
   const body = (
     <>
