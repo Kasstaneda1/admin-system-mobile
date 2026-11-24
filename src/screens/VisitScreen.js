@@ -264,8 +264,11 @@ export default function VisitScreen({ route, navigation }) {
   // the draft grew over the customer's approval (bill/model overApproval, usability п. 6): the
   // signature is to do again — the tile is not «done», says why, and opens the new signature
   const over = !!(known && known.status === 'draft' && overApproval(known.bill));
-  const approveShown = approve && over && approve.kind === 'signed' ? { ...approve, kind: 'over', warn: 'the bill grew · signs again' } : approve;
+  const approveShown = approve && over && approve.kind === 'signed' ? { ...approve, kind: 'over', warn: 'bill is higher · new signature needed' } : approve;
   const approveDone = !!approveShown && (approveShown.kind === 'signed' || approveShown.kind === 'pending');
+  // the draft bill tile is filled (the next thing to open) — not while the bill is over the approval:
+  // then it is white (billTileQuiet) and Approve again is the one bright place (the Designer on #90)
+  const billFill = !!tile && tile.kind === 'draft' && !over;
   const openApprove = useCallback(() => {
     if (shown) navigation.navigate('Approve', { id, visit: shown.visit, again: over });
   }, [navigation, id, shown, over]);
@@ -757,18 +760,18 @@ export default function VisitScreen({ route, navigation }) {
               </TouchableOpacity>
             ) : null}
             {tile ? (
-              <TouchableOpacity style={[styles.billTile, tile.kind === 'draft' && styles.billTileFill, tile.off && styles.billTileOff]}
+              <TouchableOpacity style={[styles.billTile, billFill && styles.billTileFill, over && styles.billTileQuiet, tile.off && styles.billTileOff]}
                 onPress={openBill} disabled={tile.off} accessibilityRole="button" accessibilityLabel={`${tile.title}, ${tile.line}${tile.warn ? `, ${tile.warn}` : ''}`}
                 accessibilityState={{ disabled: tile.off }}>
-                <Icon name="doc" size={26} color={tile.off ? colors.fgDisabled : tile.kind === 'draft' ? colors.fgOnFill : colors.brandPressed} />
+                <Icon name="doc" size={26} color={tile.off ? colors.fgDisabled : billFill ? colors.fgOnFill : colors.brandPressed} />
                 <View style={styles.billTileBody}>
-                  <Text style={[styles.billTileTitle, tile.kind === 'draft' && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>{tile.title}</Text>
-                  <Text style={[styles.billTileLine, tile.kind === 'draft' && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>
+                  <Text style={[styles.billTileTitle, billFill && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>{tile.title}</Text>
+                  <Text style={[styles.billTileLine, billFill && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>
                     {tile.line}
                     {tile.warn ? <Text style={styles.billTileWarn}>{` · ${tile.warn}`}</Text> : null}
                   </Text>
                 </View>
-                {tile.off ? null : <Icon name="chev" size={20} color={tile.kind === 'draft' ? colors.fgOnFill : colors.fgSecondary} />}
+                {tile.off ? null : <Icon name="chev" size={20} color={billFill ? colors.fgOnFill : colors.fgSecondary} />}
               </TouchableOpacity>
             ) : null}
             {pay ? (
@@ -1021,6 +1024,8 @@ const styles = StyleSheet.create({
   // The Bill tile (design app-invoice visit-done): a draft is the filled one
   billTile: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
   billTileFill: { backgroundColor: colors.brandPressed },
+  // over the approval: white, as a tile with nothing to do now (the Designer on #90)
+  billTileQuiet: { borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   billTileOff: { borderColor: colors.borderDefault, backgroundColor: colors.bgSunken },
   billTileBody: { flex: 1 },
   // «Estimate requested · EST-…» (design visit-diagnosis .vd-est: indigo, as Sold)
