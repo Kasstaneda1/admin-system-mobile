@@ -141,6 +141,7 @@ export function refreshOutcome(status, body) {
 export const LOGIN_FAILED_DEFAULT = 'Invalid username or password';
 export const LOGIN_OFFLINE = 'No connection. Try again when you are back online.';
 export const LOGIN_SERVER_FAILED = 'Could not sign in: something went wrong on the server. Try again in a minute.';
+export const LOGIN_LOCAL_FAILED = 'Could not sign in. Try again. If it keeps happening, call the office.';
 export function loginFailureText(status, body) {
   if (!status) return LOGIN_OFFLINE;
   if (status >= 500) return LOGIN_SERVER_FAILED;
@@ -150,6 +151,15 @@ export function loginFailureText(status, body) {
     : startsWith(body, BLOCKED_WORDS) || startsWith(body, DEACTIVATED_WORDS);
   if (blocked) return NOTICE.blocked;
   return typeof body?.error === 'string' && body.error ? body.error : LOGIN_FAILED_DEFAULT;
+}
+
+// The words for whatever the sign in threw. Only a request that got no answer (axios: a request
+// and no response) is «No connection»; a failure after the answer, on this phone (keeping the
+// session, an answer of an unexpected shape), is not a network problem (the Teamlead on #79).
+export function loginErrorText(error) {
+  if (error && error.response) return loginFailureText(error.response.status, error.response.data);
+  if (error && (error.isAxiosError || error.request)) return LOGIN_OFFLINE;
+  return LOGIN_LOCAL_FAILED;
 }
 
 // How the app starts from what the phone keeps. Signed in without the network when there is a
