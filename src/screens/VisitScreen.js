@@ -33,10 +33,10 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
-import { approveAPI, billAPI, myDayAPI, photosAPI, session } from '../services/api';
+import { ackAPI, approveAPI, billAPI, myDayAPI, photosAPI, session } from '../services/api';
 import { logError } from '../utils/logError';
 import { useAuth } from '../session/AuthContext';
-import { failedText, nowWall, offlineText, skewOf, visitDay } from '../myDay/model';
+import { buildDay, failedText, keptWeek, nowWall, offlineText, skewOf, visitDay, weekOf } from '../myDay/model';
 import { markSeen } from '../myDay/fresh';
 import { seenMark, updateSeen } from '../myDay/seenStore';
 import { dropCard, keepCard, keptCard, updatedOf, visitCard } from '../myDay/visit';
@@ -47,7 +47,9 @@ import { callOffice } from '../myDay/officeStore';
 import { visitView } from '../perms/model';
 import { NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
-import { ActionBar, FinishSheet, NoAccessSheet } from '../myDay/visitBar';
+import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
+import { nextOfDay, stepsOf, stripLabel } from '../myDay/steps';
+import { billHasParts } from '../ack/model';
 import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
 import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
 import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
@@ -109,6 +111,24 @@ export default function VisitScreen({ route, navigation }) {
     }
   }, [id]);
 
+  // The customer's signature after the work (src/ack), for the visit's steps (steps.js): read with
+  // an issued bill that has replaced parts — only then is it a step. { status, signed } | null
+  const [ackKnown, setAckKnown] = useState(null);
+  const ackSeq = useRef(0);
+  const loadAck = useCallback(async (bill) => {
+    if (!bill || bill.status !== 'issued' || !billHasParts(bill)) return;
+    const seq = ++ackSeq.current;
+    setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'loading' }));
+    try {
+      const data = await ackAPI.get(id);
+      if (seq === ackSeq.current) setAckKnown({ status: 'ok', signed: !!(data && data.acknowledgment) });
+    } catch (error) {
+      if (seq !== ackSeq.current) return;
+      if (error.response?.status >= 500) logError('Error loading the bill acknowledgment:', error);
+      setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'unknown' }));
+    }
+  }, [id]);
+
   // The visit's bill (src/bill): { status, bill } as GET …/bill answered, for the Bill tile and
   // «Open the bill»; read with the card, only where this technician works on the bill
   const [known, setKnown] = useState(null);
@@ -118,14 +138,17 @@ export default function VisitScreen({ route, navigation }) {
     const seq = ++billSeq.current;
     try {
       const data = await billAPI.get(id);
-      if (seq === billSeq.current) setKnown(knownOf(data.bill));
+      if (seq === billSeq.current) {
+        setKnown(knownOf(data.bill));
+        loadAck(data.bill);
+      }
     } catch (error) {
       if (seq !== billSeq.current) return;
       const failed = billError(error);
       if (failed.kind === 'failed') logError('Error loading the visit bill:', error);
       setKnown((k) => (failed.kind === 'none' ? knownOf(null) : k && k.status !== 'loading' ? k : { status: 'unknown', bill: null }));
     }
-  }, [id]);
+  }, [id, loadAck]);
 
   // The customer's approval before the work (src/approve): the job's approvals as GET
   // …/authorizations answered and a signature still on this phone, for the Approve tile; read
@@ -150,6 +173,7 @@ export default function VisitScreen({ route, navigation }) {
     }
   }, [id, userId]);
 
+  const [dayVisits, setDayVisits] = useState(null);
   const load = useCallback(async ({ pull = false } = {}) => {
     if (gone.current) return;
     const seq = ++loadSeq.current;
@@ -157,6 +181,10 @@ export default function VisitScreen({ route, navigation }) {
     if (pull) setRefreshing(true);
     const kept = await readMyDay();
     const keptOne = keptCard(kept, userId, id);
+    // today's visits the phone keeps: the next one to go to, for the last step (steps.js nextOfDay)
+    const today = nowWall(Date.now(), skew.current).date;
+    const week = keptWeek(kept, userId, weekOf(today)[0]);
+    if (seq === loadSeq.current) setDayVisits(week && Array.isArray(week.visits) ? week.visits : null);
     setBefore((b) => (b === undefined ? (keptOne ? { visit: keptOne.card, at: keptOne.savedAt } : null) : b));
     // the kept card brings history and notes; the list's visit, fresher, its state
     if (keptOne && seq === loadSeq.current) {
@@ -241,7 +269,14 @@ export default function VisitScreen({ route, navigation }) {
     const has = known && (known.status === 'draft' || known.status === 'issued');
     navigation.navigate('Bill', { id, visit: shown.visit, create: !has });
   }, [navigation, id, shown, known]);
-  const billButton = tile && card && card.state === 'closed' ? { label: 'Open the bill', onPress: openBill } : null;
+  // The visit's steps (steps.js — their order and what each one is live there only): the strip over
+  // the tiles and the big button at the bottom. Without steps (no money permission) a closed visit
+  // keeps «Open the bill» as its big button; with them it is a link under the step
+  const next = useMemo(() => (dayVisits ? nextOfDay(buildDay(dayVisits, now.date, now), id) : null), [dayVisits, now, id]);
+  const steps = shown ? stepsOf({ visit: shown.visit, approve, known, ack: ackKnown, money: payments, next }) : null;
+  const closedBill = !!(tile && card && card.state === 'closed');
+  const billButton = closedBill && !steps ? { label: 'Open the bill', onPress: openBill } : null;
+  const billLink = closedBill && steps && steps.main && steps.main.key !== 'bill' ? { label: 'Open the bill', onPress: openBill } : null;
   // «Pay» (src/pay): what the bill's money says under the button; the last known balance without
   // the connection (recording waits for it)
   const pay = shown && payments ? payTile(shown.visit, known, { offline: problem === 'offline' }) : null;
@@ -367,6 +402,21 @@ export default function VisitScreen({ route, navigation }) {
     if (action === 'no_access') { setNoAccessStep('call'); return; }
     send({ action, requestId: newRequestId(Date.now() + skew.current) });
   }, [pending, send, openFinish]);
+
+  // A press on a step's button: the screen of that step (Finish asks «How did it end?» first)
+  const stepPress = useCallback((key) => {
+    if (!shown) return;
+    const open = {
+      approve: openApprove,
+      finish: () => press('finish'),
+      bill: openBill,
+      give: () => navigation.navigate('BillSend', { id, visit: shown.visit }),
+      pay: openPay,
+      signs: () => navigation.navigate('Ack', { id, visit: shown.visit }),
+      next: () => (next ? navigation.replace('Visit', { id: next.id, visit: next.visit, n: next.n, skew: skew.current }) : navigation.goBack()),
+    }[key];
+    if (open) open();
+  }, [shown, openApprove, press, openBill, openPay, navigation, id, next]);
 
   // the undo counts down by the minute
   const nowMs = tick + skew.current;
@@ -668,6 +718,7 @@ export default function VisitScreen({ route, navigation }) {
               })}
             </View>
 
+            {steps && steps.strip.length > 1 ? <StepStrip strip={steps.strip} label={stripLabel(steps.strip)} /> : null}
             {approve ? (
               <TouchableOpacity style={[styles.billTile, !approveDone && styles.approveTodo]} onPress={openApprove} accessibilityRole="button"
                 accessibilityLabel={`${approve.title}, ${approve.line}${approve.warn ? `, ${approve.warn}` : ''}`}>
@@ -857,7 +908,7 @@ export default function VisitScreen({ route, navigation }) {
           onRetry={() => pending && send(pending)}
           onCancel={() => { setPending(null); setFailure(null); }}
           onNote={extras ? () => setNoteOpen(true) : null}
-          bill={billButton} />
+          bill={billButton} billLink={billLink} steps={steps} onStep={stepPress} />
       ) : null}
       {shown ? (
         <>

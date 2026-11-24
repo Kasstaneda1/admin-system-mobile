@@ -12,14 +12,33 @@ import { PART_NAME_MAX, PART_NUMBER_MAX } from './actions';
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
 // when it got no answer (Try again sends the same request); blocked: why nothing can be
 // pressed now ('Needs connection'), or null; onNote: «Add a note for the office» under a
-// closed visit (design final-visit-closed), when notes may be added; bill: «Open the bill» under
-// a closed visit whose bill this technician works on (design app-invoice visit-done), the
-// amber button of a closed visit: { label, onPress } or null
-export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null, bill = null }) {
-  if (bar.empty && !failure) return null;
+// closed visit (design final-visit-closed), when notes may be added.
+// steps: steps.js stepsOf() — the big button is the visit's next step (usability п. 1, design
+// usab-u1-next-step) and the step after it, when this one may be passed, a plain button beside
+// On my way; onStep(key) opens it. Without steps (a helper, an old task, no money permission) or
+// with no step to press now, the server's bar as before.
+// bill: «Open the bill» as the big amber button of a closed visit without steps (no money
+// permission: the office issues the bill); billLink: the same as an underlined link under the
+// step (design usab-u1): { label, onPress } or null
+export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null, bill = null, steps = null, onStep = null, billLink = null }) {
+  const main = steps && steps.main ? steps.main : null;
+  if (bar.empty && !failure && !main) return null;
   const waiting = !!pending && !failure;
   const off = waiting || !!failure || !!blocked;
   const spinner = (action) => waiting && pending.action === action;
+  // a server's press (Finish, On my way) waits for the connection; a step that opens a screen
+  // only for a press in flight — the screen it opens says what works without the connection
+  const buttonOf = (b, isStep) => {
+    const action = isStep ? b.key : b.action;
+    const server = !isStep || !!b.server;
+    return { ...b, action, off: server ? off : waiting || !!failure, press: isStep ? () => onStep(b.key) : () => onPress(b.action) };
+  };
+  const primary = main ? buttonOf(main, true) : bar.primary ? buttonOf(bar.primary, false) : null;
+  const plains = [
+    main && steps.second ? buttonOf(steps.second, true) : null,
+    bar.secondary ? buttonOf(bar.secondary, false) : null,
+  ].filter(Boolean);
+  const isNext = !!main && main.tone === 'brand';
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(bottom, 10) }]}>
       {failure ? (
@@ -52,28 +71,40 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </View>
       ) : null}
 
-      {bar.primary ? (
-        <TouchableOpacity style={[styles.main, off && styles.off]} disabled={off} onPress={() => onPress(bar.primary.action)} accessibilityRole="button"
-          accessibilityState={{ disabled: off, busy: spinner(bar.primary.action) }}>
-          {spinner(bar.primary.action) ? <ActivityIndicator color={colors.onAccent} /> : (
+      {bar.closed ? (
+        <View style={styles.closed}>
+          <Text style={styles.closedText}>
+            <Text style={styles.undoStrong}>{bar.closed.text}</Text>{bar.closed.note ? ` · ${bar.closed.note}` : ''}
+          </Text>
+        </View>
+      ) : null}
+
+      {primary ? (
+        <TouchableOpacity style={[styles.main, isNext && styles.mainNext, primary.off && styles.off]} disabled={primary.off} onPress={primary.press} accessibilityRole="button"
+          accessibilityState={{ disabled: primary.off, busy: spinner(primary.action) }}>
+          {spinner(primary.action) ? <ActivityIndicator color={isNext ? colors.fgOnFill : colors.onAccent} /> : (
             <>
-              <Icon name={bar.primary.icon} size={24} color={colors.onAccent} />
-              <Text style={styles.mainText}>{bar.primary.label}</Text>
+              <Icon name={primary.icon} size={24} color={isNext ? colors.fgOnFill : colors.onAccent} />
+              <Text style={[styles.mainText, isNext && styles.mainTextNext]} numberOfLines={1} adjustsFontSizeToFit>{primary.label}</Text>
             </>
           )}
         </TouchableOpacity>
       ) : null}
 
-      {bar.secondary ? (
-        <TouchableOpacity style={[styles.second, off && styles.off]} disabled={off} onPress={() => onPress(bar.secondary.action)} accessibilityRole="button"
-          accessibilityState={{ disabled: off, busy: spinner(bar.secondary.action) }}>
-          {spinner(bar.secondary.action) ? <ActivityIndicator color={colors.fgDefault} /> : (
-            <>
-              <Icon name={bar.secondary.icon} size={20} color={colors.fgDefault} />
-              <Text style={styles.secondText}>{bar.secondary.label}</Text>
-            </>
-          )}
-        </TouchableOpacity>
+      {plains.length ? (
+        <View style={styles.plains}>
+          {plains.map((b) => (
+            <TouchableOpacity key={b.action} style={[styles.second, styles.secondHalf, b.off && styles.off]} disabled={b.off} onPress={b.press} accessibilityRole="button"
+              accessibilityState={{ disabled: b.off, busy: spinner(b.action) }}>
+              {spinner(b.action) ? <ActivityIndicator color={colors.fgDefault} /> : (
+                <>
+                  <Icon name={b.icon} size={20} color={colors.fgDefault} />
+                  <Text style={styles.secondText} numberOfLines={1} adjustsFontSizeToFit>{b.label}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
       ) : null}
 
       {bar.noAccess ? (
@@ -87,17 +118,15 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </TouchableOpacity>
       ) : null}
 
-      {bar.closed ? (
-        <View style={styles.closed}>
-          <Text style={styles.closedText}>
-            <Text style={styles.undoStrong}>{bar.closed.text}</Text>{bar.closed.note ? ` · ${bar.closed.note}` : ''}
-          </Text>
-        </View>
-      ) : null}
       {bill ? (
         <TouchableOpacity style={styles.main} onPress={bill.onPress} accessibilityRole="button">
           <Icon name="doc" size={24} color={colors.onAccent} />
           <Text style={styles.mainText}>{bill.label}</Text>
+        </TouchableOpacity>
+      ) : null}
+      {billLink ? (
+        <TouchableOpacity style={styles.link} onPress={billLink.onPress} accessibilityRole="button">
+          <Text style={styles.billLinkText}>{billLink.label}</Text>
         </TouchableOpacity>
       ) : null}
       {bar.closed && onNote ? (
@@ -111,6 +140,28 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
 
       {blocked && (bar.primary || bar.secondary || bar.noAccess || bar.undo) ? <Text style={styles.blocked}>{blocked}</Text> : null}
       {bar.line ? <Text style={styles.line}>{bar.line}</Text> : null}
+    </View>
+  );
+}
+
+// The strip of the visit's steps over its tiles (usability п. 1, design usab-u1-next-step):
+// strip — steps.js stepsOf().strip; done — a tick, the next one — its number on amber, the rest —
+// a grey number in a ring; the line between two steps is filled once the first is done
+export function StepStrip({ strip, label }) {
+  if (!strip || !strip.length) return null;
+  return (
+    <View style={styles.strip} accessible accessibilityLabel={label}>
+      {strip.map((s, i) => (
+        <View key={s.key} style={styles.stripItem}>
+          {i > 0 ? <View style={[styles.stripLine, styles.stripLineLeft, strip[i - 1].mark === 'done' && styles.stripLineDone]} /> : null}
+          {i < strip.length - 1 ? <View style={[styles.stripLine, styles.stripLineRight, s.mark === 'done' && styles.stripLineDone]} /> : null}
+          <View style={[styles.stripDot, s.mark === 'done' && styles.stripDotDone, s.mark === 'now' && styles.stripDotNow]}>
+            {s.mark === 'done' ? <Icon name="check" size={16} color={colors.fgOnFill} />
+              : <Text style={[styles.stripNum, s.mark === 'now' && styles.stripNumNow]}>{s.n}</Text>}
+          </View>
+          <Text style={[styles.stripLabel, s.mark === 'now' && styles.stripLabelNow]} numberOfLines={1} adjustsFontSizeToFit>{s.label}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -260,10 +311,31 @@ const styles = StyleSheet.create({
   undoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: 96, height: 44, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.infoFg },
   undoBtnText: { fontSize: 16, fontWeight: '700', color: colors.fgOnFill },
   main: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 60, borderRadius: 14, backgroundColor: colors.accent },
-  mainText: { fontSize: 20, fontWeight: '800', color: colors.onAccent },
+  mainText: { fontSize: 20, fontWeight: '800', color: colors.onAccent, flexShrink: 1 },
+  // all done: «Next: Nguyen T. · 1:30» — the brand's dark button, not the amber one (design usab-u1)
+  mainNext: { backgroundColor: colors.brandPressed },
+  mainTextNext: { color: colors.fgOnFill },
+  // the plain buttons under the big one, the full width; two side by side (Finish · On my way)
+  plains: { flexDirection: 'row', gap: 8 },
+  secondHalf: { flex: 1 },
+  billLinkText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed, textDecorationLine: 'underline' },
+  // the strip of steps (design usab-u1 .steps)
+  strip: { flexDirection: 'row', marginTop: 10, paddingTop: 12, paddingBottom: 10, paddingHorizontal: 4, borderRadius: 14, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  stripItem: { flex: 1, minWidth: 0, alignItems: 'center', gap: 6 },
+  stripLine: { position: 'absolute', top: 14, height: 2, backgroundColor: colors.borderDefault },
+  stripLineLeft: { left: 0, right: '50%' },
+  stripLineRight: { left: '50%', right: 0 },
+  stripLineDone: { backgroundColor: colors.brand },
+  stripDot: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: colors.borderStrong, backgroundColor: colors.bgCard, alignItems: 'center', justifyContent: 'center' },
+  stripDotDone: { borderColor: colors.brand, backgroundColor: colors.brand },
+  stripDotNow: { borderColor: colors.accent, backgroundColor: colors.accent },
+  stripNum: { fontSize: 14, fontWeight: '700', color: colors.fgSecondary },
+  stripNumNow: { color: colors.onAccent },
+  stripLabel: { fontSize: 13, fontWeight: '600', color: colors.fgSecondary },
+  stripLabelNow: { fontWeight: '800', color: colors.fgDefault },
   // On my way under Finish: optional, so a plain button (SEMIX_STYLE «Secondary»)
-  second: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 14, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
-  secondText: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
+  second: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  secondText: { fontSize: 17, fontWeight: '700', color: colors.fgDefault, flexShrink: 1 },
   link: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44 },
   linkText: { fontSize: 17, fontWeight: '600', color: colors.fgDefault, textDecorationLine: 'underline' },
   linkOff: { color: colors.fgMutedField },
