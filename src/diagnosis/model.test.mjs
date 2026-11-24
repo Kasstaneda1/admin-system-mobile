@@ -41,7 +41,7 @@ test('who may write: main and helper, closed visits too; not cancelled, an old t
 
 test('the block: none yet — the hint and «Add diagnosis»', () => {
   const b = diagnosisBlock(visit({ diagnosis: D({ text: null, version: 0, updated_at: null, updated_by_name: null }) }));
-  assert.deepEqual(b, { text: null, by: null, addenda: [], mode: 'write', button: 'Add diagnosis', hint: DIAGNOSIS_HINT, empty: true });
+  assert.deepEqual(b, { text: null, from: null, by: null, addenda: [], mode: 'write', opens: 'write', button: 'Add diagnosis', hint: DIAGNOSIS_HINT, empty: true });
   assert.equal(diagnosisBlock(visit({ diagnosis: undefined })), null);
 });
 

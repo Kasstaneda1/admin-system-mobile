@@ -29,9 +29,10 @@ export function DiagnosisHead() {
   );
 }
 
-// The block's body: block — model.js diagnosisBlock / billDiagnosis; blocked: why nothing can
+// The block's body: block — model.js diagnosisBlock / billDiagnosis (block.from over a text taken
+// from the diagnostics visit); blocked: why nothing can
 // be written now ('Needs connection'), or null; changed: under the text, what it was before the
-// office's edit (visit.js updatedOf), or null; onPress: the button (block.mode)
+// office's edit (visit.js updatedOf), or null; onPress: the button (opens block.opens)
 export function DiagnosisBody({ block, blocked = null, changed = null, onPress }) {
   const off = !!blocked;
   const wide = block.mode === 'write' || block.mode === 'add';
@@ -40,6 +41,7 @@ export function DiagnosisBody({ block, blocked = null, changed = null, onPress }
       {block.mode === 'write' && block.hint ? <Text style={s.hint}>{block.hint}</Text> : null}
       {block.text ? (
         <View style={changed ? s.chg : null}>
+          {block.from ? <Text style={s.from}>{block.from}</Text> : null}
           <Text style={s.text} selectable>{block.text}</Text>
           {block.by ? <Text style={s.by}>{block.by}</Text> : null}
           {changed}
@@ -59,7 +61,7 @@ export function DiagnosisBody({ block, blocked = null, changed = null, onPress }
           <Text style={wide ? s.wideText : s.smallText}>{block.button}</Text>
         </TouchableOpacity>
       ) : null}
-      {block.mode === 'add' && block.hint ? <Text style={s.hint}>{block.hint}</Text> : null}
+      {(block.mode === 'add' || block.mode === 'own') && block.hint ? <Text style={s.hint}>{block.hint}</Text> : null}
       {block.button && blocked ? <Text style={s.blocked}>{blocked}</Text> : null}
     </>
   );
@@ -153,6 +155,8 @@ const s = StyleSheet.create({
   hint: { fontSize: 14, lineHeight: 20, color: colors.fgSecondary },
   text: { fontSize: 16, lineHeight: 23, color: colors.fgDefault },
   by: { marginTop: 4, fontSize: 13, color: colors.fgSecondary },
+  // over a text taken from the diagnostics visit (§3.7): where it comes from
+  from: { marginBottom: 4, fontSize: 13, fontWeight: '700', color: colors.infoFg },
   quiet: { fontSize: 15, lineHeight: 20, color: colors.fgMutedField },
   chg: { marginHorizontal: -2, paddingVertical: 8, paddingLeft: 12, paddingRight: 10, borderLeftWidth: 4, borderLeftColor: colors.infoBorder, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, borderTopRightRadius: 10, borderBottomRightRadius: 10, backgroundColor: colors.infoBg },
   // an addition after the bill (design .vd-add): yellow, a stripe on the left

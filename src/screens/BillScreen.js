@@ -298,7 +298,7 @@ export default function BillScreen({ route, navigation }) {
         {diagBlock ? (
           <View style={[billStyles.section, styles.diag]}>
             <DiagnosisHead />
-            <DiagnosisBody block={diagBlock} onPress={() => diag.open(diagBlock.mode)} />
+            <DiagnosisBody block={diagBlock} onPress={() => diag.open(diagBlock.opens)} />
           </View>
         ) : null}
 

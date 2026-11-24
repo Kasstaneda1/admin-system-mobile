@@ -819,7 +819,7 @@ export default function VisitScreen({ route, navigation }) {
           {diagBlock ? (
             <View style={styles.section}>
               <DiagnosisHead />
-              <DiagnosisBody block={diagBlock} blocked={blocked} onPress={() => diag.open(diagBlock.mode)}
+              <DiagnosisBody block={diagBlock} blocked={blocked} onPress={() => diag.open(diagBlock.opens)}
                 changed={updated && updated.was.diagnosis ? <ChangedWas text={updated.was.diagnosis} /> : null} />
             </View>
           ) : null}
