@@ -19,6 +19,7 @@ import { POLL_MS, WAIT_MS, arrivedLine, arrivedOf, linkBody, linkError, linkOf, 
 import QrCode from '../pay/QrCode';
 import { BigHead, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
+import { useShowFailure } from '../pay/useShowFailure';
 
 export default function PayOnlineScreen({ route, navigation }) {
   const { id, bill: firstBill, cents = null, part = false } = route.params || {};
@@ -28,6 +29,7 @@ export default function PayOnlineScreen({ route, navigation }) {
   const [link, setLink] = useState(null);
   const [making, setMaking] = useState(false);
   const [failed, setFailed] = useState(null);
+  const scrollRef = useShowFailure(failed);   // the refusal in sight after Record (QA before build 2)
   const [arrived, setArrived] = useState(null);
   const [since, setSince] = useState(null);             // when the waiting started (ms)
   const [stale, setStale] = useState(false);            // the 10 minutes are over
@@ -107,7 +109,7 @@ export default function PayOnlineScreen({ route, navigation }) {
     <SafeAreaView edges={['top']} style={billStyles.screen}>
       <StatusBar style="dark" />
       <TopBar back="Payment" title="Pay online" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={payStyles.body}>
+      <ScrollView ref={scrollRef} contentContainerStyle={payStyles.body}>
         <BigHead label={`Pay online · ${label}`} big={shown !== null ? usd(shown) : '—'} sub={`To ${company}${part ? ' · part of the balance' : ''}`} />
 
         {arrived ? (
