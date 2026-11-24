@@ -181,7 +181,11 @@ test('the next visit of today: the one on the way, else the next planned; never 
   assert.equal(nextOfDay(day2, 4).id, 8);
   // this visit itself is never the next one, closed ones neither
   assert.equal(nextOfDay(buildDay([visits[0], v(6, '13:30')], '2026-11-24', now), 6), null);
-  // not today: none
+  // not today: none, though that day has planned visits (Тимлид, #84: the check survived)
   assert.equal(nextOfDay(buildDay(visits, '2026-11-25', now), 4), null);
+  const tomorrow = [v(7, '15:00'), v(6, '13:30')].map((x) => ({ ...x, scheduled_start: x.scheduled_start.replace('11-24', '11-25'), scheduled_end: x.scheduled_end.replace('11-24', '11-25'), planned_start: x.planned_start.replace('11-24', '11-25') }));
+  const dayAfter = buildDay(tomorrow, '2026-11-25', now);
+  assert.equal(dayAfter.live.length, 2);
+  assert.equal(nextOfDay(dayAfter, 4), null);
   assert.equal(nextOfDay(null, 4), null);
 });
