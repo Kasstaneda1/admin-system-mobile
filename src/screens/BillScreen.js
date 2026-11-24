@@ -12,6 +12,8 @@
 //   - Diagnosis (D1-APP): the visit's text over the lines, «Printed on the bill», Edit on a
 //     draft (the same sheet as on the visit); an issued bill shows what it printed;
 //   - Preview the bill: what the customer gets, and the issue (BillPreviewScreen).
+//   - Over the approval: the draft grew past what the customer approved by the rule of the
+//     place (the server's needs_new) — the amber bar over the total, «Approve again» in it.
 // An issued bill is frozen: it reads the same, nothing to change.
 // No offline queue here: without the connection the bill shows the words and Try again
 // (the offline draft of the design is a later step).
@@ -27,7 +29,7 @@ import { useAuth } from '../session/AuthContext';
 import { logError } from '../utils/logError';
 import { kindWord, nowWall } from '../myDay/model';
 import { Tag } from '../myDay/parts';
-import { billError, blockersOf, creditNote, deliveryOf, footOf, partiesOf, sectionsOf, statusOf, totalsOf } from '../bill/model';
+import { billError, blockersOf, creditNote, deliveryOf, footOf, overApproval, partiesOf, sectionsOf, statusOf, totalsOf } from '../bill/model';
 import { AddRow, Box, Foot, LineRow, MainButton, PlainButton, SectionHead, TopBar, Totals, billStyles } from '../bill/parts';
 import { PriceBookSheet } from '../bill/PriceBookSheet';
 import { TaxSection, TaxSheet } from '../bill/TaxParts';
@@ -36,6 +38,7 @@ import { billDiagnosis, diagnosisOf } from '../diagnosis/model';
 import { DiagnosisBody, DiagnosisHead, DiagnosisSheet } from '../diagnosis/parts';
 import { useDiagnosis } from '../diagnosis/useDiagnosis';
 import { billView } from '../perms/model';
+import { canApprove } from '../approve/model';
 
 export default function BillScreen({ route, navigation }) {
   const { id, visit = null, create = false } = route.params || {};
@@ -222,6 +225,7 @@ export default function BillScreen({ route, navigation }) {
     blockers: blockersOf(bill),
     creditNote: creditNote(bill),
     tax: taxSection(bill),
+    over: overApproval(bill),
   } : null), [bill, visit, userId, user]); // eslint-disable-line react-hooks/exhaustive-deps
   const draft = !!bill && bill.status === 'draft';
   // The technician's permissions (src/perms, the bill's own flags): the lines (can_edit_lines),
@@ -379,7 +383,12 @@ export default function BillScreen({ route, navigation }) {
         ) : null}
       </ScrollView>
 
-      <Foot foot={foot} bottom={insets.bottom} quiet={perms.paymentsLine}>
+      {/* over the customer's approval: said where the total is, for who issues the bill (USABILITY §6) */}
+      <Foot foot={foot} bottom={insets.bottom} quiet={perms.paymentsLine}
+        over={draft && payments && view.over ? {
+          text: view.over.text,
+          onAgain: !visit || canApprove(visit) ? () => navigation.navigate('Approve', { id, visit, again: true, back: 'Bill' }) : null,
+        } : null}>
         {!payments ? null : draft ? (
           <MainButton text="Preview the bill" icon="eye" off={busy === 'message'}
             onPress={async () => { await saveMessage(); navigation.navigate('BillPreview', { id, visit }); }} />

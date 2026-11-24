@@ -153,13 +153,17 @@ export function PlainButton({ text, icon, onPress, off = false, waiting = false 
 // failure: the answer to the button's press — a refusal of the server, no connection — right over
 // the button, where the technician looks (design tech-app USABILITY_2026-11-24 п. 4: under the
 // form it stayed below the edge and nothing seemed to happen). VoiceOver reads it when it comes.
-export function Foot({ foot, bottom, children, note = null, quiet = null, failure = null }) {
+// over: the bill grew past the customer's approval (model.js overApproval) — the amber bar over
+// the total, where the technician sees it as the line is added, with «Approve again» in it
+// (USABILITY_2026-11-24 §6): { text, onAgain }; onAgain null — the words alone
+export function Foot({ foot, bottom, children, note = null, quiet = null, failure = null, over = null }) {
   useEffect(() => {
     if (failure) AccessibilityInfo.announceForAccessibility(failure);
   }, [failure]);
   return (
     <View style={[styles.foot, { paddingBottom: Math.max(bottom, 10) }]}>
       {quiet ? <Text style={styles.footQuiet}>{quiet}</Text> : null}
+      {over ? <OverBar text={over.text} onAgain={over.onAgain} /> : null}
       {foot ? (
         <View style={styles.footRow} accessible accessibilityLabel={`${foot.text} ${foot.big}`}>
           <Text style={styles.footText} numberOfLines={1}>{foot.text}</Text>
@@ -169,6 +173,27 @@ export function Foot({ foot, bottom, children, note = null, quiet = null, failur
       {failure ? <Box kind="danger" icon="warn" text={failure} /> : null}
       {children}
       {note ? <Text style={styles.footNote}>{note}</Text> : null}
+    </View>
+  );
+}
+
+// The amber bar «Over the approved $230.00 by 32 % · the customer signs again» with its button
+export function OverBar({ text, onAgain = null }) {
+  useEffect(() => {
+    if (text) AccessibilityInfo.announceForAccessibility(text);
+  }, [text]);
+  return (
+    <View style={styles.over}>
+      <View style={styles.overRow} accessible accessibilityLabel={text}>
+        <Icon name="warn" size={20} color={colors.warningFg} style={styles.boxIcon} />
+        <Text style={styles.overText}>{text}</Text>
+      </View>
+      {onAgain ? (
+        <TouchableOpacity style={styles.overButton} onPress={onAgain} accessibilityRole="button" accessibilityLabel="Approve again">
+          <Icon name="doc" size={20} color={colors.warningFg} />
+          <Text style={styles.overButtonText}>Approve again</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -235,6 +260,11 @@ const styles = StyleSheet.create({
   plain: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 14, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
   plainOff: { backgroundColor: colors.bgSunken, borderColor: colors.borderDefault },
   plainText: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
+  over: { gap: 8, padding: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
+  overRow: { flexDirection: 'row', gap: 10 },
+  overText: { flex: 1, fontSize: 16, lineHeight: 21, fontWeight: '700', color: colors.warningFg },
+  overButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44, borderRadius: 12, borderWidth: 1.5, borderColor: colors.warningBorder, backgroundColor: colors.bgCard },
+  overButtonText: { fontSize: 17, fontWeight: '700', color: colors.warningFg },
   foot: { paddingHorizontal: 16, paddingTop: 10, gap: 8, borderTopWidth: 1, borderTopColor: colors.borderDefault, backgroundColor: colors.bgCard },
   footRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   footText: { flex: 1, fontSize: 15, color: colors.fgSecondary },

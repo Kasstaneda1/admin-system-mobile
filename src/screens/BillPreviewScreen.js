@@ -17,7 +17,8 @@ import { colors } from '../constants/colors';
 import { billAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { nowWall } from '../myDay/model';
-import { billError, blockersOf, issueAsk, issuedText, previewOf, retryTax } from '../bill/model';
+import { billError, blockersOf, issueAsk, issuedText, overApproval, previewOf, retryTax } from '../bill/model';
+import { canApprove } from '../approve/model';
 import { previewDiagnosis } from '../diagnosis/model';
 import { Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 
@@ -76,7 +77,7 @@ export default function BillPreviewScreen({ route, navigation }) {
         // the customer approves the new amount on the Approve screen (src/approve)
         Alert.alert('The bill is not issued', failed.text, [
           { text: 'Not now', style: 'cancel' },
-          { text: 'Approve again', onPress: () => navigation.navigate('Approve', { id, visit, again: true }) },
+          { text: 'Approve again', onPress: () => navigation.navigate('Approve', { id, visit, again: true, back: 'Preview' }) },
         ]);
         load();
         return;
@@ -214,6 +215,10 @@ export default function BillPreviewScreen({ route, navigation }) {
 
           {draft ? (
             <Foot bottom={insets.bottom}
+              over={overApproval(bill) ? {
+                text: overApproval(bill).text,
+                onAgain: !visit || canApprove(visit) ? () => navigation.navigate('Approve', { id, visit, again: true, back: 'Preview' }) : null,
+              } : null}
               note={blockers.length ? blockers.map((b) => b.text).join(' ') : 'Issuing gives the number, freezes the bill and makes the PDF. To change it later: Void & reissue.'}>
               <MainButton text={stopped ? 'Issue · the office has to fix it' : 'Issue the bill'} icon="doc"
                 off={stopped} waiting={issuing} onPress={askIssue} />
