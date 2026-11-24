@@ -22,7 +22,7 @@ import Icon from '../myDay/Icon';
 import { Sheet } from '../myDay/visitBar';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { OTHER_CHOICES, VOID_REASONS, chosenMethod, methodWord, numbersOf, payError, shortPerson, voidBody } from '../pay/model';
+import { OTHER_CHOICES, VOID_REASONS, chosenMethod, methodWord, numbersOf, payError, voidBody } from '../pay/model';
 import {
   NOT_A_BILL, TAKE_HINT, blockedOf, depositAmount, depositHead, depositBody, depositError, depositHolderLine, depositRows, depositsOf, recordedLine, withYouRows,
 } from '../deposit/model';
@@ -61,7 +61,6 @@ export default function DepositScreen({ route, navigation }) {
   }, []);
 
   const d = depositsOf(visit);
-  const me = shortPerson(visit && visit.main_technician_name);
   const jobNumber = visit && visit.job_id;
 
   // ---------- take ----------
@@ -297,7 +296,7 @@ export default function DepositScreen({ route, navigation }) {
           {failed ? <Box kind="danger" icon="warn" style={payStyles.gap} text={failed} /> : null}
         </ScrollView>
 
-        <Foot bottom={insets.bottom} note={depositHolderLine(method, me)}>
+        <Foot bottom={insets.bottom} note={depositHolderLine(method)}>
           <MainButton text={word && amount.cents ? `Record ${usd(amount.cents)} deposit` : !amount.cents ? 'Type the amount' : 'Choose how they pay'}
             icon={word && amount.cents ? 'check' : null} off={!method || !amount.cents || otherNeed} waiting={sending} onPress={record} />
         </Foot>

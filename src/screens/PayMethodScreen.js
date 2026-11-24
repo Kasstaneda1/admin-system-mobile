@@ -25,7 +25,7 @@ import { takeCheckPhoto } from '../pay/takeCheckPhoto';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { OTHER_CHOICES, alreadyLine, chosenMethod, dueOf, holderLine, methodWord, payError, paymentBody, paymentInstructionsOf, recordedLine, shortPerson } from '../pay/model';
+import { OTHER_CHOICES, alreadyLine, chosenMethod, dueOf, holderLine, methodWord, payError, paymentBody, paymentInstructionsOf, recordedLine } from '../pay/model';
 import { LOOK_AGAIN, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { canEnterCard, entryLocked, entryOf } from '../pay/cardEntry';
 import { cardSdkReady } from '../pay/stripeSdk';
@@ -69,7 +69,6 @@ export default function PayMethodScreen({ route, navigation }) {
   const label = bill.label || `#${bill.bill_number}`;
   const company = (bill.company && (bill.company.legal_name || bill.company.name)) || 'the company';
   const instructions = paymentInstructionsOf(bill);
-  const me = shortPerson(bill.technician && bill.technician.name);
   const due = dueOf(bill);
   const sub = part ? `Part of ${usd(due)} · ${usd(due - cents)} left after this`
     : (bill.paid_cents || 0) > 0 ? `The rest of ${label}` : `The whole bill ${label}${tile === 'card' ? ' · by card' : ''}`;
@@ -169,7 +168,7 @@ export default function PayMethodScreen({ route, navigation }) {
     navigation.navigate('PayTip', { id, visit, bill, cents, part, note: note.trim(), later, entry });
   };
 
-  const holder = holderLine(method, { me });
+  const holder = holderLine(method);
   const otherNeed = tile === 'other' && (!otherKey || (otherKey === 'else' && !otherName.trim()));
 
   return (

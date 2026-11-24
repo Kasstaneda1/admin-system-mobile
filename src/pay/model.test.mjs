@@ -149,8 +149,10 @@ test('the methods: six tiles, bank transfer inside Other, who has the money', ()
   assert.deepEqual(['cash', 'check', 'other', 'card', 'zelle', 'venmo', 'bank_transfer'].map(inHand), [true, true, true, false, false, false, false]);
   assert.equal(methodWord('bank_transfer'), 'bank transfer');
   assert.equal(methodWord('other', 'PayPal'), 'PayPal');
-  assert.equal(holderLine('cash', { me: 'Ivan P.' }), 'Money on hand: you. The office sees it as cash with Ivan P. until you turn it in.');
-  assert.equal(holderLine('check'), 'Money on hand: you. The office sees it in your checks to turn in.');
+  // no list of checks to turn in and no «turned in» mark: the words promise neither
+  assert.equal(holderLine('cash'), 'Money on hand: you. Turn it in to the office.');
+  assert.equal(holderLine('check'), 'Money on hand: you. Turn it in to the office.');
+  assert.equal(holderLine('other'), 'Money on hand: you. Turn it in to the office.');
   assert.equal(holderLine('zelle'), 'Money on hand: the office. Nothing to turn in.');
   assert.equal(holderLine('cash', { kind: 'tip' }), 'Money on hand: you. The office sees it under Tips on the bill.');
   assert.equal(holderLine(null), null);

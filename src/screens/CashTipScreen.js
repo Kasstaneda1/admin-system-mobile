@@ -13,7 +13,7 @@ import { payAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
 import { usd } from '../bill/model';
-import { alreadyLine, commaHint, holderLine, moneyCents, paymentBody, shortPerson, tipButtons, tipForChoices, tipParts, tipPresetsOf } from '../pay/model';
+import { alreadyLine, commaHint, holderLine, moneyCents, paymentBody, tipButtons, tipForChoices, tipParts, tipPresetsOf } from '../pay/model';
 import { LOOK_AGAIN, answeredCount, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { BigHead, Choice, Field, MethodTiles, Pills, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
@@ -98,7 +98,7 @@ export default function CashTipScreen({ route, navigation }) {
           </Section>
           {failed ? <Box kind="danger" icon="warn" style={payStyles.gap} text={done > 0 ? `${done} of ${parts.length} lines recorded. ${failed}` : failed} /> : null}
         </ScrollView>
-        <Foot bottom={insets.bottom} note={holderLine(method, { kind: 'tip', me: shortPerson(meName) })}>
+        <Foot bottom={insets.bottom} note={holderLine(method, { kind: 'tip' })}>
           <MainButton text={ok ? `Record ${usd(cents)} tip` : 'Type the tip'} icon="check" off={!ok} waiting={sending} onPress={record} />
         </Foot>
       </KeyboardAvoidingView>

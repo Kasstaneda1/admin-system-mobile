@@ -68,9 +68,10 @@ test('the body: a payment without kind; the check photo only for a check', () =>
 });
 
 test('who has the money', () => {
-  assert.equal(depositHolderLine('check'), 'Money on hand: you. The office sees it in your checks to turn in.');
+  assert.equal(depositHolderLine('check'), 'Money on hand: you. Turn it in to the office.');
   assert.equal(depositHolderLine('zelle'), 'Money on hand: the office. Nothing to turn in.');
-  assert.equal(depositHolderLine('cash', 'Ivan P.'), 'Money on hand: you. The office sees it as cash with Ivan P. until you turn it in.');
+  assert.equal(depositHolderLine('cash'), 'Money on hand: you. Turn it in to the office.');
+  assert.equal(depositHolderLine('other'), 'Money on hand: you. Turn it in to the office.');
   assert.equal(depositHolderLine(null), null);
 });
 

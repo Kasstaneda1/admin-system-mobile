@@ -89,11 +89,11 @@ export function depositBody({ cents, method, name = null, note = '', checkNumber
   return { body };
 }
 // Who has the money, under the Record button (design app-take: as a payment)
-export function depositHolderLine(method, me = '') {
+// (the same words as a payment's: turn it in, no list promised)
+export function depositHolderLine(method) {
   if (!method) return null;
   if (['card', 'zelle', 'venmo', 'bank_transfer'].includes(method)) return 'Money on hand: the office. Nothing to turn in.';
-  if (method === 'check') return 'Money on hand: you. The office sees it in your checks to turn in.';
-  return `Money on hand: you. The office sees it as ${method === 'cash' ? 'cash' : 'money'} with ${me || 'you'} until you turn it in.`;
+  return 'Money on hand: you. Turn it in to the office.';
 }
 export const TAKE_HINT = 'Any amount the customer agrees to.';
 export const NOT_A_BILL = 'Not a bill, no tax. The repair or installation bill of this job takes it off.';
