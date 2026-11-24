@@ -132,6 +132,13 @@ test('a recall has no Approve', () => {
   assert.equal(marks(s), 'Bill:todo Given:todo Pay:todo');
 });
 
+test('a diagnostics visit has no Approve step either: Finish first (the tile stays on the screen)', () => {
+  const s = stepsOf(ctx({ visit: visit({ visit_kind: 'diagnostics' }) }));
+  assert.deepEqual(keys(s), ['finish', null]);
+  assert.equal(s.main.label, 'Finish');
+  assert.equal(marks(s), 'Bill:todo Given:todo Pay:todo');
+});
+
 test('an open visit the server does not let finish now (another day): no button', () => {
   const s = stepsOf(ctx({ visit: visit({ status: 'scheduled', actions: [] }) }));
   assert.equal(s.main, null);
