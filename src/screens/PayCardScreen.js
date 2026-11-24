@@ -21,6 +21,7 @@ import { alreadyLine, chargeOf, paymentBody, tipForChoices, tipForLine, tipParts
 import { LOOK_AGAIN, answeredCount, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { Choice, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
+import { useShowFailure } from '../pay/useShowFailure';
 
 export default function PayCardScreen({ route, navigation }) {
   const { id, visit, bill, part = false, note = '', later = null } = route.params || {};
@@ -34,6 +35,7 @@ export default function PayCardScreen({ route, navigation }) {
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(!kept ? null : kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}`
     : answeredCount(kept) > 0 ? 'Press to send the tip again.' : null);
+  const scrollRef = useShowFailure(failed);   // the refusal in sight after Record (QA before build 2)
   const [, redraw] = useReducer((n) => n + 1, 0);
   const attempt = attemptOf(bill.id, 'card');
   const locked = linesLocked(attempt);
@@ -87,7 +89,7 @@ export default function PayCardScreen({ route, navigation }) {
     <SafeAreaView edges={['top']} style={billStyles.screen}>
       <StatusBar style="dark" />
       <TopBar back="Tip" title="Card payment" onBack={() => navigation.goBack()} />
-      <ScrollView style={billStyles.page} contentContainerStyle={payStyles.body}>
+      <ScrollView ref={scrollRef} style={billStyles.page} contentContainerStyle={payStyles.body}>
         <View style={styles.top}>
           <View style={styles.card}>
             <View style={styles.row} accessible accessibilityLabel={`${charge.title} ${usd(cents)}, ${charge.sub}`}>
