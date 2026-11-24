@@ -417,15 +417,17 @@ export function stripOf(day, now) {
 }
 
 // The header's first line: 'Good morning, Ivan · Tue, Nov 10', 'Tomorrow · Wed, Nov 11'
+// The grey line over the summary. The date itself is in the date bar under it (datePick.js):
+// 'Good morning, Ivan' on today, 'Tomorrow', 'Yesterday', 'In 3 days', '5 days ago'
 export function headerLine(date, now, name) {
-  const label = dayLabel(date);
   if (date === now.date) {
     const who = firstName(name);
-    return `${greeting(now.minutes)}${who ? `, ${who}` : ''} · ${label}`;
+    return `${greeting(now.minutes)}${who ? `, ${who}` : ''}`;
   }
-  if (date === addDays(now.date, 1)) return `Tomorrow · ${label}`;
-  if (date === addDays(now.date, -1)) return `Yesterday · ${label}`;
-  return label;
+  const n = daysBetween(now.date, date);
+  if (n === 1) return 'Tomorrow';
+  if (n === -1) return 'Yesterday';
+  return n > 0 ? `In ${n} days` : `${-n} days ago`;
 }
 
 // Visits per day of the week: { 'YYYY-MM-DD': n }, the same rows the day shows

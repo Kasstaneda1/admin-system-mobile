@@ -11,6 +11,8 @@
 // A grey row of the day log the office made since the day was last shown is NEW for this
 // showing of the day: a showing begins when a day is picked, when the screen or the app comes
 // back. Their count is on the My day tab, a dot on the other days of the week that have one.
+// Picking the day (design-mockups/app-myday-date): the date bar ‹ [day ▾] › Today under the
+// summary, the month sheet from the date (dateParts.js); the swipe of the week stays.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -31,6 +33,8 @@ import { seenMark, updateSeen } from '../myDay/seenStore';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { callOffice, primeOffice } from '../myDay/officeStore';
 import { DayRow, EmptyDay, GapRow, NoticeBar, Strip, TabBar, WeekRow } from '../myDay/parts';
+import { DateBar, DaySheet } from '../myDay/dateParts';
+import { knownCounts } from '../myDay/datePick';
 import { hasIssue } from '../myDay/route';
 import { keepRoute, keptRoute, marksOf } from '../myDay/routeMarks';
 import Icon from '../myDay/Icon';
@@ -179,6 +183,17 @@ export default function MyDayScreen({ navigation }) {
   const offer = day && !day.live.length && counts ? nextBusyDay(counts, selected) : null;
   const small = day ? (day.summary.small || offerText(offer)) : '';
 
+  // the month sheet: its dots are the weeks the phone already has, read when it opens
+  const [picking, setPicking] = useState(false);
+  const [pickCounts, setPickCounts] = useState(null);
+  const openPicker = useCallback(() => {
+    setPicking(true);
+    const shown = week && week.sunday === sunday ? week : null;
+    setPickCounts(knownCounts(null, userId, shown, now));
+    readMyDay().then((kept) => setPickCounts(knownCounts(kept, userId, shown, now))).catch(() => {});
+  }, [week, sunday, userId, now]);
+  const pickDay = useCallback((date) => { setPicking(false); setSelected(date); }, []);
+
   const notice = problem && week && week.sunday === sunday
     ? (problem === 'offline' ? offlineText(week.savedAt, now) : failedText(week.savedAt, now))
     : null;
@@ -212,6 +227,8 @@ export default function MyDayScreen({ navigation }) {
             </TouchableOpacity>
           ) : null}
         </View>
+        <DateBar selected={selected} today={now.date} onStep={(n) => setSelected((d) => addDays(d, n))}
+          onPick={openPicker} onToday={() => setSelected(now.date)} />
         {notice ? <NoticeBar text={notice} kind={problem === 'offline' ? 'offline' : 'failed'} /> : null}
         <WeekRow week={dates} counts={counts} marked={fresh.byDay} selected={selected} today={now.date}
           onSelect={setSelected} onWeek={(dir) => setSelected((d) => addDays(d, dir * 7))} />
@@ -245,6 +262,8 @@ export default function MyDayScreen({ navigation }) {
 
       <TabBar navigation={navigation} bottom={insets.bottom} fresh={fresh.total} />
       <PushPrompt bottom={insets.bottom} />
+      <DaySheet visible={picking} selected={selected} today={now.date} counts={pickCounts} bottom={insets.bottom}
+        onPick={pickDay} onClose={() => setPicking(false)} />
     </SafeAreaView>
   );
 }
