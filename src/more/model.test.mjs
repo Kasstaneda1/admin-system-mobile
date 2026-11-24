@@ -80,7 +80,7 @@ test('sign out words', () => {
   assert.deepEqual(SIGN_OUT, {
     button: 'Sign out',
     title: 'Sign out of SEMIX Tech?',
-    text: 'You will need your email and password to sign in again.',
+    text: 'You will need your username and password to sign in again.',
     cancel: 'Cancel',
     confirm: 'Sign out',
   });
