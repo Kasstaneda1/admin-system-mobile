@@ -20,7 +20,7 @@ import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { nowWall, clock, momentWall } from '../myDay/model';
 import { Sheet } from '../myDay/visitBar';
-import { CONSENT_WORDS, DELIVERY_CHOICES, billError, deliverBody, deliveryOf, emailOf, pdfName } from '../bill/model';
+import { CONSENT_WORDS, DELIVERY_CHOICES, billError, billFirst, deliverBody, deliveryOf, emailOf, pdfName } from '../bill/model';
 import { downloadBillPdf } from '../bill/pdf';
 import { signedLine } from '../ack/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
@@ -38,8 +38,9 @@ export default function BillSendScreen({ route, navigation }) {
     try {
       const data = await billAPI.get(id);
       if (n === seq.current) { setBill(data.bill); setProblem(null); }
-      // the signature for it: only a delivered bill has one; not read — the button opens the screen that reads it
-      if (data.bill && data.bill.delivered_at) {
+      // the signature for it: only a delivered bill has one (any issued one for a company without
+      // «Bill before payment»); not read — the button opens the screen that reads it
+      if (data.bill && data.bill.status === 'issued' && (data.bill.delivered_at || !billFirst(data.bill))) {
         const signed = await ackAPI.get(id).catch(() => null);
         if (n === seq.current && signed) setAck(signed.acknowledgment || null);
       }
@@ -139,6 +140,8 @@ export default function BillSendScreen({ route, navigation }) {
   const label = bill ? bill.label || `#${bill.bill_number}` : '';
   const email = useMemo(() => (bill ? emailOf(bill) : null), [bill]);
   const delivered = bill ? deliveryOf(bill, now) : null;
+  // a company without «Bill before payment»: the customer may sign before the bill is given
+  const signsFirst = !!bill && bill.status === 'issued' && !billFirst(bill);
   const issuedAt = bill ? momentWall(bill.issued_at) : null;
 
   if (!bill) {
@@ -203,7 +206,8 @@ export default function BillSendScreen({ route, navigation }) {
       <Foot bottom={insets.bottom} note={delivered ? null : 'Shown on your phone only does not count: the customer must keep a copy.'}>
         {delivered ? null : <MainButton text="Mark as delivered…" icon="check" onPress={() => openMark(null)} />}
         {delivered && !ack ? <MainButton text="Customer signs for the bill" icon="check" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
-        {delivered && ack ? <PlainButton text={signedLine(ack, now.date)} icon="checkc" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
+        {!delivered && signsFirst && !ack ? <PlainButton text="Customer signs for the bill" icon="check" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
+        {(delivered || signsFirst) && ack ? <PlainButton text={signedLine(ack, now.date)} icon="checkc" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
         <PlainButton text="Share the PDF" icon="share" waiting={pdfBusy === 'share'} onPress={sharePdf} />
       </Foot>
 

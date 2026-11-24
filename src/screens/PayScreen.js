@@ -5,7 +5,9 @@
 //   - no issued bill: says so and opens the bill;
 //   - issued, not given: the customer gets the bill first (NYC §2-255) — Give the bill opens
 //     BillSendScreen; «Customer gets the bill later…» asks why, and the payment goes with
-//     before_delivery and the reason (the office sends the bill);
+//     before_delivery and the reason (the office sends the bill); only for a company with
+//     «Bill before payment» (bill_before_payment, BILLS_MV_DESIGN §3.2а) — without it the
+//     customer pays the issued bill at once, nothing about the delivery is asked;
 //   - the amount: the full balance, or part of it with a reason (the server: note_required);
 //   - after a record: the green line, «Collect $X now» for a second method, or Later;
 //   - one's own record in its first 15 minutes: Void with a reason (the row stays crossed out);
@@ -27,7 +29,7 @@ import { clockAmPm, nowWall } from '../myDay/model';
 import { Sheet } from '../myDay/visitBar';
 import { usd } from '../bill/model';
 import {
-  PART_REASONS, VOID_REASONS, amountOf, chipOf, countWord, dueOf, historyOf, laterReasonGiven, moneyText, numbersOf, paidAt, payError, stageOf, voidBody,
+  PART_REASONS, VOID_REASONS, amountOf, chipOf, countWord, dueOf, historyOf, laterOf, laterReasonGiven, moneyText, noBillText, numbersOf, paidAt, payError, stageOf, voidBody,
 } from '../pay/model';
 import { Chip, Field, History, Numbers, Pills, Section, payStyles } from '../pay/parts';
 import { depositPayRows, historyLabel } from '../deposit/model';
@@ -105,8 +107,9 @@ export default function PayScreen({ route, navigation }) {
   const next = () => {
     if (amount.error) return;
     // the bill is still not given: every payment says why (the server asks each one); the
-    // reason of the first payment is the office's, the technician's words go again
-    const sentLater = later || (!bill.delivered_at && laterReasonGiven(bill) ? { reason: 'The bill is sent later, as with the first payment' } : null);
+    // reason of the first payment is the office's, the technician's words go again; a company
+    // without «Bill before payment» asks none
+    const sentLater = laterOf(bill, later);
     navigation.navigate('PayMethod', { id, visit, bill, cents: amount.cents, part: amount.part, note: amount.part ? note.trim() : '', later: sentLater });
   };
 
@@ -176,7 +179,7 @@ export default function PayScreen({ route, navigation }) {
           ) : (
             <>
               <Text style={billStyles.noDataTitle}>Issue the bill first</Text>
-              <Text style={billStyles.noDataText}>The customer pays an issued bill. Open the bill, issue it, then give it to the customer.</Text>
+              <Text style={billStyles.noDataText}>{noBillText(bill)}</Text>
               <View style={styles.stretch}><MainButton text="Open the bill" icon="doc" onPress={() => navigation.navigate('Bill', { id, visit, create: true })} /></View>
             </>
           )}
@@ -226,7 +229,7 @@ export default function PayScreen({ route, navigation }) {
           ) : null}
           {stage === 'none' ? (
             <Box kind="info" icon="doc" style={payStyles.gap} title="Issue the bill first"
-              text="The customer pays an issued bill. Open the bill, issue it, then give it to the customer." />
+              text={noBillText(bill)} />
           ) : null}
           {stage === 'free' ? <Box kind="plain" icon="info" style={payStyles.gap} title="Nothing to pay" text="This bill is $0.00." /> : null}
           {offline ? (

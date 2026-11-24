@@ -1,6 +1,7 @@
 // «Customer signs for the bill» (design-mockups/app-invoice ack): after the issued bill reached
 // the customer, they sign that they got it and choose about the replaced parts (returned / given
-// up in writing, NYC §2-259 / none). Opens from the bill's Send screen once it is delivered.
+// up in writing, NYC §2-259 / none). Opens from the bill's Send screen once it is delivered (a
+// company without «Bill before payment»: once it is issued).
 // src/ack/model.js has the rules; the server keeps and checks them.
 //   - One signature per bill. A bill that is not issued, not delivered or void cannot be signed
 //     for: the screen says what comes first.
@@ -239,7 +240,7 @@ export default function AckScreen({ route, navigation }) {
 
           {!ack && stage !== 'open' ? (
             <View style={styles.pad}>
-              <Box kind="info" icon="info" text={stageText(stage)} />
+              <Box kind="info" icon="info" text={stageText(stage, bill)} />
             </View>
           ) : null}
 
