@@ -108,6 +108,14 @@ export function monthOfParams(params, today = new Date()) {
   return { year, month };
 }
 
+// Payments opened from More: the month switcher ‹ November 2026 › (Salary's year switcher look).
+// A step over the year; no step past this month (no payouts from the future).
+export function stepMonth({ year, month }, n) {
+  const index = year * 12 + month + n;
+  return { year: Math.floor(index / 12), month: ((index % 12) + 12) % 12 };
+}
+export const canNextMonth = ({ year, month }, today = new Date()) => year * 12 + month < today.getFullYear() * 12 + today.getMonth();
+
 // The tab lit under a money screen and its back word: opened from More — More, else Salary
 // (design-mockups/app-more: the tab you came from stays chosen)
 export function cameFrom(params) {
