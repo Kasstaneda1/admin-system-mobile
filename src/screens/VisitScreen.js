@@ -54,7 +54,7 @@ import { billHasParts } from '../ack/model';
 import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
 import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
 import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
-import { billError, billTile, canBill, draftedFrom, knownOf } from '../bill/model';
+import { billError, billTile, canBill, draftedFrom, knownOf, overApproval } from '../bill/model';
 import { Box } from '../bill/parts';
 import { approveError, approveTile, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
@@ -261,10 +261,17 @@ export default function VisitScreen({ route, navigation }) {
   const approve = shown && payments ? approveTile(shown.visit, approveKnown, approveKept, now.date) : null;
   // signed (here or on this phone, not sent yet) — the brand tile with a tick; not signed or not
   // known yet — white with a border, no tick, so «to do» never looks like «done» (Дизайнер, #44)
-  const approveDone = !!approve && (approve.kind === 'signed' || approve.kind === 'pending');
+  // the draft grew over the customer's approval (bill/model overApproval, usability п. 6): the
+  // signature is to do again — the tile is not «done», says why, and opens the new signature
+  const over = !!(known && known.status === 'draft' && overApproval(known.bill));
+  const approveShown = approve && over && approve.kind === 'signed' ? { ...approve, kind: 'over', warn: 'bill is higher · new signature needed' } : approve;
+  const approveDone = !!approveShown && (approveShown.kind === 'signed' || approveShown.kind === 'pending');
+  // the draft bill tile is filled (the next thing to open) — not while the bill is over the approval:
+  // then it is white (billTileQuiet) and Approve again is the one bright place (the Designer on #90)
+  const billFill = !!tile && tile.kind === 'draft' && !over;
   const openApprove = useCallback(() => {
-    if (shown) navigation.navigate('Approve', { id, visit: shown.visit });
-  }, [navigation, id, shown]);
+    if (shown) navigation.navigate('Approve', { id, visit: shown.visit, again: over });
+  }, [navigation, id, shown, over]);
   const drafted = tile && card && card.state === 'closed' && known && known.status === 'draft' ? draftedFrom(known.bill) : null;
   // D3: the estimate this visit asked for (Estimate needed), when the technician may open it
   const estimateRequest = shown ? estimateRequestOf(shown.visit) : null;
@@ -738,33 +745,33 @@ export default function VisitScreen({ route, navigation }) {
             </View>
 
             {steps && steps.strip.length > 1 ? <StepStrip strip={steps.strip} label={stripLabel(steps.strip)} /> : null}
-            {approve ? (
+            {approveShown ? (
               <TouchableOpacity style={[styles.billTile, !approveDone && styles.approveTodo]} onPress={openApprove} accessibilityRole="button"
-                accessibilityLabel={`${approve.title}, ${approve.line}${approve.warn ? `, ${approve.warn}` : ''}`}>
-                <Icon name={approveDone ? 'checkc' : 'doc'} size={26} color={approve.kind === 'signed' ? colors.successFg : approveDone ? colors.brandPressed : colors.fgSecondary} />
+                accessibilityLabel={`${approveShown.title}, ${approveShown.line}${approveShown.warn ? `, ${approveShown.warn}` : ''}`}>
+                <Icon name={approveDone ? 'checkc' : 'doc'} size={26} color={approveShown.kind === 'signed' ? colors.successFg : approveDone ? colors.brandPressed : colors.fgSecondary} />
                 <View style={styles.billTileBody}>
-                  <Text style={styles.billTileTitle}>{approve.title}</Text>
-                  <Text style={[styles.billTileLine, approve.kind === 'signed' && styles.approveSigned, !approveDone && styles.approveTodoLine]}>
-                    {approve.line}
-                    {approve.warn ? <Text style={styles.billTileWarn}>{` · ${approve.warn}`}</Text> : null}
+                  <Text style={styles.billTileTitle}>{approveShown.title}</Text>
+                  <Text style={[styles.billTileLine, approveShown.kind === 'signed' && styles.approveSigned, !approveDone && styles.approveTodoLine]}>
+                    {approveShown.line}
+                    {approveShown.warn ? <Text style={styles.billTileWarn}>{` · ${approveShown.warn}`}</Text> : null}
                   </Text>
                 </View>
                 <Icon name="chev" size={20} color={colors.fgSecondary} />
               </TouchableOpacity>
             ) : null}
             {tile ? (
-              <TouchableOpacity style={[styles.billTile, tile.kind === 'draft' && styles.billTileFill, tile.off && styles.billTileOff]}
+              <TouchableOpacity style={[styles.billTile, billFill && styles.billTileFill, over && styles.billTileQuiet, tile.off && styles.billTileOff]}
                 onPress={openBill} disabled={tile.off} accessibilityRole="button" accessibilityLabel={`${tile.title}, ${tile.line}${tile.warn ? `, ${tile.warn}` : ''}`}
                 accessibilityState={{ disabled: tile.off }}>
-                <Icon name="doc" size={26} color={tile.off ? colors.fgDisabled : tile.kind === 'draft' ? colors.fgOnFill : colors.brandPressed} />
+                <Icon name="doc" size={26} color={tile.off ? colors.fgDisabled : billFill ? colors.fgOnFill : colors.brandPressed} />
                 <View style={styles.billTileBody}>
-                  <Text style={[styles.billTileTitle, tile.kind === 'draft' && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>{tile.title}</Text>
-                  <Text style={[styles.billTileLine, tile.kind === 'draft' && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>
+                  <Text style={[styles.billTileTitle, billFill && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>{tile.title}</Text>
+                  <Text style={[styles.billTileLine, billFill && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>
                     {tile.line}
                     {tile.warn ? <Text style={styles.billTileWarn}>{` · ${tile.warn}`}</Text> : null}
                   </Text>
                 </View>
-                {tile.off ? null : <Icon name="chev" size={20} color={tile.kind === 'draft' ? colors.fgOnFill : colors.fgSecondary} />}
+                {tile.off ? null : <Icon name="chev" size={20} color={billFill ? colors.fgOnFill : colors.fgSecondary} />}
               </TouchableOpacity>
             ) : null}
             {pay ? (
@@ -1017,6 +1024,8 @@ const styles = StyleSheet.create({
   // The Bill tile (design app-invoice visit-done): a draft is the filled one
   billTile: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
   billTileFill: { backgroundColor: colors.brandPressed },
+  // over the approval: white, as a tile with nothing to do now (the Designer on #90)
+  billTileQuiet: { borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   billTileOff: { borderColor: colors.borderDefault, backgroundColor: colors.bgSunken },
   billTileBody: { flex: 1 },
   // «Estimate requested · EST-…» (design visit-diagnosis .vd-est: indigo, as Sold)
