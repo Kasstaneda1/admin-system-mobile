@@ -7,6 +7,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { authAPI, session } from '../services/api';
+import { forgetDevice } from '../push/push';
 import { NOTICE, checkDue, profileFromMe } from './model';
 
 const AuthContext = createContext(null);
@@ -62,9 +63,12 @@ export function AuthProvider({ children }) {
     setState({ status: 'signedIn', user: data.user, notice: null });
   }, []);
 
+  // Sign in shows at once; this phone's push token leaves the server while the session still
+  // holds (bounded, quiet), then the session goes
   const signOut = useCallback(async () => {
     checking.current = false;
     setState({ status: 'signedOut', user: null, notice: null });
+    await forgetDevice();
     await session.signOut();
   }, []);
 

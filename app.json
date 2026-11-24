@@ -3,6 +3,12 @@
     "name": "SEMIX Technician",
     "slug": "semix-technician",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/fb311ee4-83cd-412b-9432-227f5210af87"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -62,8 +68,14 @@
         {
           "enableGooglePay": false
         }
-      ]
+      ],
+      "expo-notifications"
     ],
-    "scheme": "semix-tech"
+    "scheme": "semix-tech",
+    "extra": {
+      "eas": {
+        "projectId": "fb311ee4-83cd-412b-9432-227f5210af87"
+      }
+    }
   }
 }
