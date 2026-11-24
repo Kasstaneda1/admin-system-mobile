@@ -132,13 +132,14 @@ export function signedText(auth, today) {
   return when ? `${how} ${when}` : how;
 }
 // The head over what the customer signs (USABILITY_2026-11-24 §6, QA Б5): the first signature is
-// before the work; a new one over an earlier approval is for the new total — after the work
-// when the visit is finished (the server marks such an approval authorization_late), else
-// still before it
+// before the work; a new one over an earlier approval is for the new total — «the work is
+// done» when the visit is finished (the server marks such an approval authorization_late; not
+// «after the work»: that is the name of the signature for the bill, the Ack screen), else still
+// before it
 export function signHead(latest, visit) {
   if (!latest) return 'BEFORE WORK · THE CUSTOMER AGREES TO';
   return visit && visit.status === 'completed'
-    ? 'AFTER THE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL'
+    ? 'THE WORK IS DONE · THE CUSTOMER AGREES TO THE NEW TOTAL'
     : 'BEFORE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL';
 }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

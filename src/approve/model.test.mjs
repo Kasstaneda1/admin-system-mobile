@@ -188,7 +188,7 @@ test('right after Approve: the clock, a visit not started, or the words for both
 test('signHead: the first signature before the work; a new one for the new total, after the work once the visit is finished', () => {
   assert.equal(signHead(null, { status: 'completed' }), 'BEFORE WORK · THE CUSTOMER AGREES TO');
   assert.equal(signHead(null, null), 'BEFORE WORK · THE CUSTOMER AGREES TO');
-  assert.equal(signHead({ id: 3 }, { status: 'completed' }), 'AFTER THE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL');
+  assert.equal(signHead({ id: 3 }, { status: 'completed' }), 'THE WORK IS DONE · THE CUSTOMER AGREES TO THE NEW TOTAL');
   assert.equal(signHead({ id: 3 }, { status: 'in_progress' }), 'BEFORE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL');
   assert.equal(signHead({ id: 3 }, null), 'BEFORE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL');
 });

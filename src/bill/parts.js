@@ -177,7 +177,7 @@ export function Foot({ foot, bottom, children, note = null, quiet = null, failur
   );
 }
 
-// The amber bar «Over the approved $230.00 by 32 % · the customer signs again» with its button
+// The amber bar «Over the approved $230.00 by 32% · the customer signs again» with its button
 export function OverBar({ text, onAgain = null }) {
   useEffect(() => {
     if (text) AccessibilityInfo.announceForAccessibility(text);

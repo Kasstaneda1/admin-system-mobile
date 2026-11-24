@@ -268,7 +268,7 @@ export function overApproval(bill) {
     return { approved: null, current: Number.isFinite(current) ? current : null, percent: null, text: 'Over the approved amount · the customer signs again' };
   }
   const percent = Math.ceil(((current - approved) * 100) / approved);
-  return { approved, current, percent, text: `Over the approved ${usd(approved)} by ${percent} % · the customer signs again` };
+  return { approved, current, percent, text: `Over the approved ${usd(approved)} by ${percent}% · the customer signs again` };
 }
 
 // «The bill is drafted for you»: what the server put into a new draft, while nobody has changed
