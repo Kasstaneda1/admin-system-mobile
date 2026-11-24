@@ -28,7 +28,6 @@ import {
 } from '../deposit/model';
 import { Choice, Field, MethodTiles, Numbers, Pills, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
-import { useShowFailure } from '../pay/useShowFailure';
 
 export default function DepositScreen({ route, navigation }) {
   const { id, visit: firstVisit, mode: firstMode = 'take', bill = null } = route.params || {};
@@ -73,7 +72,6 @@ export default function DepositScreen({ route, navigation }) {
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(null);
-  const scrollRef = useShowFailure(failed);   // the refusal in sight after Record (QA before build 2)
   const [sent, setSent] = useState(null);                // { rid } of a send without an answer: the fields stay
   const [recorded, setRecorded] = useState(null);        // the deposit just recorded
   const amount = depositAmount(typed);
@@ -257,7 +255,7 @@ export default function DepositScreen({ route, navigation }) {
       <StatusBar style="dark" />
       {back}
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView ref={scrollRef} contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
           <Section label={jobNumber ? `Deposit for job #${jobNumber}` : 'Deposit'}>
             <Field big prefix="$" value={typed} onChange={(t) => { setTyped(t); setFailed(null); }} keyboard="decimal-pad" max={12} placeholder="0.00"
               label={null} a11y="Deposit amount" off={locked} hint={typed && amount.error ? amount.error : null} />
@@ -295,10 +293,9 @@ export default function DepositScreen({ route, navigation }) {
               <Field off={locked} label={null} optional value={note} onChange={setNote} placeholder="What it is for: the part, the date" max={500} a11y="Note" />
             </Section>
           ) : null}
-          {failed ? <Box kind="danger" icon="warn" style={payStyles.gap} text={failed} /> : null}
         </ScrollView>
 
-        <Foot bottom={insets.bottom} note={depositHolderLine(method)}>
+        <Foot bottom={insets.bottom} note={depositHolderLine(method)} failure={failed}>
           <MainButton text={word && amount.cents ? `Record ${usd(amount.cents)} deposit` : !amount.cents ? 'Type the amount' : 'Choose how they pay'}
             icon={word && amount.cents ? 'check' : null} off={!method || !amount.cents || otherNeed} waiting={sending} onPress={record} />
         </Foot>

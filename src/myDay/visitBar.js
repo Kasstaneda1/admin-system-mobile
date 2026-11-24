@@ -144,7 +144,10 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
   const [chosen, setChosen] = useState(initial);
   const [partName, setPartName] = useState('');
   const [partNumber, setPartNumber] = useState('');
-  useEffect(() => { if (visible) { setChosen(initial); setPartName(''); setPartNumber(''); } }, [visible, initial]);
+  // Finish pressed with a required diagnosis empty: the hint turns red (until then grey)
+  const [tried, setTried] = useState(false);
+  useEffect(() => { if (visible) { setChosen(initial); setPartName(''); setPartNumber(''); setTried(false); } }, [visible, initial]);
+  useEffect(() => { setTried(false); }, [chosen]);
   const field = !!diagnosis && diagnosis.asks(chosen);
   const required = field && !!diagnosis.needs && diagnosis.needs(chosen);
   const waits = required && !String(diagnosis.text || '').trim();
@@ -177,7 +180,7 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
           );
         })}
       </View>
-      {field ? <FinishDiagnosisField text={diagnosis.text} failure={diagnosis.failure} sending={saving} required={required} onChangeText={diagnosis.onChangeText} onFocus={toField} /> : null}
+      {field ? <FinishDiagnosisField text={diagnosis.text} failure={diagnosis.failure} sending={saving} required={required} tried={tried} onChangeText={diagnosis.onChangeText} onFocus={toField} /> : null}
       {askPart ? (
         <View style={styles.partRow}>
           <View style={styles.partCell}>
@@ -194,8 +197,14 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
         </View>
       ) : null}
       </ScrollView>
-      <TouchableOpacity style={[styles.main, saving && styles.off, waits && styles.mainWaits]} disabled={saving || waits}
-        onPress={() => onFinish(chosen, field, askPart ? { name: partName, number: partNumber } : null)} accessibilityRole="button"
+      {/* Grey while the diagnosis it needs is empty, and a press then answers in the field above
+          (the hint turns red and the field comes into view) instead of doing nothing */}
+      <TouchableOpacity style={[styles.main, saving && styles.off, waits && styles.mainWaits]} disabled={saving}
+        onPress={() => {
+          if (waits) { setTried(true); toField(); return; }
+          onFinish(chosen, field, askPart ? { name: partName, number: partNumber } : null);
+        }} accessibilityRole="button"
+        accessibilityHint={waits ? 'Write the diagnosis first' : undefined}
         accessibilityState={{ disabled: saving || waits, busy: saving }}>
         {saving ? <ActivityIndicator color={colors.onAccent} /> : (
           <>
@@ -280,7 +289,8 @@ const styles = StyleSheet.create({
   partField: { minHeight: 52, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.borderControl, fontSize: 16, color: colors.fgDefault, backgroundColor: colors.bgCard },
   mainWaits: { backgroundColor: colors.bgSunken },
   mainTextWaits: { color: colors.fgDisabled },
-  sheetScrollBody: { gap: 10 },
+  // room under the last field: Part needed / Part # never end under Finish visit (QA Б13)
+  sheetScrollBody: { gap: 10, paddingBottom: 16 },
   grab: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, marginBottom: 6, backgroundColor: colors.borderStrong },
   step: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
   title: { fontSize: 24, fontWeight: '800', color: colors.fgDefault },

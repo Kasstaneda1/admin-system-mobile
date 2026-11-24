@@ -10,18 +10,22 @@ import { DIAGNOSIS_HINT, DIAGNOSIS_MAX, DIAGNOSIS_REQUIRED_HINT, diagnosisToSend
 // or «· required» (Д-2: a diagnostics visit, Estimate needed) — empty, a red frame and the words
 // why; the text of the visit to start with. failure: its save got no answer; onFocus: the sheet
 // scrolls the field into view above the keyboard
-export function FinishDiagnosisField({ text, failure, sending, required = false, onChangeText, onFocus }) {
+// tried: Finish was pressed with the field empty. Until then «required» is a quiet grey line; after,
+// red with the field's border (design tech-app USABILITY_2026-11-24 п. 4: red before the technician
+// began to write read as a mistake)
+export function FinishDiagnosisField({ text, failure, sending, required = false, tried = false, onChangeText, onFocus }) {
   const missing = required && !diagnosisToSend(text);
+  const loud = missing && tried;
   return (
     <View style={s.finish}>
       <Text style={s.finishLabel}>Diagnosis<Text style={s.finishOpt}>{required ? ' · required' : ' · optional'}</Text></Text>
-      <TextInput style={[s.finishField, missing && s.finishMissing]} value={text} onChangeText={onChangeText} onFocus={onFocus} multiline editable={!sending}
+      <TextInput style={[s.finishField, loud && s.finishMissing]} value={text} onChangeText={onChangeText} onFocus={onFocus} multiline editable={!sending}
         maxLength={DIAGNOSIS_MAX} placeholder={DIAGNOSIS_HINT} placeholderTextColor={colors.fgMutedField}
         textAlignVertical="top" accessibilityLabel={required ? 'Diagnosis, required, printed on the bill' : 'Diagnosis, printed on the bill'} />
       {missing ? (
-        <View style={s.need} accessibilityRole="alert">
-          <Icon name="warn" size={16} color={colors.dangerFg} />
-          <Text style={s.needText}>{DIAGNOSIS_REQUIRED_HINT}</Text>
+        <View style={s.need} accessibilityRole={loud ? 'alert' : undefined}>
+          <Icon name={loud ? 'warn' : 'info'} size={16} color={loud ? colors.dangerFg : colors.fgSecondary} />
+          <Text style={[s.needText, !loud && s.needQuiet]}>{DIAGNOSIS_REQUIRED_HINT}</Text>
         </View>
       ) : null}
       {failure ? (
@@ -43,6 +47,7 @@ const s = StyleSheet.create({
   finishMissing: { borderColor: colors.dangerBorder },
   need: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   needText: { flex: 1, fontSize: 15, lineHeight: 20, fontWeight: '600', color: colors.dangerFg },
+  needQuiet: { fontWeight: '500', color: colors.fgSecondary },
   fail: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
   failText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.warningFg },
 });

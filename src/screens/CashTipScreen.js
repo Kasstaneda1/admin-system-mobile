@@ -16,8 +16,7 @@ import { usd } from '../bill/model';
 import { alreadyLine, commaHint, holderLine, moneyCents, paymentBody, tipButtons, tipForChoices, tipParts, tipPresetsOf } from '../pay/model';
 import { LOOK_AGAIN, answeredCount, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { BigHead, Choice, Field, MethodTiles, Pills, Section, payStyles } from '../pay/parts';
-import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
-import { useShowFailure } from '../pay/useShowFailure';
+import { Foot, MainButton, TopBar, billStyles } from '../bill/parts';
 
 // a tip by Other would need its name: the five tiles are enough for a tip
 const TIP_METHODS = ['cash', 'check', 'card', 'zelle', 'venmo'];
@@ -34,7 +33,6 @@ export default function CashTipScreen({ route, navigation }) {
   const [method, setMethod] = useState(view ? view.method : 'cash');
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(kept && kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}` : null);
-  const scrollRef = useShowFailure(failed);   // the refusal in sight after Record (QA before build 2)
   const [, redraw] = useReducer((n) => n + 1, 0);
   const attempt = attemptOf(bill.id, 'tip');
   const locked = linesLocked(attempt);
@@ -83,7 +81,7 @@ export default function CashTipScreen({ route, navigation }) {
       <StatusBar style="dark" />
       <TopBar back="Payment" title={method === 'cash' ? 'Cash tip' : 'Tip'} onBack={() => navigation.goBack()} />
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView ref={scrollRef} contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
           <BigHead label={`Tip · not part of ${label}`} big={usd(ok ? cents : 0)} sub="No tax. The bill and its balance do not change." />
           <Section label="How much">
             <Pills items={[...buttons.map((b) => ({ key: b.key, label: b.sub ? `${b.label} · ${b.sub}` : b.label })), { key: 'custom', label: 'Custom' }]}
@@ -98,9 +96,9 @@ export default function CashTipScreen({ route, navigation }) {
           <Section label="Pay with">
             <MethodTiles value={method} onPick={setMethod} only={TIP_METHODS} off={sending || locked} />
           </Section>
-          {failed ? <Box kind="danger" icon="warn" style={payStyles.gap} text={done > 0 ? `${done} of ${parts.length} lines recorded. ${failed}` : failed} /> : null}
         </ScrollView>
-        <Foot bottom={insets.bottom} note={holderLine(method, { kind: 'tip' })}>
+        <Foot bottom={insets.bottom} note={holderLine(method, { kind: 'tip' })}
+          failure={failed ? (done > 0 ? `${done} of ${parts.length} lines recorded. ${failed}` : failed) : null}>
           <MainButton text={ok ? `Record ${usd(cents)} tip` : 'Type the tip'} icon="check" off={!ok} waiting={sending} onPress={record} />
         </Foot>
       </KeyboardAvoidingView>

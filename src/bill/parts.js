@@ -2,8 +2,8 @@
 // with its back word and title, a section with its label and link, a line of the bill, the
 // «+ Add …» row, a box of words, the totals and the bar at the bottom. Sizes in pt, colours
 // only tokens; the words come from model.js.
-import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { AccessibilityInfo, ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from '../myDay/Icon';
 
@@ -150,7 +150,13 @@ export function PlainButton({ text, icon, onPress, off = false, waiting = false 
 
 // The bar at the bottom: 'Total $250.41 · balance due   $150.41' over the buttons
 // quiet: one quiet line in place of «Total … balance due» (no money for this technician, src/perms)
-export function Foot({ foot, bottom, children, note = null, quiet = null }) {
+// failure: the answer to the button's press — a refusal of the server, no connection — right over
+// the button, where the technician looks (design tech-app USABILITY_2026-11-24 п. 4: under the
+// form it stayed below the edge and nothing seemed to happen). VoiceOver reads it when it comes.
+export function Foot({ foot, bottom, children, note = null, quiet = null, failure = null }) {
+  useEffect(() => {
+    if (failure) AccessibilityInfo.announceForAccessibility(failure);
+  }, [failure]);
   return (
     <View style={[styles.foot, { paddingBottom: Math.max(bottom, 10) }]}>
       {quiet ? <Text style={styles.footQuiet}>{quiet}</Text> : null}
@@ -160,6 +166,7 @@ export function Foot({ foot, bottom, children, note = null, quiet = null }) {
           <Text style={styles.footBig}>{foot.big}</Text>
         </View>
       ) : null}
+      {failure ? <Box kind="danger" icon="warn" text={failure} /> : null}
       {children}
       {note ? <Text style={styles.footNote}>{note}</Text> : null}
     </View>

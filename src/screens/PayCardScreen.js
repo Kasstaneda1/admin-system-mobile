@@ -21,7 +21,6 @@ import { alreadyLine, chargeOf, paymentBody, tipForChoices, tipForLine, tipParts
 import { LOOK_AGAIN, answeredCount, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from '../pay/attempts';
 import { Choice, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
-import { useShowFailure } from '../pay/useShowFailure';
 
 export default function PayCardScreen({ route, navigation }) {
   const { id, visit, bill, part = false, note = '', later = null } = route.params || {};
@@ -35,7 +34,6 @@ export default function PayCardScreen({ route, navigation }) {
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(!kept ? null : kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}`
     : answeredCount(kept) > 0 ? 'Press to send the tip again.' : null);
-  const scrollRef = useShowFailure(failed);   // the refusal in sight after Record (QA before build 2)
   const [, redraw] = useReducer((n) => n + 1, 0);
   const attempt = attemptOf(bill.id, 'card');
   const locked = linesLocked(attempt);
@@ -89,7 +87,7 @@ export default function PayCardScreen({ route, navigation }) {
     <SafeAreaView edges={['top']} style={billStyles.screen}>
       <StatusBar style="dark" />
       <TopBar back="Tip" title="Card payment" onBack={() => navigation.goBack()} />
-      <ScrollView ref={scrollRef} style={billStyles.page} contentContainerStyle={payStyles.body}>
+      <ScrollView style={billStyles.page} contentContainerStyle={payStyles.body}>
         <View style={styles.top}>
           <View style={styles.card}>
             <View style={styles.row} accessible accessibilityLabel={`${charge.title} ${usd(cents)}, ${charge.sub}`}>
@@ -122,12 +120,9 @@ export default function PayCardScreen({ route, navigation }) {
             </View>
           </Section>
         ) : null}
-        {failed ? (
-          <Box kind="danger" icon="warn" style={payStyles.gap}
-            text={paidDone ? `The payment ${usd(cents)} is recorded, the tip is not yet. ${failed}` : failed} />
-        ) : null}
       </ScrollView>
       <Foot bottom={insets.bottom}
+        failure={failed ? (paidDone ? `The payment ${usd(cents)} is recorded, the tip is not yet. ${failed}` : failed) : null}
         note={tipCents > 0 ? `${parts.length + 1 === 2 ? 'Two' : 'Three'} lines: payment ${usd(cents)} and tip ${usd(tipCents)}. The bill and its tax stay as they are.` : 'Money on hand: the office. Nothing to turn in.'}>
         <MainButton text={paidDone ? 'Record the tip again' : `Charged · record ${usd(total)}`} icon="check" waiting={sending} onPress={record} />
       </Foot>
