@@ -31,7 +31,7 @@ import PayCardScreen from './src/screens/PayCardScreen';
 import PayCardEntryScreen from './src/screens/PayCardEntryScreen';
 import PayOnlineScreen from './src/screens/PayOnlineScreen';
 import CashTipScreen from './src/screens/CashTipScreen';
-import HomeScreen from './src/screens/HomeScreen';
+import MoreScreen from './src/screens/MoreScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
 import SalaryMonthScreen from './src/screens/SalaryMonthScreen';
 import SalaryJobsScreen from './src/screens/SalaryJobsScreen';
@@ -68,9 +68,9 @@ export default function App() {
 }
 
 // Signed out: only the sign-in screen. Signed in: the technician's screens, My day first
-// (TECH_APP_MY_DAY_SPEC.md §3), so there is no way back to sign in but Logout; the end of a
+// (TECH_APP_MY_DAY_SPEC.md §3), so there is no way back to sign in but Sign out; the end of a
 // session swaps the set by itself. The older screens open from My day's bar: Salary, Parts,
-// and More (the old menu, Home, with Warehouse, Payments, Receipts, Unpaid and Logout).
+// and More (the route Home: the technician, Warehouse, Payments, Receipts, Unpaid, Sign out).
 function Screens() {
   const { status, user } = useAuth();
 
@@ -216,8 +216,8 @@ function Screens() {
             />
             <Stack.Screen
               name="Home"
-              component={HomeScreen}
-              options={{ title: 'More' }}
+              component={MoreScreen}
+              options={{ headerShown: false, title: 'More' }}
             />
             <Stack.Screen
               name="Salary"
