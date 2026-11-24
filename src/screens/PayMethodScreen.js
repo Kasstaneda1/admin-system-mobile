@@ -31,7 +31,6 @@ import { canEnterCard, entryLocked, entryOf } from '../pay/cardEntry';
 import { cardSdkReady } from '../pay/stripeSdk';
 import { BigHead, CheckPhotoRow, Choice, Field, MethodTiles, Section, payStyles } from '../pay/parts';
 import { Box, Foot, MainButton, TopBar, billStyles } from '../bill/parts';
-import { useShowFailure } from '../pay/useShowFailure';
 
 export default function PayMethodScreen({ route, navigation }) {
   const { id, visit, bill, part = false, note: partNote = '', later = null } = route.params || {};
@@ -61,7 +60,6 @@ export default function PayMethodScreen({ route, navigation }) {
     return () => { alive.current = false; };
   }, []);
   const [failed, setFailed] = useState(kept && kept.uncertain ? `No answer from the server. ${LOOK_AGAIN}` : null);
-  const scrollRef = useShowFailure(failed);   // the refusal in sight after Record (QA before build 2)
   const [, redraw] = useReducer((n) => n + 1, 0);
   const locked = linesLocked(attemptOf(bill.id, 'method'));
   // the check's photo: { uri, bytes, fileId } — an attempt kept from before brings its own
@@ -178,7 +176,7 @@ export default function PayMethodScreen({ route, navigation }) {
       <StatusBar style="dark" />
       <TopBar back="Payment" title="How they pay" onBack={() => navigation.goBack()} />
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView ref={scrollRef} contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
           <BigHead label={`Collect for ${label}`} big={usd(cents)} sub={sub} />
           <Section label="Pay with">
             <MethodTiles value={tile} onPick={pickTile} off={sending || locked || cardKept || entryKept} />
@@ -240,10 +238,9 @@ export default function PayMethodScreen({ route, navigation }) {
                 placeholderTextColor={colors.fgMutedField} accessibilityLabel="Note" />
             </Section>
           ) : null}
-          {failed ? <Box kind="danger" icon="warn" style={payStyles.gap} text={failed} /> : null}
         </ScrollView>
 
-        <Foot bottom={insets.bottom} note={tile === 'card' ? 'Hand the phone to the customer for the tip.' : holder}>
+        <Foot bottom={insets.bottom} note={tile === 'card' ? 'Hand the phone to the customer for the tip.' : holder} failure={failed}>
           {tile === 'card' ? (
             <MainButton text="Next · add tip" icon="chev" onPress={toTip} />
           ) : (
