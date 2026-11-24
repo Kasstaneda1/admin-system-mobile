@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   deliverBody, deliveryOf, emailOf, pdfName, DELIVERY_CHOICES,
-  amountOf, balanceOf, retryTax, billError, billTile, blockersOf, bookRows, canBill, changedText, creditNote, dateText, draftedFrom,
+  amountOf, balanceOf, retryTax, billError, overApproval, billTile, blockersOf, bookRows, canBill, changedText, creditNote, dateText, draftedFrom,
   editError, editHint, editOf, editTotal, footOf, knownOf, lineBadge, lineName, lineSub, newEdit, newLineBody, partiesOf,
   patchOf, percentText, previewOf, priceCents, priceText, qtyMilli, qtyStep, qtyText, sectionsOf, statusOf, taxOf, totalsOf,
   showQty, unitWord, usd, visitDates,
@@ -341,4 +341,32 @@ test('issue: 409 diagnosis_missing in words; a bill without a diagnosis where it
   assert.deepEqual(issueAsk({ warnings: [{ code: 'diagnosis_missing', message: 'No diagnosis on this bill' }] }), { title: 'No diagnosis on this bill. Issue anyway?', text: ISSUE_TEXT });
   assert.deepEqual(issueAsk({ warnings: [{ code: 'credit_not_paid' }] }), { title: 'Issue the bill?', text: ISSUE_TEXT });
   assert.deepEqual(issueAsk({}), { title: 'Issue the bill?', text: ISSUE_TEXT });
+});
+
+// USABILITY_2026-11-24 §6: the bill over the customer's approval, by the server's needs_new
+test('overApproval: the server says over — the amber words with the approved amount and the percent rounded up', () => {
+  const auth = (over) => ({ status: 'draft', authorization: { rule: 'nyc_20', repair: true, changed: true, needs_new: true, ...over } });
+  assert.deepEqual(overApproval(auth({ current_cents: 30360, authorization: { id: 4, amount_cents: 23000 } })),
+    { approved: 23000, current: 30360, percent: 32, text: 'Over the approved $230.00 by 32% · the customer signs again' });
+  // 20.3 % never reads «20 %»; a small NJ excess never reads «0 %»
+  assert.equal(overApproval(auth({ current_cents: 12030, authorization: { amount_cents: 10000 } })).percent, 21);
+  assert.equal(overApproval(auth({ rule: 'nj_any', current_cents: 10001, authorization: { amount_cents: 10000 } })).text,
+    'Over the approved $100.00 by 1% · the customer signs again');
+  // the amounts not known (no approval record, zero): the words without them
+  assert.equal(overApproval(auth({ current_cents: 5000, authorization: null })).text, 'Over the approved amount · the customer signs again');
+  assert.equal(overApproval(auth({ current_cents: 5000, authorization: { amount_cents: 0 } })).percent, null);
+});
+
+test('overApproval: nothing over, not a draft, or only above the quoted fee — no bar', () => {
+  assert.equal(overApproval(null), null);
+  assert.equal(overApproval({ status: 'draft' }), null);
+  assert.equal(overApproval({ status: 'draft', authorization: null }), null);
+  // changed but within the rule: the server says needs_new false
+  assert.equal(overApproval({ status: 'draft', authorization: { changed: true, needs_new: false, current_cents: 11000, authorization: { amount_cents: 10000 } } }), null);
+  // the app never counts the rule itself
+  assert.equal(overApproval({ status: 'draft', authorization: { needs_new: false, current_cents: 99000, authorization: { amount_cents: 10000 } } }), null);
+  // above the fee quoted at booking does not stop the issue
+  assert.equal(overApproval({ status: 'draft', authorization: { needs_new: false, fee_exceeded: true, current_cents: 99000 } }), null);
+  // an issued bill is frozen
+  assert.equal(overApproval({ status: 'issued', authorization: { needs_new: true, current_cents: 30000, authorization: { amount_cents: 10000 } } }), null);
 });

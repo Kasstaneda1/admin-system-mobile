@@ -131,6 +131,17 @@ export function signedText(auth, today) {
   const how = auth.method === 'oral' ? 'Agreed by phone' : 'Signed';
   return when ? `${how} ${when}` : how;
 }
+// The head over what the customer signs (USABILITY_2026-11-24 §6, QA Б5): the first signature is
+// before the work; a new one over an earlier approval is for the new total — «the work is
+// done» when the visit is finished (the server marks such an approval authorization_late; not
+// «after the work»: that is the name of the signature for the bill, the Ack screen), else still
+// before it
+export function signHead(latest, visit) {
+  if (!latest) return 'BEFORE WORK · THE CUSTOMER AGREES TO';
+  return visit && visit.status === 'completed'
+    ? 'THE WORK IS DONE · THE CUSTOMER AGREES TO THE NEW TOTAL'
+    : 'BEFORE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL';
+}
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function shortDay(date) {
   const [, m, d] = String(date).split('-').map(Number);

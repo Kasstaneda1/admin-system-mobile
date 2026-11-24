@@ -249,6 +249,28 @@ export function creditNote(bill) {
   return w && typeof w.message === 'string' ? w.message.replace(/^Diagnostics credit:\s*/i, '').replace(/^./, (c) => c.toUpperCase()) : null;
 }
 
+// Over the customer's approval (USABILITY_2026-11-24 §6): the draft has grown past what the
+// customer approved, by the rule of the job's place — the same check that stops the issue
+// (409 authorization_exceeded, billError → reapprove). The server says it: bill.authorization
+// (backend billDraft.js) { needs_new, current_cents, authorization: { amount_cents } }, both
+// amounts before tax — the app does not count the rule (NYC more than 20 %, NJ any excess).
+// The percent only words it: rounded up, so 20.3 % never reads «20 %» and a small NJ excess
+// never reads «0 %». fee_exceeded (no repair, above the fee quoted at booking) does not stop
+// the issue: not shown here.
+// → { approved, current, percent, text } or null (not a draft, nothing over)
+export function overApproval(bill) {
+  if (!bill || bill.status !== 'draft') return null;
+  const auth = bill.authorization;
+  if (!auth || auth.needs_new !== true) return null;
+  const approved = auth.authorization ? Number(auth.authorization.amount_cents) : NaN;
+  const current = auth.current_cents === null || auth.current_cents === undefined ? NaN : Number(auth.current_cents);
+  if (!(approved > 0) || !Number.isFinite(current) || current <= approved) {
+    return { approved: null, current: Number.isFinite(current) ? current : null, percent: null, text: 'Over the approved amount · the customer signs again' };
+  }
+  const percent = Math.ceil(((current - approved) * 100) / approved);
+  return { approved, current, percent, text: `Over the approved ${usd(approved)} by ${percent}% · the customer signs again` };
+}
+
 // «The bill is drafted for you»: what the server put into a new draft, while nobody has changed
 // it. null once a line was changed or added by hand, or for an issued bill.
 export function draftedFrom(bill) {

@@ -29,14 +29,16 @@ import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody, usd } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 import {
-  ESTIMATE_CHOICES, ESTIMATE_RIGHT, agreedOf, authBody, pickEstimate, countText, estimatePriceOf, estimatePriceText, writtenText, latestOf, needsEstimateChoice, ruleText, signedText, termsLineOf, clockBoxNow,
+  ESTIMATE_CHOICES, ESTIMATE_RIGHT, agreedOf, authBody, pickEstimate, countText, estimatePriceOf, estimatePriceText, writtenText, latestOf, needsEstimateChoice, ruleText, signHead, signedText, termsLineOf, clockBoxNow,
 } from '../approve/model';
 import { approvals } from '../approve/store';
 import { downloadApprovalPdf } from '../approve/pdf';
 import SignaturePad from '../approve/SignaturePad';
 
 export default function ApproveScreen({ route, navigation }) {
-  const { id, visit, again: askAgain = false } = route.params || {};
+  // back: the word of the back button — the screen it goes back to (Visit, or Bill / Preview
+  // when the bill over the approval sent the customer to sign again)
+  const { id, visit, again: askAgain = false, back = 'Visit' } = route.params || {};
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -179,7 +181,7 @@ export default function ApproveScreen({ route, navigation }) {
   };
 
   // ---------- the screen ----------
-  const top = <TopBar back="Visit" title="Approve the repair" onBack={() => navigation.goBack()} />;
+  const top = <TopBar back={back} title="Approve the repair" onBack={() => navigation.goBack()} />;
 
   if (state.status !== 'ready') {
     return (
@@ -244,7 +246,7 @@ export default function ApproveScreen({ route, navigation }) {
           {signing && !waitingOnPhone ? (
             <>
               <View style={styles.pad}>
-                <Text style={styles.label}>BEFORE WORK · THE CUSTOMER AGREES TO</Text>
+                <Text style={styles.label}>{signHead(latest, visit)}</Text>
                 {agreed ? (
                   <View style={styles.card}>
                     <View style={styles.rowTop}>
@@ -326,7 +328,7 @@ export default function ApproveScreen({ route, navigation }) {
               {latest && again ? <TouchableOpacity onPress={() => setAgain(false)} accessibilityRole="button"><Text style={styles.cancelAgain}>Keep the earlier approval</Text></TouchableOpacity> : null}
             </>
           ) : waitingOnPhone ? (
-            <PlainButton text="Back to the visit" icon="back" onPress={() => navigation.goBack()} />
+            <PlainButton text={`Back to the ${back === 'Preview' ? 'bill preview' : back.toLowerCase()}`} icon="back" onPress={() => navigation.goBack()} />
           ) : (
             <PlainButton text="The customer signs again" icon="replay" onPress={() => { setAgain(true); setDrawn(false); setEstimate(null); setSaid(null); }} />
           )}

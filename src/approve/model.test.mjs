@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ESTIMATE_CHOICES, RESIGN_WORDS, agreedOf, approveError, approveTile, authBody, canApprove, copyName, countText, estimatePriceOf, estimatePriceText, estimateText, writtenText,
-  latestOf, needsEstimateChoice, pickEstimate, ruleText, signedText, termsLineOf, signedAtOf, withSignedAt, CLOCK_SKEW_MS, CLOCK_QUEUED_WORDS, clockOff, queuedClockText, clockBoxNow,
+  latestOf, needsEstimateChoice, pickEstimate, ruleText, signHead, signedText, termsLineOf, signedAtOf, withSignedAt, CLOCK_SKEW_MS, CLOCK_QUEUED_WORDS, clockOff, queuedClockText, clockBoxNow,
 } from './model.js';
 
 // The design's draft (design-mockups/app-invoice «Числа сходятся»): $230.00 before tax, $250.41 with it
@@ -182,4 +182,13 @@ test('right after Approve: the clock, a visit not started, or the words for both
   // the clock not known: not blamed, and the visit's start not blamed either
   assert.deepEqual(clockBoxNow({ clock: null }, { omw_at: null }), general);
   assert.deepEqual(clockBoxNow({ clock: false }, null), general);
+});
+
+// USABILITY_2026-11-24 §6, QA Б5: the head over a new signature
+test('signHead: the first signature before the work; a new one for the new total, after the work once the visit is finished', () => {
+  assert.equal(signHead(null, { status: 'completed' }), 'BEFORE WORK · THE CUSTOMER AGREES TO');
+  assert.equal(signHead(null, null), 'BEFORE WORK · THE CUSTOMER AGREES TO');
+  assert.equal(signHead({ id: 3 }, { status: 'completed' }), 'THE WORK IS DONE · THE CUSTOMER AGREES TO THE NEW TOTAL');
+  assert.equal(signHead({ id: 3 }, { status: 'in_progress' }), 'BEFORE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL');
+  assert.equal(signHead({ id: 3 }, null), 'BEFORE WORK · THE CUSTOMER AGREES TO THE NEW TOTAL');
 });
