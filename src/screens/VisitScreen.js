@@ -116,26 +116,37 @@ export default function VisitScreen({ route, navigation }) {
   // The customer's signature after the work (src/ack), for the visit's steps (steps.js): read with
   // an issued bill that has replaced parts — only then is it a step. { status, signed } | null.
   // The phone's signatures go first (ack/queue.js); one of this visit still on the phone counts as
-  // signed (it goes by itself), as the approval's.
+  // signed (it goes by itself), as the approval's. One the server refused while it waited
+  // (ackRefused) marks the Bill tile until the customer signs again (the Designer on #91): the
+  // customer has likely gone, the technician must not leave without the signature.
   const [ackKnown, setAckKnown] = useState(null);
+  const [ackRefused, setAckRefused] = useState(false);
   const ackSeq = useRef(0);
   const loadAck = useCallback(async (bill) => {
-    if (!bill || bill.status !== 'issued' || !billHasParts(bill)) return;
+    if (!bill || bill.status !== 'issued') { setAckRefused(false); return; }
+    const parts = billHasParts(bill);
     const seq = ++ackSeq.current;
-    setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'loading' }));
+    if (parts) setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'loading' }));
+    let kept = null;
     if (userId !== null) {
       await acks.flushAll(userId).catch(() => {});
-      const kept = await acks.pendingOf(id, userId).catch(() => null);
+      kept = await acks.pendingOf(id, userId).catch(() => null);
       if (seq !== ackSeq.current) return;
-      if (kept && !kept.failed) { setAckKnown({ status: 'ok', signed: true }); return; }
+      setAckRefused(!!(kept && kept.failed));
+      if (kept && !kept.failed) { if (parts) setAckKnown({ status: 'ok', signed: true }); return; }
     }
+    if (!parts && !kept) return;                       // no step and nothing refused: nothing to read
     try {
       const data = await ackAPI.get(id);
-      if (seq === ackSeq.current) setAckKnown({ status: 'ok', signed: !!(data && data.acknowledgment) });
+      if (seq !== ackSeq.current) return;
+      const signed = !!(data && data.acknowledgment);
+      // signed after all (the office, another phone): the refused one on this phone is moot
+      if (signed && kept) { acks.drop(id, userId).catch(() => {}); setAckRefused(false); }
+      if (parts) setAckKnown({ status: 'ok', signed });
     } catch (error) {
       if (seq !== ackSeq.current) return;
       if (error.response?.status >= 500) logError('Error loading the bill acknowledgment:', error);
-      setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'unknown' }));
+      if (parts) setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'unknown' }));
     }
   }, [id, userId]);
 
@@ -278,6 +289,12 @@ export default function VisitScreen({ route, navigation }) {
   // the draft bill tile is filled (the next thing to open) — not while the bill is over the approval:
   // then it is white (billTileQuiet) and Approve again is the one bright place (the Designer on #90)
   const billFill = !!tile && tile.kind === 'draft' && !over;
+  // a signature for the bill refused while it waited on the phone: the tile says so and opens the
+  // signature screen (its yellow box has the reason)
+  const billShown = tile && ackRefused ? { ...tile, warn: tile.warn ? `${tile.warn} · ${ACK_REFUSED_WARN}` : ACK_REFUSED_WARN } : tile;
+  const openAck = useCallback(() => {
+    if (shown) navigation.navigate('Ack', { id, visit: shown.visit, back: 'Visit' });
+  }, [navigation, id, shown]);
   const openApprove = useCallback(() => {
     if (shown) navigation.navigate('Approve', { id, visit: shown.visit, again: over });
   }, [navigation, id, shown, over]);
@@ -768,19 +785,20 @@ export default function VisitScreen({ route, navigation }) {
                 <Icon name="chev" size={20} color={colors.fgSecondary} />
               </TouchableOpacity>
             ) : null}
-            {tile ? (
-              <TouchableOpacity style={[styles.billTile, billFill && styles.billTileFill, over && styles.billTileQuiet, tile.off && styles.billTileOff]}
-                onPress={openBill} disabled={tile.off} accessibilityRole="button" accessibilityLabel={`${tile.title}, ${tile.line}${tile.warn ? `, ${tile.warn}` : ''}`}
-                accessibilityState={{ disabled: tile.off }}>
-                <Icon name="doc" size={26} color={tile.off ? colors.fgDisabled : billFill ? colors.fgOnFill : colors.brandPressed} />
+            {billShown ? (
+              <TouchableOpacity style={[styles.billTile, billFill && styles.billTileFill, over && styles.billTileQuiet, billShown.off && styles.billTileOff]}
+                onPress={ackRefused ? openAck : openBill} disabled={billShown.off} accessibilityRole="button"
+                accessibilityLabel={`${billShown.title}, ${billShown.line}${billShown.warn ? `, ${billShown.warn}` : ''}`}
+                accessibilityState={{ disabled: billShown.off }}>
+                <Icon name="doc" size={26} color={billShown.off ? colors.fgDisabled : billFill ? colors.fgOnFill : colors.brandPressed} />
                 <View style={styles.billTileBody}>
-                  <Text style={[styles.billTileTitle, billFill && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>{tile.title}</Text>
-                  <Text style={[styles.billTileLine, billFill && styles.billTileOnFill, tile.off && styles.billTileTextOff]}>
-                    {tile.line}
-                    {tile.warn ? <Text style={styles.billTileWarn}>{` · ${tile.warn}`}</Text> : null}
+                  <Text style={[styles.billTileTitle, billFill && styles.billTileOnFill, billShown.off && styles.billTileTextOff]}>{billShown.title}</Text>
+                  <Text style={[styles.billTileLine, billFill && styles.billTileOnFill, billShown.off && styles.billTileTextOff]}>
+                    {billShown.line}
+                    {billShown.warn ? <Text style={styles.billTileWarn}>{` · ${billShown.warn}`}</Text> : null}
                   </Text>
                 </View>
-                {tile.off ? null : <Icon name="chev" size={20} color={billFill ? colors.fgOnFill : colors.fgSecondary} />}
+                {billShown.off ? null : <Icon name="chev" size={20} color={billFill ? colors.fgOnFill : colors.fgSecondary} />}
               </TouchableOpacity>
             ) : null}
             {pay ? (
@@ -992,6 +1010,9 @@ function Section({ label, children }) {
     </View>
   );
 }
+
+// The Bill tile's words when the customer's signature for it was refused while it waited (#91)
+const ACK_REFUSED_WARN = 'signature not accepted · new signature needed';
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgCard },

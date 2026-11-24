@@ -46,12 +46,9 @@ export function makeApproveQueue({ queue, api, signedAtFirst = SIGNED_AT_FIRST_S
 //   errorOf(error) — { kind, text }: 'offline' and 'failed' wait, the kinds in `drops` take the
 //     entry off the phone, any other marks it (never sent again by itself);
 //   withMoment(body, at) — the body of a send from the queue (the first one too with momentFirst);
-//   before(entry) — before a send from the queue (not the first one): null, or { kind, text } that
-//     marks the entry without sending it (ack: the bill it was signed for is not the visit's any
-//     more); a throw of it waits like the send's;
 //   sentOf(data) — what a sent result carries of the server's answer ({ result: 'sent', ...sentOf });
-//   sign({ visitId, userId, body, at, ...more }) keeps `more` in the entry (ack: the bill).
-export function makeSignatureQueue({ queue, api, errorOf, withMoment = (body) => body, momentFirst = false, drops = ['gone'], before = null, sentOf = () => ({}) }) {
+//   sign({ visitId, userId, body, at, ...more }) keeps `more` in the entry.
+export function makeSignatureQueue({ queue, api, errorOf, withMoment = (body) => body, momentFirst = false, drops = ['gone'], sentOf = () => ({}) }) {
   const running = new Set(); // keys being sent right now
 
   const list = async () => {
@@ -66,13 +63,6 @@ export function makeSignatureQueue({ queue, api, errorOf, withMoment = (body) =>
     if (running.has(entry.key)) return { result: 'busy' };
     running.add(entry.key);
     try {
-      if (!first && before) {
-        const stop = await before(entry);
-        if (stop) {
-          await mark(entry, stop);
-          return { result: stop.kind, failed: stop };
-        }
-      }
       const body = first && !momentFirst ? entry.body : withMoment(entry.body, entry.at);
       const data = await api.sign(entry.visitId, body);
       await change((b) => b.filter((e) => e.key !== entry.key));

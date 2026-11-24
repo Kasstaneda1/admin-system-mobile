@@ -14,6 +14,7 @@
 //   - the company's latest acknowledgment terms go by their version (409 when they changed).
 import { billFirst, usd } from '../bill/model.js';
 import { clock, momentWall } from '../myDay/model.js';
+import { clockOff } from '../approve/model.js';
 
 // ---------- the replaced parts ----------
 // The title the technician reads and, under it, the customer's words exactly as the copy prints
@@ -112,6 +113,10 @@ export function ackBody({ name, png, parts, terms, requestId, bill }) {
   if (!png) return { error: 'The customer signs in the box first.' };
   const body = { signer_name: signer.slice(0, 200), signature_png: png, replaced_parts: parts, client_request_id: requestId };
   if (terms) body.terms_version_id = terms.id;
+  // ACK-T: the issued PDF the customer was shown — the server refuses the signature for another
+  // one (409 bill_changed: the office voided the bill or issued another while it waited)
+  const sha = bill && bill.pdf && typeof bill.pdf.sha256 === 'string' ? bill.pdf.sha256 : null;
+  if (sha) body.pdf_sha256 = sha;
   return { body };
 }
 
@@ -136,9 +141,15 @@ function shortDay(date) {
 //   offline — no answer (the signature waits on the phone, ack/queue.js); signed — the customer already signed for this bill (read it again);
 //   stage — the bill is not ready for a signature (draft, void, not delivered);
 //   resign — the company's terms changed: the customer reads them and signs again;
+//   bill_changed — the PDF the customer saw is not the bill's any more (ACK-T); clock — the time of
+//   the signature does not fit the bill (signed_at_out_of_bounds);
 //   refused — the server's reason in words; gone — the visit is no longer this technician's or
 //   has no bill; failed — the server broke.
-export function ackError(error) {
+// The time of the signature refused (400 signed_at_out_of_bounds): the clock first when it is
+// known to be off (the answer's Date header, approve/model clockOff)
+export const ACK_CLOCK_WORDS = 'The time it was signed doesn’t fit this bill. Ask the customer to sign again.';
+export const ACK_BILL_CHANGED = 'The bill changed after the customer signed: they sign for the bill there is now.';
+export function ackError(error, nowMs = Date.now()) {
   const response = error && error.response;
   const status = response ? response.status : 0;
   const data = (response && response.data) || {};
@@ -148,6 +159,11 @@ export function ackError(error) {
   if (status === 409 && data.code === 'not_issued') return { kind: 'stage', text: stageText('draft') };
   if (status === 409 && data.code === 'not_delivered') return { kind: 'stage', text: stageText('undelivered') };
   if (status === 409 && data.code === 'void') return { kind: 'stage', text: stageText('void') };
+  if (status === 409 && data.code === 'bill_changed') return { kind: 'bill_changed', text: ACK_BILL_CHANGED };
+  if (status === 400 && data.code === 'signed_at_out_of_bounds') {
+    const off = clockOff(error, nowMs);
+    return { kind: 'clock', clock: off, text: off === true ? `The phone’s clock is off: set the date and time to automatic. ${ACK_CLOCK_WORDS}` : ACK_CLOCK_WORDS };
+  }
   if (status === 409 && data.code === 'terms_changed') return { kind: 'resign', text: 'The company’s terms changed — the customer reads them and signs again.' };
   if (status === 404) return { kind: 'gone', text: 'This visit was changed by the office' };
   if (status === 409 || status === 403 || status === 400) {

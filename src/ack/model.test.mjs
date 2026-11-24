@@ -125,3 +125,20 @@ test('one card (no parts on the bill) is chosen at once; with parts nothing is c
   assert.equal(initialParts({ ...BILL, lines: [{ kind: 'labor' }, { kind: 'part' }] }), null);
   assert.equal(initialParts({ ...BILL, lines: [{ kind: 'part', warranty: true }] }), null);
 });
+
+test('ACK-T: the body carries the PDF the customer was shown; the server refusing the bill or the time', async () => {
+  const { ACK_BILL_CHANGED, ACK_CLOCK_WORDS } = await import('./model.js');
+  const bill = { status: 'issued', lines: [], pdf: { sha256: 'cd'.repeat(32) } };
+  assert.equal(ackBody({ name: 'A', png: 'p', parts: 'none', requestId: 'r', bill }).body.pdf_sha256, 'cd'.repeat(32));
+  assert.equal('pdf_sha256' in ackBody({ name: 'A', png: 'p', parts: 'none', requestId: 'r', bill: { ...bill, pdf: null } }).body, false);
+  assert.equal('pdf_sha256' in ackBody({ name: 'A', png: 'p', parts: 'none', requestId: 'r' }).body, false);
+  const err = (status, data, headers = {}) => ({ response: { status, data, headers } });
+  assert.deepEqual(ackError(err(409, { code: 'bill_changed', bill_id: 9 })), { kind: 'bill_changed', text: ACK_BILL_CHANGED });
+  const now = Date.UTC(2026, 10, 24, 20, 0);
+  const fine = ackError(err(400, { code: 'signed_at_out_of_bounds' }, { date: new Date(now).toUTCString() }), now);
+  assert.deepEqual([fine.kind, fine.clock, fine.text], ['clock', false, ACK_CLOCK_WORDS]);
+  const off = ackError(err(400, { code: 'signed_at_out_of_bounds' }, { date: new Date(now - 3600000).toUTCString() }), now);
+  assert.deepEqual([off.kind, off.clock], ['clock', true]);
+  assert.match(off.text, /^The phone’s clock is off/);
+  assert.equal(ackError(err(400, { code: 'signed_at_out_of_bounds' })).clock, null, 'no Date header: not known');
+});

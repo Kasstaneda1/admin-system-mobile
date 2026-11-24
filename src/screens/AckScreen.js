@@ -12,8 +12,9 @@
 //     version goes with the signature. None — nothing is sent about them.
 //   - Kept on the phone, then sent (ack/queue.js, USABILITY §10): without the connection
 //     «Signed · saved on this phone», it goes by itself when the phone is back online, the screen
-//     can be left. Refused meanwhile (the terms or the bill changed) — the screen says why, the
-//     customer signs again. The copy comes once the office has the signature. Opening the screen
+//     can be left. Every send carries the moment of the signature and the PDF the customer saw
+//     (ACK-T). Refused meanwhile (the terms or the bill changed, its time) — the screen says why
+//     (the visit's Bill tile too), the customer signs again. The copy comes once the office has the signature. Opening the screen
 //     still needs the server (the bill, the terms).
 //   - A failed try is said over «Save the signature» (the Designer, §10).
 //   - Signed: the line «Signed 12:50 · parts returned» and the customer's copy (Share the copy /
@@ -38,7 +39,8 @@ import SignaturePad from '../approve/SignaturePad';
 import { acks } from '../ack/store';
 
 export default function AckScreen({ route, navigation }) {
-  const { id, visit } = route.params || {};
+  // back: the word of the back button — the screen it goes back to (Bill, or Visit from its Bill tile)
+  const { id, visit, back = 'Bill' } = route.params || {};
   const insets = useSafeAreaInsets();
   const today = nowWall(Date.now()).date;
   const { user } = useAuth();
@@ -116,7 +118,7 @@ export default function AckScreen({ route, navigation }) {
     if (error) { setSaid({ kind: 'refused', text: error }); return; }
     setSending(true);
     setSaid(null);
-    const r = await acks.sign({ visitId: id, userId, body, at: signedMs, billId: bill ? bill.id : null });
+    const r = await acks.sign({ visitId: id, userId, body, at: signedMs });
     setSending(false);
     if (r.result === 'sent') {
       setPending(null);
@@ -130,7 +132,7 @@ export default function AckScreen({ route, navigation }) {
     setSaid(r.failed);
     if (r.result === 'gone') {
       Alert.alert('The visit changed', r.failed.text, [{ text: 'OK', onPress: () => navigation.goBack() }]);
-    } else if (r.result === 'resign' || r.result === 'bill_changed') {
+    } else if (r.result === 'resign' || r.result === 'bill_changed' || r.result === 'clock') {
       startOver();
       load();
     } else if (r.result === 'signed' || r.result === 'stage') {
@@ -178,7 +180,7 @@ export default function AckScreen({ route, navigation }) {
   };
 
   // ---------- the screen ----------
-  const top = <TopBar back="Bill" title="Customer signs for the bill" wide onBack={() => navigation.goBack()} />;
+  const top = <TopBar back={back} title="Customer signs for the bill" wide onBack={() => navigation.goBack()} />;
 
   if (state.status !== 'ready') {
     return (
@@ -352,7 +354,7 @@ export default function AckScreen({ route, navigation }) {
           {signing ? (
             <MainButton text="Save the signature" icon="check" onPress={sign} waiting={sending} off={!drawn || !name.trim() || mustChoose} />
           ) : (
-            <PlainButton text="Back to the bill" icon="back" onPress={() => navigation.goBack()} />
+            <PlainButton text={back === 'Visit' ? 'Back to the visit' : 'Back to the bill'} icon="back" onPress={() => navigation.goBack()} />
           )}
         </Foot>
       </KeyboardAvoidingView>
@@ -375,7 +377,7 @@ const KEPT_TITLE = 'Signed · saved on this phone';
 // why: 'offline' — no connection at the signature; 'failed' — the office's server broke; null — not
 // known (the screen opened again on a signature already on the phone)
 const keptText = (why) => `${why === 'failed'
-  ? 'The office’s server did not answer. The signature goes again by itself.'
+  ? 'The office’s server did not answer. The phone sends the signature again by itself.'
   : why === 'offline'
     ? 'No connection. The signature goes to the office by itself when the phone is back online.'
     : 'The signature goes to the office by itself when the phone is online.'} The customer’s copy is here once the office has it.`;
