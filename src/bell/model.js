@@ -11,7 +11,7 @@
 // The kinds a technician gets (NOTIFICATIONS_DESIGN.md §7.3; the Architect's «NT», QUEUE):
 //   M1 — mentioned in an estimate's messages: { estimate_number, author, text };
 //   E1 — put on an estimate: { estimate_number } (author, customer when the server adds them);
-//   T7 — a part of their estimate arrived: { estimate_number } (part, customer — the same);
+//   T7 — a part of their estimate arrived: { estimate_number } (author, customer, part, part_number — NT п. 10);
 //   T1–T6 — their visit (NT-BE, not on the server yet): { visit_kind, customer, start, end } and
 //     T2 was_start / was_end, T3 reason reassigned | helper_removed, T4 reason cancelled |
 //     client_rescheduled, T5 text / author, T6 fields ⊂ address, problem, access;
@@ -58,6 +58,8 @@ export function initialsOf(name) {
   return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
 }
 
+// T7's part: 'drain pump DC97-17025' (name_parts up to 80, part_number up to 40; the Architect, NT п. 10)
+const partOf = (data) => [str(data.part, 80), str(data.part_number, 40)].filter(Boolean).join(' ') || null;
 const FIELD_WORDS = { address: 'the address', problem: 'the problem', access: 'the access notes' };
 const joinAnd = (list) => (list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`);
 
@@ -92,7 +94,7 @@ export function itemView(item, { today = null } = {}) {
         sub: subOf(customer, time), open: estimateOpen };
     case 'T7':
       return { ...base, avatar: { icon: 'box', tone: 'part' },
-        line: [{ text: 'Part arrived', bold: true }, { text: ` for ${estimate}${str(data.part) ? `: ${str(data.part, 80)}` : ''}` }],
+        line: [{ text: 'Part arrived', bold: true }, { text: ` for ${estimate}${partOf(data) ? `: ${partOf(data)}` : ''}` }],
         sub: subOf(customer, time), open: estimateOpen ? { ...estimateOpen, highlight: 'arrived' } : null };
     case 'T1':
       return { ...base, avatar: whoAvatar,

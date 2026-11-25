@@ -51,7 +51,10 @@ test('E1 and T7 as the server writes them today (only the number) and with autho
   assert.deepEqual(t7.avatar, { icon: 'box', tone: 'part' });
   assert.equal(t7.sub, '11:02 AM');
   assert.deepEqual(t7.open, { screen: 'Estimate', id: 1234, highlight: 'arrived' });
-  assert.equal(words(itemView(item({ kind: 'T7', data: { estimate_number: 1188, part: 'drain pump DC97-17025' } }))), 'Part arrived for Estimate #1188: drain pump DC97-17025');
+  const t7full = itemView(item({ kind: 'T7', data: { estimate_number: 1188, part: 'drain pump', part_number: 'DC97-17025', customer: 'Kim Jones', author: null } }));
+  assert.equal(words(t7full), 'Part arrived for Estimate #1188: drain pump DC97-17025');
+  assert.equal(t7full.sub, 'Jones K. · 11:02 AM');
+  assert.equal(words(itemView(item({ kind: 'T7', data: { estimate_number: 1188, part_number: 'DC97-17025' } }))), 'Part arrived for Estimate #1188: DC97-17025');
 });
 
 test('T1–T6 by the Architect\'s data (NT): the office\'s words, the window, opens the visit', () => {
