@@ -2,13 +2,14 @@
 // (final-finish, final-noaccess). What shows comes from actions.js barOf; nothing here
 // decides what may be pressed. Sizes in pt, colours only tokens.
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from './Icon';
 import { TAG_FAMILIES } from './parts';
 import { FinishDiagnosisField } from '../diagnosis/field';
 import { PART_NAME_MAX, PART_NUMBER_MAX, finishTitle, notFixedAt } from './actions';
 import { ThreeButtons } from '../bill/ThreeParts';
+import { keyboardFirst } from './keyboardTap';
 
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
 // when it got no answer (Try again sends the same request); blocked: why nothing can be
@@ -213,7 +214,8 @@ export function Sheet({ visible, onClose, children, bottom, keyboard = false, on
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss} statusBarTranslucent>
       <Wrap style={styles.sheetWrap} {...wrapProps}>
-        <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel="Close" />
+        {/* the keyboard up: a tap on the dim part only puts it away (myDay/keyboardTap.js) */}
+        <Pressable style={styles.scrim} onPress={keyboardFirst(Keyboard, onClose)} accessibilityLabel="Close" />
         <View style={[styles.sheet, { paddingBottom: Math.max(bottom, 16) }]} accessibilityViewIsModal>
           <View style={styles.grab} />
           {children}
@@ -267,6 +269,9 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
   // the field is under the choices: once the keyboard is up, bring it into view (simulator check)
   const scroll = useRef(null);
   const toField = () => setTimeout(() => scroll.current && scroll.current.scrollToEnd({ animated: true }), 300);
+  // the keyboard up (diagnosis, Part needed): the first tap on a choice or a button only puts it
+  // away — nothing is chosen and the visit is not finished by a stray tap (myDay/keyboardTap.js)
+  const tap = (fn) => keyboardFirst(Keyboard, fn);
   return (
     <Sheet visible={visible} onClose={saving ? () => {} : onClose} bottom={bottom} keyboard={!!diagnosis}>
       <ScrollView ref={scroll} style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollBody} keyboardShouldPersistTaps="handled">
@@ -290,7 +295,7 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
                     <View style={styles.dividerLine} />
                   </View>
                 ) : null}
-                <TouchableOpacity style={[styles.choice, on && styles.choiceOn]} onPress={() => setChosen(c.outcome)}
+                <TouchableOpacity style={[styles.choice, on && styles.choiceOn]} onPress={tap(() => setChosen(c.outcome))}
                   accessibilityRole="radio" accessibilityState={{ checked: on }}>
                   <ChoiceBody choice={c} />
                   <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
@@ -300,7 +305,7 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
                     <Icon name="warn" size={18} color={colors.warningFg} />
                     <Text style={styles.noDepositText} accessibilityRole="alert">{warn.text}</Text>
                     {warn.take && onTakeDeposit ? (
-                      <TouchableOpacity style={styles.noDepositLink} onPress={() => onTakeDeposit(c.outcome)} disabled={saving} accessibilityRole="button">
+                      <TouchableOpacity style={styles.noDepositLink} onPress={tap(() => onTakeDeposit(c.outcome))} disabled={saving} accessibilityRole="button">
                         <Text style={styles.noDepositLinkText}>Take a deposit</Text>
                       </TouchableOpacity>
                     ) : null}
@@ -331,10 +336,10 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
       {/* Grey while the diagnosis it needs is empty, and a press then answers in the field above
           (the hint turns red and the field comes into view) instead of doing nothing */}
       <TouchableOpacity style={[styles.main, saving && styles.off, waits && styles.mainWaits]} disabled={saving}
-        onPress={() => {
+        onPress={tap(() => {
           if (waits) { setTried(true); toField(); return; }
           onFinish(chosen, field, askPart ? { name: partName, number: partNumber } : null);
-        }} accessibilityRole="button"
+        })} accessibilityRole="button"
         accessibilityHint={waits ? 'Write the diagnosis first' : undefined}
         accessibilityState={{ disabled: saving || waits, busy: saving }}>
         {saving ? <ActivityIndicator color={colors.onAccent} /> : (
@@ -344,7 +349,7 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
           </>
         )}
       </TouchableOpacity>
-      <TouchableOpacity style={styles.plain} onPress={onClose} disabled={saving} accessibilityRole="button">
+      <TouchableOpacity style={styles.plain} onPress={tap(onClose)} disabled={saving} accessibilityRole="button">
         <Text style={styles.plainText}>Back</Text>
       </TouchableOpacity>
     </Sheet>
