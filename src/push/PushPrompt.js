@@ -52,7 +52,7 @@ export default function PushPrompt({ bottom }) {
 const styles = StyleSheet.create({
   body: { gap: 10, paddingTop: 4 },
   badge: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandSoft },
-  title: { fontSize: 20, lineHeight: 26, fontWeight: '800', color: colors.fgDefault },
+  title: { fontSize: 20, lineHeight: 26, fontWeight: '700', color: colors.fgDefault },
   text: { fontSize: 16, lineHeight: 22, color: colors.fgSecondary },
   yes: { marginTop: 6, minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brand },
   yesText: { fontSize: 17, fontWeight: '700', color: colors.fgOnFill },

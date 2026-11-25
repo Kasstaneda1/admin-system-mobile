@@ -898,7 +898,7 @@ export default function VisitScreen({ route, navigation }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={colors.brand} />}>
           {updated ? (
             <View style={styles.upd} accessible accessibilityRole="alert" accessibilityLabel={`${updated.title}. ${updated.line}`}>
-              <Icon name="refresh" size={18} color={colors.infoFg} style={styles.updIcon} />
+              <Icon name="refresh" size={18} color={colors.fgSecondary} style={styles.updIcon} />
               <View style={styles.updBody}>
                 <Text style={styles.updTitle}>{updated.title}</Text>
                 <Text style={styles.updLine}>{updated.line}</Text>
@@ -965,7 +965,7 @@ export default function VisitScreen({ route, navigation }) {
             {approveShown ? (
               <TouchableOpacity style={[styles.billTile, !approveDone && styles.approveTodo]} onPress={openApprove} accessibilityRole="button"
                 accessibilityLabel={`${approveShown.title}, ${approveShown.line}${approveShown.warn ? `, ${approveShown.warn}` : ''}`}>
-                <Icon name={approveDone ? 'checkc' : 'doc'} size={26} color={approveShown.kind === 'signed' ? colors.successFg : approveDone ? colors.brandPressed : colors.fgSecondary} />
+                <Icon name={approveDone ? 'checkc' : 'doc'} size={26} color={approveShown.kind === 'signed' ? colors.fgSecondary : approveDone ? colors.brandPressed : colors.fgSecondary} />
                 <View style={styles.billTileBody}>
                   <Text style={styles.billTileTitle}>{approveShown.title}</Text>
                   <Text style={[styles.billTileLine, approveShown.kind === 'signed' && styles.approveSigned, !approveDone && styles.approveTodoLine]}>
@@ -996,7 +996,7 @@ export default function VisitScreen({ route, navigation }) {
               <TouchableOpacity style={[styles.billTile, pay.kind === 'paid' && styles.payPaid, ['wait', 'free', 'offline', 'loading'].includes(pay.kind) && styles.billTileOff]}
                 onPress={openPay} disabled={pay.off} accessibilityRole="button" accessibilityLabel={`${pay.title}, ${pay.line}`} accessibilityState={{ disabled: pay.off }}>
                 <Icon name={pay.kind === 'paid' ? 'checkc' : 'money'} size={26}
-                  color={pay.kind === 'paid' ? colors.successFg : ['wait', 'free', 'offline', 'loading'].includes(pay.kind) ? colors.fgSecondary : colors.brandPressed} />
+                  color={pay.kind === 'paid' ? colors.fgSecondary : ['wait', 'free', 'offline', 'loading'].includes(pay.kind) ? colors.fgSecondary : colors.brandPressed} />
                 <View style={styles.billTileBody}>
                   <Text style={styles.billTileTitle}>{pay.title}</Text>
                   <Text style={[styles.billTileLine, ['due', 'left', 'show'].includes(pay.kind) && styles.payOwed, pay.kind === 'paid' && styles.approveSigned,
@@ -1010,7 +1010,7 @@ export default function VisitScreen({ route, navigation }) {
                 onPress={openDeposit} disabled={!deposit.tap} accessibilityRole="button" accessibilityLabel={`Deposit, ${deposit.line}`}
                 accessibilityState={{ disabled: !deposit.tap }}>
                 <Icon name={deposit.done ? 'checkc' : 'cash'} size={26}
-                  color={deposit.kind === 'ok' ? colors.successFg : deposit.off ? colors.fgSecondary : colors.brandPressed} />
+                  color={deposit.kind === 'ok' ? colors.fgSecondary : deposit.off ? colors.fgSecondary : colors.brandPressed} />
                 <View style={styles.billTileBody}>
                   <Text style={styles.billTileTitle}>Deposit</Text>
                   <Text style={[styles.billTileLine, deposit.kind === 'ok' && styles.approveSigned, deposit.off && styles.payQuiet]}>{deposit.line}</Text>
@@ -1024,12 +1024,12 @@ export default function VisitScreen({ route, navigation }) {
             {estimateRequest ? (
               <TouchableOpacity style={styles.estReq} onPress={() => navigation.navigate('Estimate', { id: estimateRequest.id, from: 'Visit' })}
                 accessibilityRole="button" accessibilityLabel={`${estimateRequest.title}, ${estimateRequest.line}`}>
-                <Icon name="doc" size={22} color={colors.indigoFg} />
+                <Icon name="doc" size={22} color={colors.fgSecondary} />
                 <View style={styles.billTileBody}>
                   <Text style={styles.estReqTitle}>{estimateRequest.title}</Text>
                   <Text style={styles.estReqLine}>{estimateRequest.line}</Text>
                 </View>
-                <Icon name="chev" size={20} color={colors.indigoFg} />
+                <Icon name="chev" size={20} color={colors.fgSecondary} />
               </TouchableOpacity>
             ) : null}
 
@@ -1037,7 +1037,7 @@ export default function VisitScreen({ route, navigation }) {
             {card.office ? (
               <View style={styles.office} accessibilityRole="summary" onLayout={placed('office')}>
                 <View style={styles.officeTop}>
-                  <Icon name="message" size={18} color={colors.infoFg} />
+                  <Icon name="message" size={18} color={colors.fgSecondary} />
                   <Text style={styles.officeTitle}>From the office</Text>
                 </View>
                 {card.office.messages.map((m, i) => {
@@ -1230,18 +1230,20 @@ const styles = StyleSheet.create({
   factValue: { fontSize: 15, lineHeight: 21, color: colors.fgDefault },
   // a block of the body without a frame (Problem, Bill, Diagnosis): small caps over plain text
   block: { marginTop: 16, gap: 6 },
-  blockLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
+  blockLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.8, color: colors.fgSecondary },
   struck: { textDecorationLine: 'line-through', color: colors.fgSecondary },
   // «Updated by the office» (design .upd) and a field that changed (.chg, .chg-was)
-  upd: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
+  // calm: a grey 1 pt frame on white, black words (no blue)
+  upd: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   updIcon: { marginTop: 1 },
   updBody: { flex: 1 },
-  updTitle: { fontSize: 16, lineHeight: 21, fontWeight: '700', color: colors.infoFg },
-  updLine: { fontSize: 15, lineHeight: 20, color: colors.infoFg },
-  chg: { marginTop: 4, marginHorizontal: -2, paddingVertical: 8, paddingLeft: 12, paddingRight: 10, borderLeftWidth: 4, borderLeftColor: colors.infoBorder, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, borderTopRightRadius: 10, borderBottomRightRadius: 10, backgroundColor: colors.infoBg },
+  updTitle: { fontSize: 16, lineHeight: 21, fontWeight: '700', color: colors.fgDefault },
+  updLine: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
+  chg: { marginTop: 4, marginHorizontal: -2, paddingVertical: 8, paddingLeft: 12, paddingRight: 10, borderLeftWidth: 2, borderLeftColor: colors.borderStrong },
   chgWas: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  chgPill: { paddingHorizontal: 6, height: 18, lineHeight: 18, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
-  chgText: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: colors.infoFg },
+  // CHANGED / NEW: the one framed label of the calm look (as New on My day), not a blue pill
+  chgPill: { paddingHorizontal: 5, height: 19, lineHeight: 17, borderRadius: 4, borderWidth: 1, borderColor: colors.borderStrong, overflow: 'hidden', color: colors.fgDefault, fontSize: 12, fontWeight: '600' },
+  chgText: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: colors.fgSecondary },
   // The Bill tile (design app-invoice visit-done): a draft is the filled one
   billTile: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, marginTop: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
   billTileFill: { backgroundColor: colors.brandPressed },
@@ -1250,40 +1252,43 @@ const styles = StyleSheet.create({
   billTileOff: { borderColor: colors.borderDefault, backgroundColor: colors.bgSunken },
   billTileBody: { flex: 1 },
   // «Estimate requested · EST-…» (design visit-diagnosis .vd-est: indigo, as Sold)
-  estReq: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.indigoBorder, backgroundColor: colors.indigoBg },
-  estReqTitle: { fontSize: 17, fontWeight: '800', color: colors.indigoFg },
-  estReqLine: { fontSize: 14, fontWeight: '600', color: colors.indigoFg },
+  // calm: white, a grey 1 pt frame (no indigo)
+  estReq: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, marginTop: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  estReqTitle: { fontSize: 16, fontWeight: '700', color: colors.fgDefault },
+  estReqLine: { fontSize: 14, color: colors.fgSecondary },
   billTileTitle: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
   billTileLine: { fontSize: 15, fontWeight: '600', color: colors.brandPressed },
   billTileOnFill: { color: colors.fgOnFill },
   billTileTextOff: { color: colors.fgDisabled },
   billTileWarn: { color: colors.warningFg },
   // Pay (design payments pay-states): owed in warning brown, paid green, waiting grey
-  payPaid: { borderColor: colors.successBorder, backgroundColor: colors.successBg },
+  payPaid: { borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   payOwed: { color: colors.warningFg },
   payQuiet: { color: colors.fgSecondary },
   approveTodo: { borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   approveTodoLine: { color: colors.fgSecondary },
-  approveSigned: { color: colors.successFg },
+  approveSigned: { color: colors.fgSecondary },
   drafted: { marginTop: 10 },
   depositHint: { marginTop: 8, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   // a permission the office switched off (src/perms): one quiet line in place of what is hidden
   permLine: { marginTop: 10, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   // the code bold, not large (calm: «Get in» is information, not a warning)
   accessCode: { fontWeight: '700', color: colors.fgDefault },
-  office: { marginTop: 10, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4, borderRadius: 14, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
+  // «From the office» (calm): white, a grey 1 pt frame, black words — no blue box
+  office: { marginTop: 14, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   officeTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  officeTitle: { fontSize: 15, fontWeight: '700', color: colors.infoFg },
+  officeTitle: { fontSize: 15, fontWeight: '700', color: colors.fgDefault },
   officeNote: { paddingBottom: 8, paddingLeft: 26 },
-  officeNoteNext: { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.infoBorder },
+  officeNoteNext: { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.borderSubtle },
   officeHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  officeHead: { fontSize: 13, fontWeight: '600', color: colors.infoFg },
-  officeNew: { height: 18, lineHeight: 18, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
-  officeText: { fontSize: 16, lineHeight: 22, color: colors.infoFg },
+  officeHead: { fontSize: 13, fontWeight: '600', color: colors.fgSecondary },
+  officeNew: { height: 19, lineHeight: 17, paddingHorizontal: 5, borderRadius: 4, borderWidth: 1, borderColor: colors.borderStrong, overflow: 'hidden', color: colors.fgDefault, fontSize: 12, fontWeight: '600' },
+  officeText: { fontSize: 16, lineHeight: 22, color: colors.fgDefault },
   officeMore: { minHeight: 44, justifyContent: 'center', paddingLeft: 26 },
-  officeMoreText: { fontSize: 15, fontWeight: '700', color: colors.infoFg },
-  section: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 18, gap: 8, borderTopWidth: 10, borderTopColor: colors.bgPage },
-  sectionLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
+  officeMoreText: { fontSize: 15, fontWeight: '600', color: colors.brandPressed, textDecorationLine: 'underline' },
+  // a section (calm): a thin rule over it, not a grey band; the label 600, spaced 0.8 (the Designer on #112)
+  section: { marginHorizontal: 16, paddingTop: 16, paddingBottom: 18, gap: 8, borderTopWidth: 1, borderTopColor: colors.borderSubtle },
+  sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.8, color: colors.fgSecondary },
   text: { fontSize: 16, lineHeight: 22, color: colors.fgDefault },
   quiet: { fontSize: 15, lineHeight: 20, color: colors.fgMutedField },
   appliance: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1293,8 +1298,9 @@ const styles = StyleSheet.create({
   teamLabel: { fontWeight: '600', color: colors.fgSecondary },
   hist: { paddingLeft: 12, paddingVertical: 4, borderLeftWidth: 4 },
   histPast: { borderLeftColor: colors.borderStrong },
-  histThis: { borderLeftColor: colors.accent },
-  histLater: { borderLeftColor: colors.brand },
+  // this visit black, others grey (calm: the one orange stays the button)
+  histThis: { borderLeftColor: colors.fgDefault },
+  histLater: { borderLeftColor: colors.borderDefault },
   histTitle: { fontSize: 16, fontWeight: '700', color: colors.fgDefault },
   histText: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   note: { padding: 12, borderRadius: 12, backgroundColor: colors.bgSubtle, gap: 2 },

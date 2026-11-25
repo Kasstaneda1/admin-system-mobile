@@ -14,12 +14,12 @@ export default function AwayPanel({ away, onOpenVisit, onDone }) {
     <View style={styles.box} accessibilityLabel="Since you were off">
       <TouchableOpacity style={styles.head} onPress={() => setOpen((o) => !o)} accessibilityRole="button"
         accessibilityState={{ expanded: open }} accessibilityLabel={`Since you were off. ${away.line}`}>
-        <View style={styles.sun}><Icon name="sun" size={24} color={colors.infoBorder} /></View>
+        <View style={styles.sun}><Icon name="sun" size={22} color={colors.fgSecondary} /></View>
         <View style={styles.headText}>
           <Text style={styles.title}>Since you were off</Text>
           <Text style={styles.line}>{away.line}</Text>
         </View>
-        <Icon name="chevd" size={22} color={colors.infoBorder} style={open ? styles.up : null} />
+        <Icon name="chevd" size={22} color={colors.fgSecondary} style={open ? styles.up : null} />
       </TouchableOpacity>
       {open ? (
         <>
@@ -44,17 +44,18 @@ export default function AwayPanel({ away, onOpenVisit, onDone }) {
 }
 
 const styles = StyleSheet.create({
-  box: { marginHorizontal: 12, marginTop: 10, borderRadius: 16, borderWidth: 1.5, borderColor: colors.infoBorder, backgroundColor: colors.infoBg, overflow: 'hidden' },
+  // calm: white, a grey 1 pt frame (no blue box)
+  box: { marginHorizontal: 16, marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard, overflow: 'hidden' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 10, paddingHorizontal: 12 },
-  sun: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgCard },
+  sun: { width: 32, height: 40, alignItems: 'center', justifyContent: 'center' },
   headText: { flex: 1, minWidth: 0 },
-  title: { fontSize: 17, fontWeight: '800', color: colors.fgDefault },
-  line: { fontSize: 15, lineHeight: 20, color: colors.infoFg },
+  title: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
+  line: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   up: { transform: [{ rotate: '180deg' }] },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 8, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: colors.infoBorder, marginHorizontal: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 8, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: colors.borderSubtle, marginHorizontal: 6 },
   rowText: { flex: 1, minWidth: 0 },
-  rowTitle: { fontSize: 16, fontWeight: '800', color: colors.fgDefault },
+  rowTitle: { fontSize: 16, fontWeight: '600', color: colors.fgDefault },
   rowSub: { fontSize: 14, color: colors.fgSecondary },
-  got: { margin: 12, minHeight: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandPressed },
-  gotText: { fontSize: 17, fontWeight: '800', color: colors.fgOnFill },
+  got: { margin: 12, minHeight: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brand },
+  gotText: { fontSize: 16, fontWeight: '600', color: colors.fgOnFill },
 });
