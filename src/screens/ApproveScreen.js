@@ -38,7 +38,7 @@ import {
 import { approvals } from '../approve/store';
 import { downloadApprovalPdf } from '../approve/pdf';
 import SignSheet from '../sign/SignSheet';
-import { signHeadOf, signerLine } from '../sign/model';
+import { companyTerms, consentOf, signHeadOf, signerLine } from '../sign/model';
 
 export default function ApproveScreen({ route, navigation }) {
   // back: the word of the back button — the screen it goes back to (Visit, or Bill / Preview
@@ -341,7 +341,8 @@ export default function ApproveScreen({ route, navigation }) {
       </KeyboardAvoidingView>
 
       <SignSheet visible={signOpen} back="Back" sending={sending} onDone={approve} onClose={() => setSignOpen(false)}
-        head={signHeadOf({ kind: 'approve', name, amountCents: agreed ? agreed.amount : null, choice: kept ? kept.choice : estimate })} caption={signerLine(name, today)} />
+        head={signHeadOf({ kind: 'approve', name, amountCents: agreed ? agreed.amount : null, choice: kept ? kept.choice : estimate })}
+        consent={consentOf({ company: companyTerms(terms, termsLine && termsLine.title) })} caption={signerLine(name, today)} />
 
       <Modal visible={termsOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTermsOpen(false)}>
         <SafeAreaView edges={['top', 'bottom']} style={billStyles.screen}>

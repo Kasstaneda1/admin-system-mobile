@@ -39,7 +39,7 @@ import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/
 import { ackBody, ackStage, ackTermsLine, billHasParts, billHeadOf, initialParts, partsChoicesOf, partsNote, partsOf, pickParts, signedLine, stageText } from '../ack/model';
 import { downloadAckPdf } from '../ack/pdf';
 import SignSheet from '../sign/SignSheet';
-import { consentOf, signHeadOf, signerLine } from '../sign/model';
+import { companyTerms, consentOf, signHeadOf, signerLine } from '../sign/model';
 import { acks } from '../ack/store';
 
 export default function AckScreen({ route, navigation }) {
@@ -104,7 +104,9 @@ export default function AckScreen({ route, navigation }) {
   // «Done» on the sign screen: png — the customer's signature.
   // One request id per signature: the queue sends it again with the same one, the server takes it once
   const sign = async (png) => {
-    if (sending || userId === null) return;
+    if (sending) return;
+    // no one signed in on this phone (the session ended meanwhile): nothing to keep it under
+    if (userId === null) { setSignOpen(false); setSaid({ kind: 'refused', text: 'You are signed out. Sign in again, then the customer signs.' }); return; }
     const signedMs = Date.now();                      // the moment the customer signed, by this phone's clock
     const { body, error } = ackBody({ name, png, parts: picked, terms, requestId: newRequestId(), bill });
     if (error) { setSignOpen(false); setSaid({ kind: 'refused', text: error }); return; }
@@ -349,7 +351,7 @@ export default function AckScreen({ route, navigation }) {
       </KeyboardAvoidingView>
 
       <SignSheet visible={signOpen} back="Back" sending={sending} onDone={sign} onClose={() => setSignOpen(false)}
-        head={signHeadOf({ kind: 'ack', name, bill, choice: picked })} consent={consentOf(bill)} caption={signerLine(name, today)} />
+        head={signHeadOf({ kind: 'ack', name, bill, choice: picked })} consent={consentOf({ bill, company: companyTerms(terms, termsLine && termsLine.title) })} caption={signerLine(name, today)} />
 
       <Modal visible={termsOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTermsOpen(false)}>
         <SafeAreaView edges={['top', 'bottom']} style={billStyles.screen}>

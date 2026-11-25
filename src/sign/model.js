@@ -5,12 +5,11 @@
 // the work) and «Customer signs for the bill» (Ack, after). Without React Native (model.test.mjs
 // runs it on node).
 //
-// Ack: the customer agrees to the terms the bill printed (2P-BE п. 4, design-mockups/bill-terms
-// README): the line «By signing, you agree to the Terms and conditions of bill NY-1052.» and
-// «Read the terms» — the terms as the bill printed them (the server's printed_terms). No
-// checkbox: the signature is the agreement, the words are beside it. printed_terms null — the
-// bill printed no terms: no line, no link. The body of the signature does not change (the bill's
-// pdf_sha256 ties it to the terms).
+// Over the box, the terms the customer agrees to by signing (consentOf): Ack — the terms the bill
+// printed (2P-BE п. 4, design-mockups/bill-terms README: «By signing, you agree to the Terms and
+// conditions of bill NY-1052.» and «Read the terms») and the company's acknowledgment terms;
+// Approve — the company's approval terms. The body of the signature does not change (the bill's
+// pdf_sha256 and the terms' version tie it to them).
 import { usd } from '../bill/model.js';
 import { partsOf } from '../ack/model.js';
 
@@ -58,16 +57,22 @@ export function signHeadOf({ kind, name, amountCents = null, bill = null, choice
 // Under the line in the box: 'Sanjay Patel · Nov 24, 2026'
 export const signerLine = (name, today) => [String(name || '').trim(), dayText(today)].filter(Boolean).join(' · ');
 
-// The terms the issued bill printed (the server's printed_terms) for the line over the signature
-// and «Read the terms»; null — no line: a draft, a bill that printed no terms, an older server.
-// Sections with neither title nor text are left out; Replaced parts goes last, as on the paper.
-export function consentOf(bill) {
+// Every set of terms whose version goes with this signature is in sight over it («Архитектор ПО»
+// on #93: on the form the box stood under them; the sign screen must show them too):
+//   - the terms the issued bill printed (the server's printed_terms; Ack only) — null: a draft, a
+//     bill that printed no terms, an older server. Sections with neither title nor text are left
+//     out; Replaced parts goes last, as on the paper;
+//   - the company's terms of this signature (Approve: approval terms; Ack: acknowledgment terms),
+//     latest version — companyTerms(terms, title).
+// One line «By signing, you agree to A and to B.» and one «Read the terms» that shows them all;
+// none — null: no line, no link. No checkbox: the signature is the agreement.
+const clean = (s) => ({
+  title: s && typeof s.title === 'string' && s.title.trim() ? s.title.trim() : null,
+  text: s && typeof s.text === 'string' && s.text.trim() ? s.text.trim() : null,
+});
+function printedDoc(bill) {
   const printed = bill && bill.printed_terms;
   if (!printed || typeof printed !== 'object') return null;
-  const clean = (s) => ({
-    title: s && typeof s.title === 'string' && s.title.trim() ? s.title.trim() : null,
-    text: s && typeof s.text === 'string' && s.text.trim() ? s.text.trim() : null,
-  });
   const sections = (Array.isArray(printed.sections) ? printed.sections : []).map(clean).filter((s) => s.title || s.text);
   if (printed.replaced_parts) {
     const parts = clean(printed.replaced_parts);
@@ -76,11 +81,22 @@ export function consentOf(bill) {
   if (!sections.length) return null;
   const label = billLabel(bill);
   const of = label ? `bill ${label}` : 'this bill';
+  return { name: `the Terms and conditions of ${of}`, title: 'Terms and conditions', sub: `As printed on ${of}`, sections };
+}
+// The company's terms (the server's latest version, { title, version, body }) under the title the
+// form shows them by (approve/model.js termsLineOf, ack/model.js ackTermsLine); none — null
+export function companyTerms(terms, title) {
+  if (!terms || !title) return null;
+  const body = clean({ text: terms.body });
+  return { name: title, title, sub: Number.isFinite(Number(terms.version)) && terms.version !== null ? `Version ${terms.version}` : null, sections: body.text ? [body] : [] };
+}
+export function consentOf({ bill = null, company = null } = {}) {
+  const docs = [printedDoc(bill), company].filter(Boolean);
+  if (!docs.length) return null;
   return {
-    line: `By signing, you agree to the Terms and conditions of ${of}.`,
+    line: `By signing, you agree to ${docs.map((d) => d.name).join(' and to ')}.`,
     link: 'Read the terms',
-    title: 'Terms and conditions',
-    sub: `As printed on ${of}`,
-    sections,
+    title: docs.length === 1 ? docs[0].title : 'Terms',
+    docs: docs.map(({ title, sub, sections }) => ({ title, sub, sections })),
   };
 }

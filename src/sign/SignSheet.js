@@ -1,7 +1,7 @@
 // The sign screen (design tech-app USABILITY_2026-11-24 §3, shots/usab-u3-sign.png; rules in
 // sign/model.js): opened by «Sign» on Approve and on «Customer signs for the bill». On top who
-// signs, what and how much; for a bill with printed terms the line «By signing, you agree to the
-// Terms and conditions of bill …» and «Read the terms»; under it the box on the rest of the
+// signs, what and how much; the line «By signing, you agree to …» naming every set of terms that
+// goes with this signature and «Read the terms» (sign/model.js consentOf); under it the box on the rest of the
 // screen (Clear in its corner), at the bottom «Done · save the signature». Nothing scrolls.
 // Under what and how much — the customer's choice on the form in their words (the written
 // estimate, the replaced parts): the signature stands under them (sign/model.js choiceWords).
@@ -64,11 +64,16 @@ export default function SignSheet({ visible, back, head, consent = null, caption
             <View style={styles.terms} accessibilityViewIsModal>
               <TopBar back="Sign" title={consent.title} onBack={() => setTermsOpen(false)} />
               <ScrollView contentContainerStyle={styles.termsBody}>
-                <Text style={styles.termsSub}>{consent.sub}</Text>
-                {consent.sections.map((s, i) => (
-                  <View key={i} style={styles.section}>
-                    {s.title ? <Text style={styles.sectionTitle}>{s.title}</Text> : null}
-                    {s.text ? <Text style={styles.sectionText}>{s.text}</Text> : null}
+                {consent.docs.map((doc, d) => (
+                  <View key={d} style={d ? styles.docGap : null}>
+                    {consent.docs.length > 1 ? <Text style={styles.docTitle} accessibilityRole="header">{doc.title}</Text> : null}
+                    {doc.sub ? <Text style={styles.termsSub}>{doc.sub}</Text> : null}
+                    {doc.sections.map((s, i) => (
+                      <View key={i} style={styles.section}>
+                        {s.title ? <Text style={styles.sectionTitle}>{s.title}</Text> : null}
+                        {s.text ? <Text style={styles.sectionText}>{s.text}</Text> : null}
+                      </View>
+                    ))}
                   </View>
                 ))}
               </ScrollView>
@@ -98,6 +103,8 @@ const styles = StyleSheet.create({
   terms: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.bgPage },
   termsBody: { padding: 16, paddingBottom: 32 },
   termsSub: { fontSize: 14, lineHeight: 19, color: colors.fgSecondary },
+  docGap: { marginTop: 28 },
+  docTitle: { marginBottom: 2, fontSize: 18, fontWeight: '800', color: colors.fgDefault },
   section: { marginTop: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.fgDefault },
   sectionText: { marginTop: 4, fontSize: 15, lineHeight: 22, color: colors.fgDefault },

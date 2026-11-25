@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MIN_INK, choiceWords, consentOf, dayText, signHeadOf, signerLine } from './model.js';
+import { MIN_INK, choiceWords, companyTerms, consentOf, dayText, signHeadOf, signerLine } from './model.js';
 
 const BILL = { id: 52, status: 'issued', label: 'NY-1052', bill_number: 1052, total_cents: 39631 };
 
@@ -39,36 +39,65 @@ test('the line under the signature: the name and the day', () => {
   assert.equal(signerLine('', '2026-11-24'), 'Nov 24, 2026');
 });
 
+const PRINTED = {
+  sections: [{ title: 'Warranty', text: '90 days on parts and labor.' }, { title: null, text: null }, { title: '  ', text: 'Payment is due on completion.' }],
+  replaced_parts: { title: 'Replaced parts', text: 'Replaced parts are returned on request.' },
+};
+const ACK_TERMS = { id: 9, version: 3, title: 'SEMIX CORP bill acknowledgment terms', body: '  I got the bill.  ' };
+
 test('the terms the bill printed: the line and Read the terms', () => {
-  const bill = { ...BILL, printed_terms: {
-    sections: [{ title: 'Warranty', text: '90 days on parts and labor.' }, { title: null, text: null }, { title: '  ', text: 'Payment is due on completion.' }],
-    replaced_parts: { title: 'Replaced parts', text: 'Replaced parts are returned on request.' },
-  } };
-  const c = consentOf(bill);
+  const c = consentOf({ bill: { ...BILL, printed_terms: PRINTED } });
   assert.equal(c.line, 'By signing, you agree to the Terms and conditions of bill NY-1052.');
   assert.equal(c.link, 'Read the terms');
   assert.equal(c.title, 'Terms and conditions');
-  assert.equal(c.sub, 'As printed on bill NY-1052');
-  assert.deepEqual(c.sections, [
+  assert.deepEqual(c.docs, [{ title: 'Terms and conditions', sub: 'As printed on bill NY-1052', sections: [
     { title: 'Warranty', text: '90 days on parts and labor.' },
     { title: null, text: 'Payment is due on completion.' },
     { title: 'Replaced parts', text: 'Replaced parts are returned on request.' },
-  ]);
+  ] }]);
   // Replaced parts alone is still terms the bill printed
-  assert.deepEqual(consentOf({ ...BILL, printed_terms: { sections: [], replaced_parts: { title: 'Replaced parts', text: 'x' } } }).sections,
+  assert.deepEqual(consentOf({ bill: { ...BILL, printed_terms: { sections: [], replaced_parts: { title: 'Replaced parts', text: 'x' } } } }).docs[0].sections,
     [{ title: 'Replaced parts', text: 'x' }]);
 });
 
-test('no printed terms — no line, no link', () => {
-  assert.equal(consentOf({ ...BILL, printed_terms: null }), null);
-  assert.equal(consentOf({ ...BILL }), null);                       // an older server
-  assert.equal(consentOf(null), null);
-  assert.equal(consentOf({ ...BILL, printed_terms: { sections: [{ title: null, text: '' }], replaced_parts: null } }), null);
-  assert.equal(consentOf({ ...BILL, printed_terms: 'terms' }), null);
+test('Approve: the company\'s approval terms over the signature', () => {
+  const company = companyTerms({ id: 1, version: 1, title: 'ignored', body: 'Repairs are warranted 90 days.' }, 'SEMIX CORP repair terms');
+  const c = consentOf({ company });
+  assert.equal(c.line, 'By signing, you agree to SEMIX CORP repair terms.');
+  assert.equal(c.title, 'SEMIX CORP repair terms');
+  assert.deepEqual(c.docs, [{ title: 'SEMIX CORP repair terms', sub: 'Version 1', sections: [{ title: null, text: 'Repairs are warranted 90 days.' }] }]);
+  // a draft has no printed terms: the company's alone
+  assert.equal(consentOf({ bill: { ...BILL, status: 'draft', printed_terms: null }, company }).docs.length, 1);
+  // no company terms published — no line
+  assert.equal(companyTerms(null, 'SEMIX CORP repair terms'), null);
+  assert.equal(companyTerms({ version: 1, body: 'x' }, null), null);
+  assert.equal(consentOf({ company: null }), null);
+  // an empty body: the line still says what they agree to
+  assert.deepEqual(companyTerms({ version: 2, body: '' }, 'T').sections, []);
+});
+
+test('Ack: the bill\'s terms and the company\'s acknowledgment terms, both in sight', () => {
+  const company = companyTerms(ACK_TERMS, 'SEMIX CORP bill acknowledgment terms');
+  const c = consentOf({ bill: { ...BILL, printed_terms: PRINTED }, company });
+  assert.equal(c.line, 'By signing, you agree to the Terms and conditions of bill NY-1052 and to SEMIX CORP bill acknowledgment terms.');
+  assert.equal(c.title, 'Terms');
+  assert.deepEqual(c.docs.map((d) => [d.title, d.sub]), [['Terms and conditions', 'As printed on bill NY-1052'], ['SEMIX CORP bill acknowledgment terms', 'Version 3']]);
+  assert.deepEqual(c.docs[1].sections, [{ title: null, text: 'I got the bill.' }]);
+  // the bill printed none: the company's alone
+  assert.equal(consentOf({ bill: { ...BILL, printed_terms: null }, company }).line, 'By signing, you agree to SEMIX CORP bill acknowledgment terms.');
+});
+
+test('no printed terms, no company terms — no line, no link', () => {
+  assert.equal(consentOf({ bill: { ...BILL, printed_terms: null } }), null);
+  assert.equal(consentOf({ bill: { ...BILL } }), null);                       // an older server
+  assert.equal(consentOf({ bill: null }), null);
+  assert.equal(consentOf(), null);
+  assert.equal(consentOf({ bill: { ...BILL, printed_terms: { sections: [{ title: null, text: '' }], replaced_parts: null } } }), null);
+  assert.equal(consentOf({ bill: { ...BILL, printed_terms: 'terms' } }), null);
 });
 
 test('no label: «this bill»', () => {
-  const c = consentOf({ total_cents: 1, printed_terms: { sections: [{ title: 'A', text: 'b' }], replaced_parts: null } });
+  const c = consentOf({ bill: { total_cents: 1, printed_terms: { sections: [{ title: 'A', text: 'b' }], replaced_parts: null } } });
   assert.equal(c.line, 'By signing, you agree to the Terms and conditions of this bill.');
-  assert.equal(c.sub, 'As printed on this bill');
+  assert.equal(c.docs[0].sub, 'As printed on this bill');
 });
