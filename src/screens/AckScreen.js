@@ -349,7 +349,7 @@ export default function AckScreen({ route, navigation }) {
       </KeyboardAvoidingView>
 
       <SignSheet visible={signOpen} back="Back" sending={sending} onDone={sign} onClose={() => setSignOpen(false)}
-        head={signHeadOf({ kind: 'ack', name, bill })} consent={consentOf(bill)} caption={signerLine(name, today)} />
+        head={signHeadOf({ kind: 'ack', name, bill, choice: picked })} consent={consentOf(bill)} caption={signerLine(name, today)} />
 
       <Modal visible={termsOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTermsOpen(false)}>
         <SafeAreaView edges={['top', 'bottom']} style={billStyles.screen}>

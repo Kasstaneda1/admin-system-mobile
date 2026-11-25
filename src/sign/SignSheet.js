@@ -3,6 +3,8 @@
 // signs, what and how much; for a bill with printed terms the line «By signing, you agree to the
 // Terms and conditions of bill …» and «Read the terms»; under it the box on the rest of the
 // screen (Clear in its corner), at the bottom «Done · save the signature». Nothing scrolls.
+// Under what and how much — the customer's choice on the form in their words (the written
+// estimate, the replaced parts): the signature stands under them (sign/model.js choiceWords).
 // «Done» lights up after a real stroke (SignaturePad, MIN_INK) and hands the PNG to the form
 // (onDone), which saves it as before; the form closes this screen when it has an answer.
 // Back — the signature is not kept: the customer signs again from «Sign».
@@ -40,6 +42,7 @@ export default function SignSheet({ visible, back, head, consent = null, caption
             <View style={styles.head}>
               <Text style={styles.title} numberOfLines={1} accessibilityRole="header">{head.title}</Text>
               {head.sub ? <Text style={styles.sub} numberOfLines={2}>{head.sub}</Text> : null}
+              {head.choice ? <Text style={styles.choice}>{head.choice}</Text> : null}
               {consent ? (
                 <View style={styles.consent}>
                   <Text style={styles.consentLine}>{consent.line}</Text>
@@ -86,6 +89,7 @@ const styles = StyleSheet.create({
   head: { paddingTop: 4, paddingBottom: 12 },
   title: { fontSize: 24, fontWeight: '800', color: colors.fgDefault },
   sub: { marginTop: 4, fontSize: 17, lineHeight: 23, color: colors.fgSecondary },
+  choice: { marginTop: 6, fontSize: 15, lineHeight: 21, color: colors.fgSecondary },
   consent: { marginTop: 10 },
   consentLine: { fontSize: 15, lineHeight: 21, color: colors.fgDefault },
   linkWrap: { alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' },

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MIN_INK, consentOf, dayText, signHeadOf, signerLine } from './model.js';
+import { MIN_INK, choiceWords, consentOf, dayText, signHeadOf, signerLine } from './model.js';
 
 const BILL = { id: 52, status: 'issued', label: 'NY-1052', bill_number: 1052, total_cents: 39631 };
 
@@ -9,14 +9,25 @@ test('a signature is a real stroke: about 2 cm of ink', () => {
 });
 
 test('the top of the sign screen: who signs, what and how much', () => {
-  assert.deepEqual(signHeadOf({ kind: 'approve', name: ' Sanjay Patel ', amountCents: 30500 }),
-    { title: 'Sanjay Patel signs', sub: 'Approves the repair · $305.00 before tax' });
+  assert.deepEqual(signHeadOf({ kind: 'approve', name: ' Sanjay Patel ', amountCents: 30500, choice: 'waived' }),
+    { title: 'Sanjay Patel signs', sub: 'Approves the repair · $305.00 before tax', choice: '“No written estimate. Go ahead with the repair.”' });
   assert.deepEqual(signHeadOf({ kind: 'approve', name: '', amountCents: null }),
-    { title: 'The customer signs', sub: 'Approves the repair' });
-  assert.deepEqual(signHeadOf({ kind: 'ack', name: 'Javier Ortiz', bill: BILL }),
-    { title: 'Javier Ortiz signs', sub: 'Got bill NY-1052 · $396.31' });
+    { title: 'The customer signs', sub: 'Approves the repair', choice: null });
+  assert.deepEqual(signHeadOf({ kind: 'ack', name: 'Javier Ortiz', bill: BILL, choice: 'returned' }),
+    { title: 'Javier Ortiz signs', sub: 'Got bill NY-1052 · $396.31', choice: '“The replaced parts were returned to me.”' });
   assert.equal(signHeadOf({ kind: 'ack', name: 'J', bill: { bill_number: 7, total_cents: 100 } }).sub, 'Got bill #7 · $1.00');
   assert.equal(signHeadOf({ kind: 'ack', name: 'J', bill: null }).sub, 'Got the bill');
+});
+
+test('what the customer chose, in their words, over the signature', () => {
+  assert.equal(choiceWords('approve', 'waived'), '“No written estimate. Go ahead with the repair.”');
+  assert.equal(choiceWords('approve', 'written'), '“I want a written estimate first.”');
+  assert.equal(choiceWords('approve', null), null);                // not NYC: no choice
+  assert.equal(choiceWords('ack', 'returned'), '“The replaced parts were returned to me.”');
+  assert.equal(choiceWords('ack', 'waived'), '“I give up the replaced parts and do not want them returned.”');
+  assert.equal(choiceWords('ack', 'none'), null);                  // no parts: no line
+  assert.equal(choiceWords('ack', null), null);
+  assert.equal(choiceWords('approve', 'returned'), null);
 });
 
 test('the line under the signature: the name and the day', () => {

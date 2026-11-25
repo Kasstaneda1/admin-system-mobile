@@ -86,7 +86,9 @@ const SignaturePad = forwardRef(function SignaturePad({ onDrawn, disabled = fals
         scrollEnabled={false} bounces={false} overScrollMode="never" style={styles.web} containerStyle={full ? styles.fullWebBox : styles.webBox}
         javaScriptEnabled pointerEvents={disabled ? 'none' : 'auto'} />
       <Text style={full ? styles.fullX : styles.x} pointerEvents="none">×</Text>
-      <View style={full ? styles.fullBase : styles.base} pointerEvents="none" />
+      {full ? (
+        <View style={styles.fullBase} pointerEvents="none"><View style={styles.fullDash} /></View>
+      ) : <View style={styles.base} pointerEvents="none" />}
       {full ? (
         <>
           {caption ? <Text style={styles.fullCap} numberOfLines={1} pointerEvents="none">{caption}</Text> : null}
@@ -120,8 +122,10 @@ const styles = StyleSheet.create({
   fullBox: { flex: 1, borderRadius: 18, borderWidth: 2, borderColor: colors.borderControl, backgroundColor: colors.bgCard, overflow: 'hidden' },
   fullWebBox: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 52, backgroundColor: 'transparent' },
   fullX: { position: 'absolute', left: 24, bottom: 90, fontSize: 24, fontWeight: '600', color: colors.fgMutedField },
-  // a dashed line: iOS draws no dash on one side alone, so all sides of a box 0 high
-  fullBase: { position: 'absolute', left: 24, right: 24, bottom: 82, height: 0, borderWidth: 1, borderRadius: 1, borderStyle: 'dashed', borderColor: colors.borderStrong },
+  // a dashed line: iOS draws no dash on one side alone — a box dashed all round, seen through a
+  // strip as high as its border, so only its top edge shows
+  fullBase: { position: 'absolute', left: 24, right: 24, bottom: 82, height: 1.5, overflow: 'hidden' },
+  fullDash: { height: 12, borderWidth: 1.5, borderRadius: 1, borderStyle: 'dashed', borderColor: colors.borderStrong },
   fullCap: { position: 'absolute', left: 24, right: 24, bottom: 46, fontSize: 15, color: colors.fgSecondary },
   pillAt: { position: 'absolute', top: 12, right: 12 },
   pill: { minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 22, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },

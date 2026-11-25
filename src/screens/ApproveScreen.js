@@ -341,7 +341,7 @@ export default function ApproveScreen({ route, navigation }) {
       </KeyboardAvoidingView>
 
       <SignSheet visible={signOpen} back="Back" sending={sending} onDone={approve} onClose={() => setSignOpen(false)}
-        head={signHeadOf({ kind: 'approve', name, amountCents: agreed ? agreed.amount : null })} caption={signerLine(name, today)} />
+        head={signHeadOf({ kind: 'approve', name, amountCents: agreed ? agreed.amount : null, choice: kept ? kept.choice : estimate })} caption={signerLine(name, today)} />
 
       <Modal visible={termsOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTermsOpen(false)}>
         <SafeAreaView edges={['top', 'bottom']} style={billStyles.screen}>
