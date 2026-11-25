@@ -149,7 +149,7 @@ export function DiagnosisSheet({ visible, mode, text, current, sending, failure,
 
 const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  label: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
+  label: { fontSize: 12, fontWeight: '600', letterSpacing: 0.8, color: colors.fgSecondary },
   // calm (design-mockups/app-calm): grey words with a small icon, no blue pill
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 24 },
   pillText: { fontSize: 13, color: colors.fgSecondary },
@@ -159,7 +159,7 @@ const s = StyleSheet.create({
   // over a text taken from the diagnostics visit (§3.7): where it comes from
   from: { marginBottom: 4, fontSize: 13, fontWeight: '600', color: colors.fgSecondary },
   quiet: { fontSize: 15, lineHeight: 20, color: colors.fgMutedField },
-  chg: { marginHorizontal: -2, paddingVertical: 8, paddingLeft: 12, paddingRight: 10, borderLeftWidth: 4, borderLeftColor: colors.infoBorder, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, borderTopRightRadius: 10, borderBottomRightRadius: 10, backgroundColor: colors.infoBg },
+  chg: { marginHorizontal: -2, paddingVertical: 8, paddingLeft: 12, paddingRight: 10, borderLeftWidth: 2, borderLeftColor: colors.borderStrong },
   // an addition after the bill (design .vd-add): yellow, a stripe on the left
   // an addendum (calm): a thin grey rule on the left, no amber fill
   add: { gap: 2, paddingVertical: 4, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: colors.borderDefault },

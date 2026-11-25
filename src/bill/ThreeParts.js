@@ -41,10 +41,10 @@ export function ThreeButtons({ three, busy = null, failure = null, onPress, onSk
   if (three.kind === 'nobill') {
     return (
       <View style={[s.btn, s.done]} accessible accessibilityLabel={`${three.title}${three.line ? `, ${three.line}` : ''}`}>
-        <Icon name="checkc" size={24} color={colors.successFg} />
+        <Icon name="check" size={20} color={colors.fgSecondary} />
         <View style={s.btnBody}>
-          <Text style={[s.title, s.titleDone, { color: colors.successFg }]}>{three.title}</Text>
-          {three.line ? <Text style={[s.line, { color: colors.successFg }]}>{three.line}</Text> : null}
+          <Text style={[s.title, s.titleDone, { color: colors.fgDefault }]}>{three.title}</Text>
+          {three.line ? <Text style={[s.line, { color: colors.fgSecondary }]}>{three.line}</Text> : null}
         </View>
       </View>
     );
@@ -58,8 +58,8 @@ export function ThreeButtons({ three, busy = null, failure = null, onPress, onSk
         const done = b.state === 'done';
         const skipped = b.state === 'skipped';
         const tone = done ? (b.warn ? s.waiting : s.done) : skipped ? s.skipped : b.lit ? s.lit : s.calm;
-        const fg = done ? colors.successFg : skipped ? colors.fgSecondary : b.lit ? colors.onAccent : colors.brandPressed;
-        const lineFg = done ? colors.successFg : b.lit ? colors.onAccent : colors.fgSecondary;
+        const fg = done || skipped ? colors.fgSecondary : b.lit ? colors.onAccent : colors.brandPressed;
+        const lineFg = done && b.warn ? colors.warningFg : b.lit ? colors.onAccent : colors.fgSecondary;
         // calm and not done: compact — 52 pt, 17 pt, no line under it; Get paid's sum on the right
         // (the Designer on #96)
         const compact = !done && !skipped && !b.lit && !running;
@@ -151,7 +151,7 @@ const BUSY_LABELS = { sign: 'Saving the signature', pay: 'Recording the payment'
 
 const s = StyleSheet.create({
   row: { gap: 2 },
-  rowHead: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
+  rowHead: { fontSize: 12, fontWeight: '600', letterSpacing: 0.8, color: colors.fgSecondary },
   rowMain: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 32 },
   rowLine: { flex: 1, minWidth: 0, fontSize: 15, lineHeight: 21, color: colors.fgSecondary },
   rowAmount: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
@@ -160,21 +160,22 @@ const s = StyleSheet.create({
   change: { minHeight: 44, justifyContent: 'center', paddingLeft: 8 },
   changeText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed, textDecorationLine: 'underline' },
   column: { gap: 10 },
-  btn: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1.5 },
+  btn: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1 },
   calm: { backgroundColor: colors.bgCard, borderColor: colors.borderDefault },
   lit: { backgroundColor: colors.accent, borderColor: colors.accent },
-  done: { backgroundColor: colors.successBg, borderColor: colors.successBorder },
-  waiting: { backgroundColor: colors.successBg, borderColor: colors.warningBorder },
+  // done: white, a grey frame, grey words (calm: no green fill)
+  done: { backgroundColor: colors.bgCard, borderColor: colors.borderDefault },
+  waiting: { backgroundColor: colors.bgCard, borderColor: colors.borderDefault },
   // a skipped step (design app-skip .act.skp): grey, two lines, still pressable
   skipped: { backgroundColor: colors.bgSubtle, borderColor: colors.borderSubtle },
   // the quiet link under the orange one (.sk): centred, 44 pt, 17 pt 700, underlined
   skip: { alignSelf: 'center', minHeight: 44, marginTop: -8, marginBottom: -6, paddingHorizontal: 14, justifyContent: 'center' },
-  skipText: { fontSize: 17, fontWeight: '700', color: colors.fgSecondary, textDecorationLine: 'underline' },
+  skipText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed, textDecorationLine: 'underline' },
   off: { opacity: 0.5 },
   icon: { width: 24 },
   btnBody: { flex: 1, minWidth: 0 },
-  title: { fontSize: 19, fontWeight: '800' },
-  titleDone: { fontSize: 17 },
+  title: { fontSize: 17, fontWeight: '700' },
+  titleDone: { fontSize: 16, fontWeight: '600' },
   compact: { minHeight: 52 },
   titleCompact: { fontSize: 17 },
   grow: { flex: 1, minWidth: 0 },

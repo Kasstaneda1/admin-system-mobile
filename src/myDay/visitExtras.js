@@ -180,7 +180,7 @@ export function PhotoViewer({ photos, index, header, onClose }) {
 const s = StyleSheet.create({
   rowWrap: { marginTop: 12, gap: 6 },
   row: { flexDirection: 'row', gap: 10 },
-  small: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
+  small: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 10, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
   smallText: { fontSize: 16, fontWeight: '700', color: colors.brandPressed },
   off: { opacity: 0.45 },
   blocked: { fontSize: 14, fontWeight: '600', color: colors.fgSecondary, textAlign: 'center' },

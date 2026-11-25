@@ -171,7 +171,7 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
               accessibilityState={{ disabled: b.off, busy: spinner(b.action) }}>
               {spinner(b.action) ? <ActivityIndicator color={colors.fgDefault} /> : (
                 <>
-                  <Icon name={b.icon} size={20} color={colors.fgDefault} />
+                  <Icon name={b.icon} size={20} color={colors.brandPressed} />
                   <Text style={styles.secondText} numberOfLines={1} adjustsFontSizeToFit>{b.label}</Text>
                 </>
               )}
@@ -456,8 +456,8 @@ const styles = StyleSheet.create({
   pairMain: { flex: 1.35, minWidth: 0, paddingHorizontal: 12 },
   pairText: { flexShrink: 1, minWidth: 0 },
   pairSubLit: { fontSize: 13, fontWeight: '600', color: colors.onAccent },
-  pairFinish: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 60, paddingHorizontal: 10, borderRadius: 14, borderWidth: 2, borderColor: colors.brand, backgroundColor: colors.bgCard },
-  pairFinishText: { fontSize: 19, fontWeight: '800', color: colors.brandPressed },
+  pairFinish: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 54, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  pairFinishText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
   pairSub: { fontSize: 13, color: colors.fgSecondary },
   undoLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
   undoLinkText: { fontSize: 15, fontWeight: '700', color: colors.brandPressed, textDecorationLine: 'underline' },
@@ -465,10 +465,11 @@ const styles = StyleSheet.create({
   noAccessText: { fontSize: 16, fontWeight: '600', color: colors.fgDefault, textDecorationLine: 'underline' },
   bar: { paddingHorizontal: 16, paddingTop: 10, gap: 8, borderTopWidth: 1, borderTopColor: colors.borderDefault, backgroundColor: colors.bgCard },
   off: { opacity: 0.45 },
-  undo: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, paddingLeft: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
-  undoText: { flex: 1, fontSize: 15, lineHeight: 20, color: colors.infoFg },
+  // Undo as a band (without the three): calm — white, a grey 1 pt frame, the button brand green
+  undo: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, paddingLeft: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  undoText: { flex: 1, fontSize: 15, lineHeight: 20, color: colors.fgDefault },
   undoStrong: { fontWeight: '700' },
-  undoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: 96, height: 44, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.infoFg },
+  undoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: 96, height: 44, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.brand },
   undoBtnText: { fontSize: 16, fontWeight: '700', color: colors.fgOnFill },
   // the one orange of the screen (calm): 54 pt, 700, corners 12
   main: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 54, borderRadius: 12, backgroundColor: colors.accent },
@@ -479,41 +480,44 @@ const styles = StyleSheet.create({
   mainTextNext: { color: colors.fgOnFill },
   // the quiet link under the lit button (design app-skip .sk)
   skip: { alignSelf: 'center', minHeight: 44, marginTop: -8, marginBottom: -6, paddingHorizontal: 14, justifyContent: 'center' },
-  skipText: { fontSize: 17, fontWeight: '700', color: colors.fgSecondary, textDecorationLine: 'underline' },
+  skipText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed, textDecorationLine: 'underline' },
   // «Next: …» under the green «Finished 12:53 · no bill» (finish-choice f5, the Designer on #98): outlined
-  nextQuiet: { alignItems: 'center', justifyContent: 'center', height: 52, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
-  nextQuietText: { fontSize: 17, fontWeight: '800', color: colors.brandPressed },
+  nextQuiet: { alignItems: 'center', justifyContent: 'center', height: 48, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  nextQuietText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed },
   // the plain buttons under the big one, the full width; two side by side (Finish · On my way)
   plains: { flexDirection: 'row', gap: 8 },
   secondHalf: { flex: 1 },
-  billLinkText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed, textDecorationLine: 'underline' },
+  billLinkText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed, textDecorationLine: 'underline' },
   // the strip of steps (design usab-u1 .steps)
-  strip: { flexDirection: 'row', marginTop: 10, paddingTop: 12, paddingBottom: 10, paddingHorizontal: 4, borderRadius: 14, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  strip: { flexDirection: 'row', marginTop: 10, paddingTop: 12, paddingBottom: 10, paddingHorizontal: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   stripItem: { flex: 1, minWidth: 0, alignItems: 'center', gap: 6 },
   stripLine: { position: 'absolute', top: 14, height: 2, backgroundColor: colors.borderDefault },
   stripLineLeft: { left: 0, right: '50%' },
   stripLineRight: { left: '50%', right: 0 },
   stripLineDone: { backgroundColor: colors.brand },
-  stripDot: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: colors.borderStrong, backgroundColor: colors.bgCard, alignItems: 'center', justifyContent: 'center' },
+  stripDot: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.bgCard, alignItems: 'center', justifyContent: 'center' },
   stripDotDone: { borderColor: colors.brand, backgroundColor: colors.brand },
   stripDotNow: { borderColor: colors.accent, backgroundColor: colors.accent },
   stripNum: { fontSize: 14, fontWeight: '700', color: colors.fgSecondary },
   stripNumNow: { color: colors.onAccent },
   stripLabel: { fontSize: 13, fontWeight: '600', color: colors.fgSecondary },
-  stripLabelNow: { fontWeight: '800', color: colors.fgDefault },
+  stripLabelNow: { fontWeight: '700', color: colors.fgDefault },
   // On my way under Finish: optional, so a plain button (SEMIX_STYLE «Secondary»)
-  second: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
-  secondText: { fontSize: 17, fontWeight: '700', color: colors.fgDefault, flexShrink: 1 },
+  // calm: white, a grey 1 pt frame, brand words (pressed, like Call)
+  second: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  secondText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed, flexShrink: 1 },
   link: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44 },
   linkText: { fontSize: 17, fontWeight: '600', color: colors.fgDefault, textDecorationLine: 'underline' },
   linkOff: { color: colors.fgMutedField },
   blocked: { fontSize: 14, fontWeight: '600', color: colors.fgSecondary, textAlign: 'center' },
   line: { fontSize: 15, color: colors.fgSecondary, textAlign: 'center', paddingVertical: 4 },
-  closed: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.successBorder, backgroundColor: colors.successBg },
-  closedText: { fontSize: 15, lineHeight: 20, color: colors.successFg },
-  fail: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, paddingLeft: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
+  // «Closed …» without the three: a line of text, no green box (calm)
+  closed: { paddingVertical: 6 },
+  closedText: { fontSize: 15, lineHeight: 20, color: colors.fgDefault },
+  // a press that did not reach the server: dark amber words, a grey frame, no amber fill (calm)
+  fail: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, paddingLeft: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   failText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.warningFg },
-  failBtn: { height: 44, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandPressed },
+  failBtn: { height: 44, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brand },
   failBtnText: { fontSize: 15, fontWeight: '700', color: colors.fgOnFill },
   failCancel: { height: 44, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   failCancelText: { fontSize: 15, fontWeight: '600', color: colors.warningFg, textDecorationLine: 'underline' },
@@ -560,7 +564,7 @@ const styles = StyleSheet.create({
   radioOn: { borderColor: colors.brandPressed, backgroundColor: colors.brandPressed },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.fgOnFill },
   ghost: { height: 56, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, alignItems: 'center', justifyContent: 'center' },
-  noteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
+  noteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
   ghostText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
   plain: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   plainText: { fontSize: 17, fontWeight: '600', color: colors.fgDefault, textDecorationLine: 'underline' },
