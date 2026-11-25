@@ -286,7 +286,8 @@ export function whatOf(visit) {
   const first = list.length ? String(list[0].appliance_type || '').trim() || 'Appliance' : '';
   const type = first ? `${first}${list.length > 1 ? ` +${list.length - 1}` : ''}` : '';
   const lines = typeof visit.description === 'string' ? visit.description.split('\n') : [];
-  const problem = (lines.find((l) => l.trim()) || '').trim();
+  // one last full stop goes ('Freezer does not freeze.' → '… freeze', the Designer on #111); '...' stays
+  const problem = (lines.find((l) => l.trim()) || '').trim().replace(/([^.])\.$/, '$1');
   return [type, problem].filter(Boolean).join(' · ');
 }
 const thousands = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');

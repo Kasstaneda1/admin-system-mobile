@@ -660,6 +660,9 @@ test('the calm row: money, fee, what — what the server may leave out', () => {
   assert.equal(whatOf({}), '');
   assert.equal(whatOf({ appliances: [{ appliance_type: '' }], description: null }), 'Appliance');
   assert.equal(whatOf({ appliances: [], description: 'Leaking under the door' }), 'Leaking under the door');
+  // the last full stop goes, an ellipsis stays
+  assert.equal(whatOf({ appliances: [{ appliance_type: 'Freezer' }], description: 'Freezer does not freeze.' }), 'Freezer · Freezer does not freeze');
+  assert.equal(whatOf({ description: 'Clicks, then stops...' }), 'Clicks, then stops...');
   assert.equal(kindVisitText({ visit_kind: 'repair', visit_number: 1, visit_count: 1 }), 'Repair');
   assert.equal(kindVisitText({ visit_kind: 'mystery', visit_number: 3, visit_count: 3 }), 'Visit, visit 3 of 3');
   assert.equal(kindVisitText({ legacy: true }), 'Old task');
