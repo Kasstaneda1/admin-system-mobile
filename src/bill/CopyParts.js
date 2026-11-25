@@ -91,7 +91,10 @@ export function CopyChoice({ copy, label = null, off = false, onChange = null })
               <View style={styles.flex}>
                 <Text style={styles.title}>{w.title}</Text>
                 {w.way === 'email' ? (
-                  <TouchableOpacity onPress={changeTo} disabled={off} accessibilityRole="button" accessibilityLabel="Change the email address" hitSlop={{ top: 6, bottom: 6 }}>
+                  // the address line: Email not chosen yet — the tap chooses it (QA 25.11: it opened
+                  // the address change instead); chosen — «Change» edits the address
+                  <TouchableOpacity onPress={() => (on ? changeTo() : pick('email'))} disabled={off} accessibilityRole="button"
+                    accessibilityLabel={on ? 'Change the email address' : 'Email the PDF'} hitSlop={{ top: 6, bottom: 6 }}>
                     <Text style={styles.line} numberOfLines={1}>{w.line}</Text>
                   </TouchableOpacity>
                 ) : w.line ? <Text style={styles.line} numberOfLines={1}>{w.line}</Text> : null}

@@ -235,7 +235,7 @@ export function diagnosisError(error) {
     return { kind: 'conflict', text: 'Someone changed the diagnosis before you', visit: data.visit || null, theirs, diagnosis: raw };
   }
   if (data.code === 'diagnosis_locked') {
-    return { kind: 'locked', text: 'The bill was issued meanwhile. Send your text as an addition to the diagnosis.', visit: data.visit || null, theirs, diagnosis: raw };
+    return { kind: 'locked', text: 'The bill became final meanwhile. Send your text as an addition to the diagnosis.', visit: data.visit || null, theirs, diagnosis: raw };
   }
   const text = failed.text === 'The visit could not be changed' ? 'The diagnosis could not be saved' : failed.text;
   return { kind: 'refused', text, visit: data.visit || null, theirs, diagnosis: raw };

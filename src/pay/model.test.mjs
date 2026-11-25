@@ -62,7 +62,7 @@ test('paid at: the latest payment that counts, tips and void ones not', () => {
 
 test('the head: chip, numbers, due and the stage', () => {
   assert.deepEqual(chipOf(ISSUED, NOW), { text: 'Bill NY-1048 · given 2:22 PM', kind: 'done' });
-  assert.deepEqual(chipOf({ ...ISSUED, delivered_at: null }, NOW), { text: 'Bill NY-1048 · issued 2:20 PM, not given', kind: 'warn' });
+  assert.deepEqual(chipOf({ ...ISSUED, delivered_at: null }, NOW), { text: 'Bill NY-1048 · final 2:20 PM, not given', kind: 'warn' });
   assert.equal(chipOf(ISSUED, { date: '2026-11-18', minutes: 0 }).text, 'Bill NY-1048 · given Nov 17');
   assert.deepEqual(numbersOf(PART).map((n) => n.value), ['$175.29', '$100.00', '$75.29']);
   assert.equal(dueOf({ ...ISSUED, balance_cents: -500 }), 0);

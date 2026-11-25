@@ -52,9 +52,9 @@ test('Bill tile: «not given yet» warns only with the rule', () => {
 });
 
 test('Pay screen: the chip and the stage', () => {
-  assert.deepEqual(chipOf(ON, NOW), { text: 'Bill NY-1048 · issued 2:20 PM, not given', kind: 'warn' });
-  assert.deepEqual(chipOf(NOT_GIVEN, NOW), { text: 'Bill NY-1048 · issued 2:20 PM, not given', kind: 'warn' });
-  assert.deepEqual(chipOf(OFF, NOW), { text: 'Bill NY-1048 · issued 2:20 PM', kind: 'neutral' });
+  assert.deepEqual(chipOf(ON, NOW), { text: 'Bill NY-1048 · final 2:20 PM, not given', kind: 'warn' });
+  assert.deepEqual(chipOf(NOT_GIVEN, NOW), { text: 'Bill NY-1048 · final 2:20 PM, not given', kind: 'warn' });
+  assert.deepEqual(chipOf(OFF, NOW), { text: 'Bill NY-1048 · final 2:20 PM', kind: 'neutral' });
   assert.deepEqual(chipOf({ ...OFF, delivered_at: '2026-11-17T19:22:00Z' }, NOW), { text: 'Bill NY-1048 · given 2:22 PM', kind: 'done' });
   assert.equal(stageOf(ON), 'show');
   assert.equal(stageOf(NOT_GIVEN), 'show');

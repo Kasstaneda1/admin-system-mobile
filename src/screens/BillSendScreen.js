@@ -136,7 +136,7 @@ export default function BillSendScreen({ route, navigation }) {
           {delivered ? (
             <Box kind="done" icon="checkc" title={delivered.title} text={`${delivered.line}. The bill is with the customer.`} />
           ) : (
-            <Box kind="done" icon="checkc" title={`Bill ${label} is issued`}
+            <Box kind="done" icon="checkc" title={`Bill ${label} is final`}
               text={`${issuedAt ? `Frozen at ${clock(issuedAt.minutes)}. ` : ''}${pdfReadyText(bill)}`} />
           )}
           <TouchableOpacity style={styles.pdfRow} onPress={viewPdf} disabled={!!pdfBusy} accessibilityRole="button" accessibilityLabel={`View ${pdfName(bill)}`}>
