@@ -41,7 +41,7 @@ import { buildDay, failedText, keptWeek, nowWall, offlineText, skewOf, visitDay,
 import { markSeen } from '../myDay/fresh';
 import { seenMark, updateSeen } from '../myDay/seenStore';
 import { dropCard, keepCard, keptCard, updatedOf, visitCard } from '../myDay/visit';
-import { actionBody, actionError, barOf, defaultOutcome, finishChoices, finishSubtitle, keepActed, newRequestId, noAccessWords } from '../myDay/actions';
+import { actionBody, actionError, barOf, defaultOutcome, finishChoices, finishSubtitle, keepActed, newRequestId, noAccessWords, undoLinkOf } from '../myDay/actions';
 import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { callOffice } from '../myDay/officeStore';
@@ -50,7 +50,7 @@ import { AccessText, NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import SkipSheet from '../steps/SkipSheet';
 import { requestIdFor, skipBody, skipError } from '../steps/skip';
-import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
+import { ActionBar, FinishSheet, NoAccessLink, NoAccessSheet, StepStrip, UndoLink } from '../myDay/visitBar';
 import { nextButtonOf, nextOfDay, nowWordsOf, stepsOf, stripLabel } from '../myDay/steps';
 import { issueFailText, pressOf, threeOf, threeOffersNext } from '../bill/three';
 import { BillRow } from '../bill/ThreeParts';
@@ -600,6 +600,8 @@ export default function VisitScreen({ route, navigation }) {
   }, [undoShown]);
   // nothing to press on what the phone kept: the server may have changed it since
   const blocked = problem === 'offline' ? 'Needs connection' : problem === 'failed' ? 'Pull down to refresh' : null;
+  // the bar's presses are off while one waits, failed or the visit can't be reached (ActionBar's own rule)
+  const barOff = (!!pending && !failure) || !!failure || !!blocked;
 
   // ---------- notes ----------
   // The draft stays while the screen is open (a sheet closed by mistake loses nothing);
@@ -859,6 +861,10 @@ export default function VisitScreen({ route, navigation }) {
           <View style={styles.head} onLayout={placed('head')}>
             <View style={styles.tagRow}>
               <Tag tag={card.tag} big />
+              {/* with the three (design app-dock) Undo is a link here, not a band in the foot */}
+              {three && bar && bar.undo ? (
+                <UndoLink undo={undoLinkOf(bar.undo)} off={barOff} busy={!!pending && !failure && pending.action === bar.undo.action} onPress={() => press(bar.undo.action)} />
+              ) : null}
               {card.kindLine ? <Text style={styles.kindLine} numberOfLines={1}>{card.kindLine}</Text> : null}
             </View>
             {bar && bar.omwSkipped ? (
@@ -1089,6 +1095,11 @@ export default function VisitScreen({ route, navigation }) {
                 onRetry={() => upload && sendPhoto(upload.file)}
                 onCancel={() => setUpload(null)} />
             </Section>
+          ) : null}
+
+          {/* with the three (design app-dock) No access is a quiet link at the end, not in the foot */}
+          {three && bar && bar.noAccess ? (
+            <NoAccessLink off={barOff} busy={!!pending && !failure && pending.action === 'no_access'} onPress={() => press('no_access')} />
           ) : null}
         </ScrollView>
       )}

@@ -234,3 +234,21 @@ test('skip: collect skipped, then part of the bill paid — the part shows, not 
   const paid = threeOf(ctx({ visit: closed({ steps: st }), known: knownOf(issued({ payment_status: 'paid', payments: [{ kind: 'payment', amount_cents: 13609, method: 'cash', received_at: '2026-11-24T15:40:00Z', voided_at: null }] })) }));
   assert.equal(paid.buttons.find((b) => b.key === 'pay').state, 'done');
 });
+
+test('a tile of the row (design app-dock): two words, the time when done; skipped, waiting, busy', async () => {
+  const { tileOf } = await import('./three.js');
+  assert.deepEqual(tileOf({ key: 'sign', state: 'todo', lit: true }), { word: 'Signature', line: 'next' });
+  assert.deepEqual(tileOf({ key: 'sign', state: 'todo', lit: false }), { word: 'Signature', line: null });
+  assert.deepEqual(tileOf({ key: 'sign', state: 'done', at: '9:42' }), { word: 'Signed', line: '9:42' });
+  assert.deepEqual(tileOf({ key: 'sign', state: 'done', warn: true, at: '9:42' }), { word: 'Signed', line: 'waiting' });
+  assert.deepEqual(tileOf({ key: 'pay', state: 'todo', line: '$103.43', lit: true }), { word: 'Get paid', line: '$103.43' });
+  assert.deepEqual(tileOf({ key: 'pay', state: 'part', line: '$50.00 left' }), { word: 'Get paid', line: '$50.00 left' });
+  assert.deepEqual(tileOf({ key: 'pay', state: 'wait', line: 'Add the work first' }), { word: 'Get paid', line: 'Add work' });
+  assert.deepEqual(tileOf({ key: 'pay', state: 'done', title: 'Paid $10.00 cash', at: '9:47' }), { word: 'Paid', line: '9:47' });
+  assert.deepEqual(tileOf({ key: 'send', state: 'skipped' }), { word: 'Not sent', line: 'skipped' });
+  assert.deepEqual(tileOf({ key: 'send', state: 'todo', lit: true }), { word: 'Send bill', line: 'next' });
+  assert.deepEqual(tileOf({ key: 'pay', state: 'todo' }, true), { word: 'Recording…', line: null });
+  // a real bill through threeOf: the done ones carry their time
+  const signed = threeOf(ctx({ visit: closed(), known: knownOf(issued()), ack: { status: 'ok', signed: true, name: 'X', at: '2026-11-24T15:27:00Z' } }));
+  assert.deepEqual(tileOf(signed.buttons.find((b) => b.key === 'sign')), { word: 'Signed', line: '10:27' });
+});

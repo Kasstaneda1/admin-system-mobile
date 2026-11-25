@@ -138,6 +138,15 @@ function closedWord(visit) {
   return 'Finished';
 }
 
+// Undo as a link by the visit's tag (design-mockups/app-dock): «Undo · 15 min», VoiceOver «Undo On
+// my way, 15 minutes left» — from barOf's undo
+export function undoLinkOf(undo) {
+  if (!undo) return null;
+  const n = parseInt(String(undo.left), 10);
+  const what = String(undo.text || '').replace(/ at \d.*$/, '');
+  return { text: Number.isFinite(n) ? `Undo · ${n} min` : 'Undo', label: `Undo ${what}${Number.isFinite(n) ? `, ${n} minute${n === 1 ? '' : 's'} left` : ''}` };
+}
+
 // What the bar shows, from the server's actions and undo_until (nowMs: this moment by the
 // server's clock):
 // { primary: { action, label, icon } | null, secondary: { … } | null, noAccess,

@@ -8,7 +8,7 @@ import Icon from './Icon';
 import { TAG_FAMILIES } from './parts';
 import { FinishDiagnosisField } from '../diagnosis/field';
 import { PART_NAME_MAX, PART_NUMBER_MAX, finishTitle, notFixedAt } from './actions';
-import { ThreeButtons } from '../bill/ThreeParts';
+import { ThreeButtons, ThreeTiles } from '../bill/ThreeParts';
 import { keyboardFirst } from './keyboardTap';
 
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
@@ -76,7 +76,9 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </View>
       ) : null}
 
-      {bar.undo ? (
+      {/* with the three (design app-dock) Undo is a link by the tag and No access a link at the end
+          of the visit's body (UndoLink, NoAccessLink): the foot keeps one big button and the row */}
+      {bar.undo && !three ? (
         <View style={styles.undo}>
           <Text style={styles.undoText} numberOfLines={2}>
             <Text style={styles.undoStrong}>{bar.undo.text}</Text>{` · ${bar.undo.left}`}
@@ -93,7 +95,7 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </View>
       ) : null}
 
-      {bar.closed && !nobill ? (
+      {bar.closed && !three ? (
         <View style={styles.closed}>
           <Text style={styles.closedText}>
             <Text style={styles.undoStrong}>{bar.closed.text}</Text>{bar.closed.note ? ` · ${bar.closed.note}` : ''}
@@ -143,9 +145,9 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </View>
       ) : null}
 
-      {three && !nobill ? <ThreeButtons three={three} busy={threeBusy} failure={threeFailure} onPress={onThree} onSkip={onSkip} /> : null}
+      {three && !nobill ? <ThreeTiles three={three} busy={threeBusy} failure={threeFailure} onPress={onThree} onSkip={onSkip} /> : null}
 
-      {bar.noAccess ? (
+      {bar.noAccess && !three ? (
         <TouchableOpacity style={styles.link} disabled={off} onPress={() => onPress('no_access')} accessibilityRole="button" accessibilityState={{ disabled: off }}>
           {spinner('no_access') ? <ActivityIndicator color={colors.fgDefault} /> : (
             <>
@@ -168,18 +170,44 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
           <Text style={styles.billLinkText}>{billLink.label}</Text>
         </TouchableOpacity>
       ) : null}
-      {bar.closed && onNote ? (
+      {bar.closed && onNote && !three ? (
         <TouchableOpacity style={[styles.noteBtn, !!blocked && styles.off]} disabled={!!blocked} onPress={onNote} accessibilityRole="button"
           accessibilityState={{ disabled: !!blocked }}>
           <Icon name="note" size={20} color={colors.brandPressed} />
           <Text style={styles.ghostText}>Add a note for the office</Text>
         </TouchableOpacity>
       ) : null}
-      {bar.closed && onNote && blocked ? <Text style={styles.blocked}>{blocked}</Text> : null}
+      {bar.closed && onNote && !three && blocked ? <Text style={styles.blocked}>{blocked}</Text> : null}
 
       {blocked && (bar.primary || bar.secondary || bar.noAccess || bar.undo) ? <Text style={styles.blocked}>{blocked}</Text> : null}
       {bar.line ? <Text style={styles.line}>{bar.line}</Text> : null}
     </View>
+  );
+}
+
+// Undo by the visit's tag (design app-dock: «Undo · 15 min», 15 pt 700, underlined, 44 pt): undo —
+// actions.js undoLinkOf; busy — its press in flight
+export function UndoLink({ undo, off, busy, onPress }) {
+  if (!undo) return null;
+  return (
+    <TouchableOpacity style={styles.undoLink} disabled={off} onPress={onPress} accessibilityRole="button" accessibilityLabel={undo.label}
+      accessibilityState={{ disabled: off, busy }}>
+      {busy ? <ActivityIndicator color={colors.brandPressed} /> : <Text style={[styles.undoLinkText, off && styles.linkOff]}>{undo.text}</Text>}
+    </TouchableOpacity>
+  );
+}
+
+// No access at the end of the visit's body (design app-dock: the door 20, 16 pt 600, underlined, left)
+export function NoAccessLink({ off, busy, onPress }) {
+  return (
+    <TouchableOpacity style={styles.noAccessLink} disabled={off} onPress={onPress} accessibilityRole="button" accessibilityState={{ disabled: off, busy }}>
+      {busy ? <ActivityIndicator color={colors.fgDefault} /> : (
+        <>
+          <Icon name="door" size={20} color={off ? colors.fgMutedField : colors.fgDefault} />
+          <Text style={[styles.noAccessText, off && styles.linkOff]}>No access</Text>
+        </>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -388,6 +416,10 @@ export function NoAccessSheet({ step, words, bottom, onCall, onNext, onClose, on
 }
 
 const styles = StyleSheet.create({
+  undoLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
+  undoLinkText: { fontSize: 15, fontWeight: '700', color: colors.brandPressed, textDecorationLine: 'underline' },
+  noAccessLink: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, alignSelf: 'flex-start', marginTop: 8, marginBottom: 12, marginHorizontal: 16 },
+  noAccessText: { fontSize: 16, fontWeight: '600', color: colors.fgDefault, textDecorationLine: 'underline' },
   bar: { paddingHorizontal: 16, paddingTop: 10, gap: 8, borderTopWidth: 1, borderTopColor: colors.borderDefault, backgroundColor: colors.bgCard },
   off: { opacity: 0.45 },
   undo: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, paddingLeft: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },

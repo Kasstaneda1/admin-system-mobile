@@ -119,8 +119,8 @@ function signButton(ack, issued, now) {
   if (ack && ack.status === 'ok' && ack.signed) {
     const at = ack.at ? whenOf(ack.at, now) : '';
     const parts = ack.parts === 'returned' ? ' · parts returned' : ack.parts === 'waived' ? ' · parts given up' : '';
-    if (ack.pending) return { state: 'done', title: at ? `Signed ${at}` : 'Signed', line: 'Waiting for signal — it sends by itself', warn: true };
-    return { state: 'done', title: at ? `Signed ${at}` : 'Signed', line: `${ack.name || ''}${parts}` || null };
+    if (ack.pending) return { state: 'done', title: at ? `Signed ${at}` : 'Signed', line: 'Waiting for signal — it sends by itself', warn: true, at };
+    return { state: 'done', title: at ? `Signed ${at}` : 'Signed', line: `${ack.name || ''}${parts}` || null, at };
   }
   if (issued && ack && ack.status === 'unknown') return { state: 'unknown', title: 'Get signature', line: 'Needs connection' };
   return { state: 'todo', title: 'Get signature', line: null };
@@ -138,7 +138,7 @@ function payButton(bill, issued, empty) {
     const method = last && last.method ? ` ${last.method}` : '';
     const at = last ? momentWall(last.received_at) : null;
     const where = last && ['cash', 'check'].includes(last.method) ? 'with you, turn it in' : 'with the office';
-    return { state: 'done', title: `Paid ${usd(sum || bill.total_cents)}${paid.length === 1 ? method : ''}`, line: [at ? clock(at.minutes) : null, where].filter(Boolean).join(' · ') };
+    return { state: 'done', title: `Paid ${usd(sum || bill.total_cents)}${paid.length === 1 ? method : ''}`, line: [at ? clock(at.minutes) : null, where].filter(Boolean).join(' · '), at: at ? clock(at.minutes) : '' };
   }
   if (bill.payment_status === 'partly_paid') {
     const paidSum = (Array.isArray(bill.payments) ? bill.payments : []).filter((p) => p && p.kind === 'payment' && !p.voided_at)
@@ -151,9 +151,9 @@ function payButton(bill, issued, empty) {
 function sendButton(issued, giveRequired, now) {
   if (issued && issued.delivered_at) {
     const at = whenOf(issued.delivered_at, now);
-    if (issued.delivered_via === 'email' && issued.delivered_to) return { state: 'done', title: `Sent to ${issued.delivered_to}`, line: [at, 'PDF'].filter(Boolean).join(' · ') };
-    if (issued.delivered_via === 'handed') return { state: 'done', title: 'Printed copy handed', line: at || null };
-    return { state: 'done', title: 'Shared as PDF', line: at || null };
+    if (issued.delivered_via === 'email' && issued.delivered_to) return { state: 'done', title: `Sent to ${issued.delivered_to}`, line: [at, 'PDF'].filter(Boolean).join(' · '), at };
+    if (issued.delivered_via === 'handed') return { state: 'done', title: 'Printed copy handed', line: at || null, at };
+    return { state: 'done', title: 'Shared as PDF', line: at || null, at };
   }
   return { state: 'todo', title: 'Send the bill', line: giveRequired ? 'Email, share or print' : 'Email, share, print or show' };
 }
@@ -244,3 +244,21 @@ export function issueFailText(failed) {
 }
 // Busy words on the pressed button
 export const BUSY_WORDS = { sign: 'Saving…', pay: 'Recording…', send: 'Sending…' };
+
+// A tile of the row in the visit's foot (design-mockups/app-dock README «Плитка»: the word 15 pt and
+// a line 13 pt, both one line in 114 pt): { word, line } of a button of threeOf; busy — its press in
+// flight. Who signed, how it was paid, where it went, why skipped — on the press, not here.
+const TILE_WORDS = { sign: ['Signature', 'Signed', 'Not signed'], pay: ['Get paid', 'Paid', 'Not paid'], send: ['Send bill', 'Sent', 'Not sent'] };
+export function tileOf(b, busy = false) {
+  const [todo, done, skipped] = TILE_WORDS[b.key];
+  if (busy) return { word: BUSY_WORDS[b.key], line: null };
+  if (b.state === 'skipped') return { word: skipped, line: 'skipped' };
+  if (b.state === 'done') {
+    if (b.key === 'pay' && b.title === 'Nothing to pay') return { word: 'No charge', line: null };
+    if (b.warn) return { word: done, line: 'waiting' };
+    return { word: done, line: b.at || null };
+  }
+  if (b.state === 'unknown') return { word: todo, line: 'No signal' };
+  if (b.key === 'pay') return { word: todo, line: b.state === 'wait' ? 'Add work' : b.line || null };
+  return { word: todo, line: b.lit ? 'next' : null };
+}
