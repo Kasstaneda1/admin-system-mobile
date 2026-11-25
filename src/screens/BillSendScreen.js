@@ -18,7 +18,7 @@ import { acks } from '../ack/store';
 import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { nowWall, clock, momentWall } from '../myDay/model';
-import { billError, billFirst, deliveryOf, pdfName, pdfReadyText } from '../bill/model';
+import { billError, deliveryOf, giveRequired, pdfName, pdfReadyText } from '../bill/model';
 import { buttonOf, copyRequired } from '../bill/copy';
 import { CopyChoice, useCopy } from '../bill/CopyParts';
 import { downloadBillPdf } from '../bill/pdf';
@@ -43,9 +43,9 @@ export default function BillSendScreen({ route, navigation }) {
     try {
       const data = await billAPI.get(id);
       if (n === seq.current) { setBill(data.bill); setProblem(null); }
-      // the signature for it: only a delivered bill has one (any issued one for a company without
-      // «Bill before payment»); not read — the button opens the screen that reads it
-      if (data.bill && data.bill.status === 'issued' && (data.bill.delivered_at || !billFirst(data.bill))) {
+      // the signature for it: only a delivered bill has one (any issued one where Give the bill is
+      // not Required); not read — the button opens the screen that reads it
+      if (data.bill && data.bill.status === 'issued' && (data.bill.delivered_at || !giveRequired(visit, data.bill))) {
         if (userId !== null) await acks.flushAll(userId).catch(() => {});
         const kept = userId === null ? null : await acks.pendingOf(id, userId).catch(() => null);
         if (n === seq.current) setOnPhone(!!(kept && !kept.failed));
@@ -58,7 +58,7 @@ export default function BillSendScreen({ route, navigation }) {
       if (failed.kind === 'failed') logError('Error loading a bill to send:', error);
       setProblem(failed);
     }
-  }, [id, userId]);
+  }, [id, userId, visit]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // ---------- the PDF ----------
@@ -88,7 +88,7 @@ export default function BillSendScreen({ route, navigation }) {
     }
   };
   // ---------- the copy ----------
-  const copy = useCopy({ id, bill, required: copyRequired(bill) });
+  const copy = useCopy({ id, bill, required: copyRequired(bill, visit) });
   const [giving, setGiving] = useState(false);
   const [giveFailed, setGiveFailed] = useState(null);
   const give = async () => {
@@ -105,8 +105,8 @@ export default function BillSendScreen({ route, navigation }) {
   const now = nowWall(Date.now());
   const label = bill ? bill.label || `#${bill.bill_number}` : '';
   const delivered = bill ? deliveryOf(bill, now) : null;
-  // a company without «Bill before payment»: the customer may sign before the bill is given
-  const signsFirst = !!bill && bill.status === 'issued' && !billFirst(bill);
+  // Give the bill not Required: the customer may sign before the bill is given
+  const signsFirst = !!bill && bill.status === 'issued' && !giveRequired(visit, bill);
   const issuedAt = bill ? momentWall(bill.issued_at) : null;
 
   if (!bill) {

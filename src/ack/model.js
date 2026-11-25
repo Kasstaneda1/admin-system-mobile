@@ -12,7 +12,7 @@
 //   - replaced_parts is required: returned / waived (giving them up is only in writing, NYC
 //     §2-259) / none; nothing is chosen until the customer chooses;
 //   - the company's latest acknowledgment terms go by their version (409 when they changed).
-import { billFirst, usd } from '../bill/model.js';
+import { giveRequired, usd } from '../bill/model.js';
 import { clock, momentWall } from '../myDay/model.js';
 import { clockOff } from '../approve/model.js';
 
@@ -61,19 +61,19 @@ export function pickParts(current, next, drawn) {
 // ---------- may the customer sign now ----------
 // By the visit's bill as GET /my/visits/:id/bill answers it:
 //   'none' — no bill; 'draft' — not issued yet; 'void'; 'undelivered' — issued, not given to the
-//   customer yet (only with «Bill before payment», bill/model.js billFirst); 'open' — the customer
+//   customer yet (only where Give the bill is Required, bill/model.js giveRequired); 'open' — the customer
 //   can sign
-export function ackStage(bill) {
+export function ackStage(bill, visit = null) {
   if (!bill) return 'none';
   if (bill.status === 'draft') return 'draft';
   if (bill.status === 'void') return 'void';
   if (bill.status !== 'issued') return 'none';
-  return bill.delivered_at || !billFirst(bill) ? 'open' : 'undelivered';
+  return bill.delivered_at || !giveRequired(visit, bill) ? 'open' : 'undelivered';
 }
 // What the technician reads when the customer cannot sign yet (null when they can); `bill` — the
 // visit's bill, for the company's «Bill before payment» (without it giving the bill is not asked)
-export function stageText(stage, bill = null) {
-  if ((stage === 'draft' || stage === 'none') && !billFirst(bill)) return 'Issue the bill first. Then the customer signs for it.';
+export function stageText(stage, bill = null, visit = null) {
+  if ((stage === 'draft' || stage === 'none') && !giveRequired(visit, bill)) return 'Issue the bill first. Then the customer signs for it.';
   if (stage === 'draft' || stage === 'none') return 'Issue the bill and give it to the customer first. Then they sign that they got it.';
   if (stage === 'undelivered') return 'Give the bill to the customer first: share the PDF or hand a printed copy. Then they sign that they got it.';
   if (stage === 'void') return 'This bill is void. The customer does not sign for it.';
