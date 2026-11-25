@@ -64,7 +64,7 @@ export default function BillPreviewScreen({ route, navigation }) {
       setBill(data.bill);
       const label = data.label || (data.bill && data.bill.label) || '';
       // the next step is giving it (design send): the send screen, back goes to the bill
-      Alert.alert(`Bill ${label} is issued`, issuedText(data.bill),
+      Alert.alert(`Bill ${label} is final`, issuedText(data.bill),
         [{ text: 'OK', onPress: () => navigation.replace('BillSend', { id, visit }) }]);
     } catch (error) {
       const failed = billError(error, { issue: true, company: bill.company && (bill.company.name || bill.company.legal_name) });
@@ -75,14 +75,14 @@ export default function BillPreviewScreen({ route, navigation }) {
       if (failed.kind === 'failed') logError('Error issuing a bill:', error);
       if (failed.reapprove) {
         // the customer approves the new amount on the Approve screen (src/approve)
-        Alert.alert('The bill is not issued', failed.text, [
+        Alert.alert('The bill is not final yet', failed.text, [
           { text: 'Not now', style: 'cancel' },
           { text: 'Approve again', onPress: () => navigation.navigate('Approve', { id, visit, again: true, back: 'Preview' }) },
         ]);
         load();
         return;
       }
-      Alert.alert('The bill is not issued', failed.text);
+      Alert.alert('The bill is not final yet', failed.text);
       if (failed.kind === 'refused') load();
     } finally {
       setIssuing(false);

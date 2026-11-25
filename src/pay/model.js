@@ -115,7 +115,7 @@ export function paidAt(bill) {
 // The chip over the numbers: { text, kind: 'done' | 'warn' | 'neutral' }
 export function chipOf(bill, now) {
   const label = bill.label || `#${bill.bill_number}`;
-  if (bill.status === 'draft') return { text: 'Bill · draft, not issued', kind: 'neutral' };
+  if (bill.status === 'draft') return { text: 'Bill · draft, not final yet', kind: 'neutral' };
   if (bill.status === 'void') return { text: `Bill ${label} · void`, kind: 'neutral' };
   if (bill.delivered_at) {
     const at = momentWall(bill.delivered_at);
@@ -123,8 +123,8 @@ export function chipOf(bill, now) {
   }
   const at = momentWall(bill.issued_at);
   // a company without «Bill before payment»: not given is not a warning there
-  if (!billFirst(bill)) return { text: `Bill ${label} · issued${at ? ` ${whenText(at, now)}` : ''}`, kind: 'neutral' };
-  return { text: `Bill ${label} · issued${at ? ` ${whenText(at, now)}` : ''}, not given`, kind: 'warn' };
+  if (!billFirst(bill)) return { text: `Bill ${label} · final${at ? ` ${whenText(at, now)}` : ''}`, kind: 'neutral' };
+  return { text: `Bill ${label} · final${at ? ` ${whenText(at, now)}` : ''}, not given`, kind: 'warn' };
 }
 function whenText(at, now) {
   return now && at.date === now.date ? clock(at.minutes) : monthDay(at.date);
