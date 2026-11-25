@@ -50,6 +50,19 @@ export function ThreeButtons({ three, busy = null, failure = null, onPress }) {
         const tone = done ? (b.warn ? s.waiting : s.done) : b.lit ? s.lit : s.calm;
         const fg = done ? colors.successFg : b.lit ? colors.onAccent : colors.brandPressed;
         const lineFg = done ? colors.successFg : b.lit ? colors.onAccent : colors.fgSecondary;
+        // calm and not done: compact — 52 pt, 17 pt, no line under it; Get paid's sum on the right
+        // (the Designer on #96)
+        const compact = !done && !b.lit && !running;
+        if (compact) {
+          return (
+            <TouchableOpacity key={b.key} style={[s.btn, s.compact, tone, off && s.off]} disabled={off} onPress={() => onPress(b.key)}
+              accessibilityRole="button" accessibilityLabel={b.label} accessibilityState={{ busy: false, disabled: off }}>
+              <Icon name={b.icon} size={24} color={fg} />
+              <Text style={[s.title, s.titleCompact, s.grow, { color: fg }]} numberOfLines={1}>{b.title}</Text>
+              {b.key === 'pay' && b.line ? <Text style={[s.titleCompact, s.side]} numberOfLines={1}>{b.line}</Text> : null}
+            </TouchableOpacity>
+          );
+        }
         return (
           <TouchableOpacity key={b.key} style={[s.btn, tone, off && !running && s.off]} disabled={off} onPress={() => onPress(b.key)}
             accessibilityRole="button" accessibilityLabel={running ? BUSY_LABELS[b.key] : b.label}
@@ -86,6 +99,10 @@ const s = StyleSheet.create({
   btnBody: { flex: 1, minWidth: 0 },
   title: { fontSize: 19, fontWeight: '800' },
   titleDone: { fontSize: 17 },
+  compact: { minHeight: 52 },
+  titleCompact: { fontSize: 17 },
+  grow: { flex: 1, minWidth: 0 },
+  side: { fontWeight: '400', color: colors.fgSecondary },
   line: { fontSize: 15, lineHeight: 20 },
   fail: { fontSize: 15, lineHeight: 20, color: colors.dangerFg },
 });

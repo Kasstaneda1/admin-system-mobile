@@ -35,7 +35,7 @@ import { dueOf } from '../pay/model.js';
 export const THREE_KEYS = { sign: 'signs', pay: 'collect', send: 'give' };
 const DEFAULT_ORDER = ['sign', 'pay', 'send'];
 const PAID = ['paid', 'overpaid', 'no_charge'];
-const ICONS = { sign: 'note', pay: 'money', send: 'mail' }; // no pen in the set: the note, as the old signature button
+const ICONS = { sign: 'pen', pay: 'money', send: 'mail' };
 
 // The three in the company's order with their modes: [{ key, mode }]; issue: its mode
 export function orderOf(visit) {
