@@ -32,6 +32,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { readVisit } from '../bell/store';
 import { colors } from '../constants/colors';
 import { ackAPI, approveAPI, billAPI, myDayAPI, photosAPI, session } from '../services/api';
 import { logError } from '../utils/logError';
@@ -252,6 +253,8 @@ export default function VisitScreen({ route, navigation }) {
 
   // on opening and every time the screen comes back
   useFocusEffect(useCallback(() => { setTick(Date.now()); load(); }, [load]));
+  // the bell: every item of this visit is read once it is open (the Architect's «NT» §7)
+  useEffect(() => { readVisit(id); }, [id]);
 
   // the technician has this visit on the screen: seen as of the data's moment
   const shownAt = shown ? shown.savedAt : null;
