@@ -331,6 +331,8 @@ export const photosAPI = {
 export const pushAPI = {
   register: (body) => answer(api.post('/api/my/push-devices', body)),
   forget: (token) => answer(api.delete('/api/my/push-devices', { data: { token } })),
+  // PN-BE: whether a push reaches this technician's phones (More, PN-APP)
+  status: () => answer(api.get('/api/my/push-devices/status')),
 };
 
 export const photoUri = (path) => `${API_URL}${path}`;
