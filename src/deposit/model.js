@@ -154,6 +154,23 @@ export function depositError(error, { company = 'the company', billLabel = null 
   return { kind: 'refused', text };
 }
 
+// ---------- Deposit taken with no deposit (design-mockups/finish-choice f3) ----------
+// «How did it end?» with Deposit taken marked and nothing open on the job: one yellow line under
+// it, «No deposit on this job yet.», and «Take a deposit» (the usual Deposit screen) where a new one
+// may be taken here. Finish visit still works: a warning, not a wall (the app only, the server
+// does not check it). → null (no line: another outcome, a deposit open, or the visit carries no
+// deposits — a helper, no «Takes payments») or { text, take } — take: the link is there
+export function noDepositYet(visit, outcome, { offline = false } = {}) {
+  if (outcome !== 'deposit') return null;
+  const d = depositsOf(visit);
+  if (!d) return null;
+  const open = d.live.reduce((sum, row) => sum + openOf(row), 0);
+  // a deposit already taken by a bill is there too, only not open any more
+  if (open > 0 || d.openCents > 0 || d.live.some((row) => appliedOf(row) > 0)) return null;
+  const row = depositRow(visit, { offline });
+  return { text: 'No deposit on this job yet.', take: !!row && row.tap === 'take' };
+}
+
 // ---------- the amount typed (design app-take: any amount above $0.00, no bill to bound it) ----------
 export function depositAmount(typed) {
   const cents = parseMoney(typed);

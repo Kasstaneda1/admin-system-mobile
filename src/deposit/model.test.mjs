@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { blockedOf, depositAmount, depositBody, depositHead, depositError, depositHolderLine, depositPayRows, depositRow, depositRows, depositsOf, historyLabel, recordedLine, withYouRows } from './model.js';
+import { blockedOf, depositAmount, depositBody, depositHead, depositError, depositHolderLine, depositPayRows, depositRow, depositRows, depositsOf, historyLabel, noDepositYet, recordedLine, withYouRows } from './model.js';
 import { countWord } from '../pay/model.js';
 
 // The design's job (design-mockups/deposits): job #2215, Javier Ortiz; Ivan takes $100.00 by
@@ -164,4 +164,26 @@ test('$200 deposit, $175.29 bill: $175.29 applied, $24.71 the office refunds', (
   const whole = withDeposits(on('bill_issued', 0, [{ ...DEP, applied_cents: 10000, applied_to: 'NY-1048', open_cents: 0 }]));
   assert.deepEqual(depositHead(whole).map((r) => [r.label, r.value]), [['Applied to NY-1048', '$100.00']]);
   assert.deepEqual(depositHead(TAKEN).map((r) => [r.label, r.value]), [['Deposits', '$100.00'], ['For the repair', 'Open']]);
+});
+
+// design-mockups/finish-choice f3: Deposit taken marked, nothing open on the job
+test('Deposit taken with no deposit: one yellow line, the link only where a deposit may be taken', () => {
+  assert.deepEqual(noDepositYet(NONE, 'deposit'), { text: 'No deposit on this job yet.', take: true });
+  // another outcome, an open deposit, or one the bill already took: no line
+  assert.equal(noDepositYet(NONE, 'done'), null);
+  assert.equal(noDepositYet(NONE, 'diagnostics_only'), null);
+  assert.equal(noDepositYet(TAKEN, 'deposit'), null);
+  assert.equal(noDepositYet(APPLIED, 'deposit'), null);
+  // the server's open sum alone is enough too
+  assert.equal(noDepositYet(withDeposits(on(null, 5000, [])), 'deposit'), null);
+  // a void deposit is not a deposit
+  assert.deepEqual(noDepositYet(withDeposits(on(null, 0, [{ ...DEP, voided_at: '2026-11-11T17:00:00Z' }])), 'deposit'), { text: 'No deposit on this job yet.', take: true });
+  // nothing to take here (the company off, the job closed, a bill issued, offline): the line, no link
+  assert.deepEqual(noDepositYet(withDeposits({ enabled: false, can_take: false, refused_code: null, open_cents: 0, items: [] }), 'deposit'), { text: 'No deposit on this job yet.', take: false });
+  assert.deepEqual(noDepositYet(withDeposits(on('job_closed', 0, [])), 'deposit'), { text: 'No deposit on this job yet.', take: false });
+  assert.deepEqual(noDepositYet(ISSUED_NONE, 'deposit'), { text: 'No deposit on this job yet.', take: false });
+  assert.deepEqual(noDepositYet(NONE, 'deposit', { offline: true }), { text: 'No deposit on this job yet.', take: false });
+  // the visit carries no deposits (a helper, no «Takes payments», an old card): nothing known, no line
+  assert.equal(noDepositYet(VISIT, 'deposit'), null);
+  assert.equal(noDepositYet({ ...NONE, role: 'helper' }, 'deposit'), null);
 });
