@@ -220,7 +220,7 @@ export function clockOff(error, nowMs = Date.now()) {
 }
 // A signature from the phone's queue, refused for its time: the plain words, the clock first
 // when it is known to be off (the box «The signature was not accepted»)
-export const CLOCK_QUEUED_WORDS = 'The time it was signed doesn’t fit this visit. Ask the customer to sign again, or call the office if they’re gone.';
+export const CLOCK_QUEUED_WORDS = 'The signing time doesn’t match this visit. Ask the customer to sign again, or call the office if they’re gone.';
 export function queuedClockText(clock) {
   return clock === true ? `The phone’s clock was off when it was signed. ${CLOCK_QUEUED_WORDS}` : CLOCK_QUEUED_WORDS;
 }
