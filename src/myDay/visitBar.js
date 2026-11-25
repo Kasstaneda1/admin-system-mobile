@@ -92,7 +92,7 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </View>
       ) : null}
 
-      {bar.closed ? (
+      {bar.closed && !nobill ? (
         <View style={styles.closed}>
           <Text style={styles.closedText}>
             <Text style={styles.undoStrong}>{bar.closed.text}</Text>{bar.closed.note ? ` · ${bar.closed.note}` : ''}

@@ -30,7 +30,7 @@
 //   still on this phone: { status: 'ok', signed: true, pending: true }), money (takes_payments),
 //   deposits (the job's open deposits in cents, for Deposit taken), now ({ date, minutes }) }
 import { canBill, usd } from './model.js';
-import { clock, momentWall, stateOf } from '../myDay/model.js';
+import { clock, closedMoment, momentWall, stateOf } from '../myDay/model.js';
 import { dueOf } from '../pay/model.js';
 
 export const THREE_KEYS = { sign: 'signs', pay: 'collect', send: 'give' };
@@ -166,7 +166,9 @@ export function threeOf(ctx) {
   if (!issuedHere && (kind === 'recall' || (closed && visit.outcome === 'deposit'))) {
     if (!closed) return null;
     const deposit = visit.outcome === 'deposit' && Number(ctx.deposits) > 0 ? `Deposit ${usd(ctx.deposits)} on the job` : null;
-    return { kind: 'nobill', title: 'Finished · no bill on this visit', line: deposit };
+    // the time in the line itself (the Designer on #98): the bar's own «Finished at …» box is gone then
+    const at = closedMoment(visit);
+    return { kind: 'nobill', title: `Finished${at ? ` ${clock(at.minutes)}` : ''} · no bill on this visit`, line: deposit };
   }
   const { list, issue } = orderOf(visit);
   const issueOff = issue === 'off';
