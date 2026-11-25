@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   // all done: «Next: Nguyen T. · 1:30» — the brand's dark button, not the amber one (design usab-u1)
   mainNext: { backgroundColor: colors.brandPressed },
   mainTextNext: { color: colors.fgOnFill },
-  // «Next: …» under the green «Finished · no bill on this visit» (finish-choice f5): outlined
+  // «Next: …» under the green «Finished 12:53 · no bill» (finish-choice f5, the Designer on #98): outlined
   nextQuiet: { alignItems: 'center', justifyContent: 'center', height: 52, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
   nextQuietText: { fontSize: 17, fontWeight: '800', color: colors.brandPressed },
   // the plain buttons under the big one, the full width; two side by side (Finish · On my way)

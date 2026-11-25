@@ -168,7 +168,7 @@ export function threeOf(ctx) {
     const deposit = visit.outcome === 'deposit' && Number(ctx.deposits) > 0 ? `Deposit ${usd(ctx.deposits)} on the job` : null;
     // the time in the line itself (the Designer on #98): the bar's own «Finished at …» box is gone then
     const at = closedMoment(visit);
-    return { kind: 'nobill', title: `Finished${at ? ` ${clock(at.minutes)}` : ''} · no bill on this visit`, line: deposit };
+    return { kind: 'nobill', title: `Finished${at ? ` ${clock(at.minutes)}` : ''} · no bill`, line: deposit };
   }
   const { list, issue } = orderOf(visit);
   const issueOff = issue === 'off';

@@ -96,12 +96,12 @@ test('Issue off: nothing until the office makes it final, then Get paid alone, c
 
 test('no bill on the visit: a recall — nothing before Finish, the green line after; Deposit taken', () => {
   assert.equal(threeOf(ctx({ visit: visit({ visit_kind: 'recall' }) })), null);
-  assert.deepEqual(threeOf(ctx({ visit: closed({ visit_kind: 'recall', outcome: 'recall' }) })), { kind: 'nobill', title: 'Finished · no bill on this visit', line: null });
+  assert.deepEqual(threeOf(ctx({ visit: closed({ visit_kind: 'recall', outcome: 'recall' }) })), { kind: 'nobill', title: 'Finished · no bill', line: null });
   assert.deepEqual(threeOf(ctx({ visit: closed({ visit_kind: 'repair', outcome: 'deposit' }), deposits: 20000 })),
-    { kind: 'nobill', title: 'Finished · no bill on this visit', line: 'Deposit $200.00 on the job' });
+    { kind: 'nobill', title: 'Finished · no bill', line: 'Deposit $200.00 on the job' });
   // the time of the Finish in the line itself (the Designer on #98), New York's wall clock
   assert.equal(threeOf(ctx({ visit: closed({ visit_kind: 'repair', outcome: 'deposit', closed_at: '2026-11-10T15:52:00.000Z' }), deposits: 20000 })).title,
-    'Finished 10:52 · no bill on this visit');
+    'Finished 10:52 · no bill');
 });
 
 test('a recall or Deposit taken with a bill the office issued: the three as usual, not «no bill» (the Architect on #96)', () => {
