@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { alreadyGiven, billCardOf, buttonOf, copyCheck, copyFailText, copyMissing, copyRequired, copyWaysOf, emailBody, firstWay, jobEmailOf, signWordsOf, tickOf } from './copy.js';
+import { alreadyGiven, tickFor, billCardOf, buttonOf, copyCheck, copyFailText, copyMissing, copyRequired, copyWaysOf, emailBody, firstWay, jobEmailOf, signWordsOf, tickOf } from './copy.js';
 
 const bill = (o = {}) => ({ status: 'issued', can_email: true, bill_before_payment: true, delivered_at: null, customer: { email: 'test@example.com' }, ...o });
 const ways = (list) => list.map((w) => w.way).join(' ');
@@ -131,4 +131,14 @@ test('the signature asks for the copy only when Give is Required (the lead 25.11
   assert.equal(copyMissing(b, { steps: steps('optional') }), false);
   assert.equal(copyMissing(b, { steps: steps('off') }), false);
   assert.equal(copyMissing({ ...b, delivered_at: '2026-11-25T14:00:00Z' }, { steps: steps('required') }), false);
+});
+
+test('the tick goes only with the way it was ticked for (the Architect on #110)', () => {
+  // Share ticked on the screen, then Email picked in the choose sheet: no consent for the email
+  assert.equal(tickFor('email', 'share', true), false);
+  // Share ticked and chosen in the sheet (its own button): the tick goes
+  assert.equal(tickFor('share', 'share', true), true);
+  // no sheet (the screen's own way): the state as it is
+  assert.equal(tickFor(null, 'email', true), true);
+  assert.equal(tickFor(undefined, 'email', false), false);
 });

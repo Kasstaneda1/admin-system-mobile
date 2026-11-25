@@ -16,7 +16,7 @@ import { billAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { downloadBillPdf } from './pdf';
-import { alreadyGiven, buttonOf, copyCheck, copyFailText, copyWaysOf, emailBody, firstWay, jobEmailOf, tickOf } from './copy';
+import { alreadyGiven, tickFor, buttonOf, copyCheck, copyFailText, copyWaysOf, emailBody, firstWay, jobEmailOf, tickOf } from './copy';
 
 // The choice and the sending. bill: the issued bill; required: the copy is required (copy.js
 // copyRequired); quiet: start on the way without a tick (copy.js firstWay — the customer's screens). give() → { ok: true, bill (the answer's, or null: read it again), show (Show it
@@ -42,12 +42,13 @@ export function useCopy({ id, bill, required, quiet = false }) {
   // chosen: the way picked in the «choose» sheet this moment (the state is not there yet)
   const give = useCallback(async (chosen = null) => {
     const way = typeof chosen === 'string' ? chosen : wayNow;
-    const stop = copyCheck({ way, to, ticked });
+    const tickNow = tickFor(chosen, wayNow, ticked);
+    const stop = copyCheck({ way, to, ticked: tickNow });
     if (stop) return { ok: false, text: stop };
     if (way === 'show') return { ok: true, bill: null, show: true };
     try {
       if (way === 'email') {
-        const data = await billAPI.email(id, emailBody(to, ticked));
+        const data = await billAPI.email(id, emailBody(to, tickNow));
         return { ok: true, bill: (data && data.bill) || null };
       }
       if (way === 'share') {

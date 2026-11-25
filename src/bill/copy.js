@@ -96,6 +96,12 @@ export function copyCheck({ way, to, ticked }) {
   return null;
 }
 
+// The tick that goes with the copy: the customer ticked it for the way chosen on the screen; a way
+// picked in the choose sheet this moment (chosen) other than that one goes without it — the state
+// is not reset yet (the Architect on #110: Share ticked, then Email in the sheet would send
+// consent: true for the email)
+export const tickFor = (chosen, wayNow, ticked) => (typeof chosen === 'string' && chosen !== wayNow ? false : !!ticked);
+
 // The body of POST …/bill/email
 export const emailBody = (to, ticked) => (ticked ? { to: String(to).trim(), consent: true } : { to: String(to).trim() });
 
