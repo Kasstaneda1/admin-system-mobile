@@ -5,11 +5,13 @@
 // a full payment in two taps, Cash → «Record $332.07 cash»; the methods are pay/MethodForm.js).
 // What it does:
 //   - no issued bill: says so and opens the bill;
-//   - issued, not given: the customer gets the bill first (NYC §2-255) — Give the bill opens
-//     BillSendScreen; «Customer gets the bill later…» asks why, and the payment goes with
-//     before_delivery and the reason (the office sends the bill); only for a company with
-//     «Bill before payment» (bill_before_payment, BILLS_MV_DESIGN §3.2а) — without it the
-//     customer pays the issued bill at once, nothing about the delivery is asked;
+//   - issued, not given: the customer gets a copy first (NYC §2-255; T3 d5, design-mockups/
+//     tech-bill-plain): «First, the customer gets a copy of the bill.», the bill in one row and
+//     the copy's choice (bill/CopyParts.js) — «Email the copy · Get paid» gives it, then the
+//     payment; the quiet «Take payment now, send the copy later» takes it at once, the payment
+//     goes with before_delivery and «The customer gets the copy later» (the office sends the
+//     bill). Only for a company with «Bill before payment» (bill_before_payment, BILLS_MV_DESIGN
+//     §3.2а) — without it the customer pays the issued bill at once, nothing about the copy;
 //   - the amount: the full balance at once; «Change» opens the amount and «Why only part?» (the
 //     server: note_required);
 //   - after a record: the green line, «Collect $X now» for a second method, or Later;
@@ -31,6 +33,8 @@ import Icon from '../myDay/Icon';
 import { clockAmPm, nowWall } from '../myDay/model';
 import { Sheet } from '../myDay/visitBar';
 import { usd } from '../bill/model';
+import { LATER_REASON, billCardOf, buttonOf } from '../bill/copy';
+import { BillCard, CopyChoice, useCopy } from '../bill/CopyParts';
 import {
   PART_REASONS, VOID_REASONS, amountOf, chipOf, countWord, dueOf, historyOf, laterOf, laterReasonGiven, moneyText, noBillText, numbersOf, paidAt, payError, stageOf, voidBody,
 } from '../pay/model';
@@ -40,7 +44,6 @@ import { Chip, Field, History, Numbers, Pills, Section, payStyles } from '../pay
 import { depositPayRows, historyLabel } from '../deposit/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 
-const LATER_REASONS = ['Wants it by email', 'Printer is out', 'Paying for someone else'];
 
 export default function PayScreen({ route, navigation }) {
   const { id, visit, bill: lastBill = null, recorded = null } = route.params || {};
@@ -147,16 +150,22 @@ export default function PayScreen({ route, navigation }) {
     navigation.navigate('PayOnline', { id, visit, bill, cents: amount.cents, part: amount.part });
   };
 
-  // ---------- «Customer gets the bill later…» ----------
-  const [laterOpen, setLaterOpen] = useState(false);
-  const [laterChip, setLaterChip] = useState(null);
-  const [laterText, setLaterText] = useState('');
-  const laterReason = [laterChip, laterText.trim()].filter(Boolean).join(': ');
-  const takeLater = () => {
-    if (!laterReason) return;
-    setLater({ reason: laterReason.slice(0, 300) });
-    setLaterOpen(false);
+  // ---------- the customer's copy first (d5) ----------
+  const copy = useCopy({ id, bill, required: true });
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [copyFail, setCopyFail] = useState(null);
+  const giveCopy = async () => {
+    if (copyBusy) return;
+    setCopyBusy(true);
+    setCopyFail(null);
+    const r = await copy.give();
+    setCopyBusy(false);
+    if (!r.ok) { if (r.text) setCopyFail(r.text); return; }
+    // given: the payment comes next on this screen (the bill read again says delivered)
+    if (r.bill) setBill(r.bill); else load();
   };
+  // «Take payment now, send the copy later»: the reason goes by itself, the office sends the copy
+  const takeLater = () => { setCopyFail(null); setLater({ reason: LATER_REASON }); };
 
   // ---------- voiding one's own record ----------
   const [voiding, setVoiding] = useState(null);         // the history row
@@ -189,7 +198,7 @@ export default function PayScreen({ route, navigation }) {
   // the deposits this bill took (DEP-APP, design app-repair-pay): first in History, no void
   const rows = useMemo(() => (bill ? [...depositPayRows(visit, bill.label), ...historyOf(bill, tick)] : []), [bill, tick, visit]);
   const offline = problem && problem.kind === 'offline';
-  const back = <TopBar back="Visit" title="Payment" onBack={() => navigation.goBack()} />;
+  const back = <TopBar back="Visit" title={bill && stageOf(bill) === 'show' && !later ? 'Get paid' : 'Payment'} onBack={() => navigation.goBack()} />;
 
   if (!bill) {
     return (
@@ -234,7 +243,14 @@ export default function PayScreen({ route, navigation }) {
       {back}
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView ref={scroll} contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
-          <View style={payStyles.top}>
+          {stage === 'show' && !offline ? (
+            <View style={styles.copyFirst}>
+              <Box kind="warn" icon="doc" title="First, the customer gets a copy of the bill." text="Then you take the payment." />
+              <BillCard card={billCardOf(bill, now.date)} compact />
+              <CopyChoice copy={copy} label="THE CUSTOMER’S COPY" off={copyBusy} onChange={() => setCopyFail(null)} />
+            </View>
+          ) : null}
+          {stage === 'show' && !offline ? null : <View style={payStyles.top}>
             {stage === 'paid' ? (
               <View style={styles.paidBox} accessible accessibilityLabel={`Paid in full. Bill ${label}, ${usd(bill.total_cents)}`}>
                 <View style={styles.paidDot}><Icon name="check" size={30} color={colors.fgOnFill} /></View>
@@ -249,7 +265,7 @@ export default function PayScreen({ route, navigation }) {
               <Chip chip={chipOf(bill, now)} />
             )}
             <Numbers rows={numbersOf(bill)} />
-          </View>
+          </View>}
 
           {stage === 'paid' && bill.payment_status === 'overpaid' ? (
             <Box kind="info" icon="info" style={payStyles.gap} text={`Paid ${usd(-bill.balance_cents)} more than the bill. The office refunds it.`} />
@@ -268,10 +284,6 @@ export default function PayScreen({ route, navigation }) {
               text="The server checks the balance so two phones never count the same money twice. Take the money, then record it when you are back online." />
           ) : problem ? <Box kind="danger" icon="warn" style={payStyles.gap} text={problem.text} /> : null}
 
-          {stage === 'show' && !offline ? (
-            <Box kind="warn" icon="warn" style={payStyles.gap} title="Give the bill first"
-              text="In NYC the customer gets the bill before paying: a copy they keep, printed or the PDF sent. Showing it on your phone does not count." />
-          ) : null}
           {later && stage === 'collect' && !laterReasonGiven(bill) ? (
             <Box kind="info" icon="info" style={payStyles.gap} title="The bill is sent later" text={`${later.reason}. The office sends ${label} to the customer.`} />
           ) : null}
@@ -344,9 +356,8 @@ export default function PayScreen({ route, navigation }) {
           ) : null}
         </ScrollView>
 
-        <Foot bottom={insets.bottom} failure={askAmount ? form.failure : null}
+        <Foot bottom={insets.bottom} failure={askAmount ? form.failure : stage === 'show' ? copyFail : null}
           note={offline ? `The visit keeps «${usd(due)} due» until it is recorded.` : choice ? `Later: the visit shows «${usd(due)} left» and the office follows up.`
-            : stage === 'show' ? 'Later needs a reason. The office sees it.'
               : askAmount && !form.locked && amount.error && pick === 'part' ? amount.error
                 : askAmount ? (form.shown.tile === 'card' ? 'Hand the phone to the customer for the tip.' : form.holder) : null}>
           {offline ? (
@@ -356,8 +367,10 @@ export default function PayScreen({ route, navigation }) {
             </>
           ) : stage === 'show' ? (
             <>
-              <MainButton text="Give the bill" icon="doc" onPress={() => navigation.navigate('BillSend', { id, visit, back: 'Payment' })} />
-              <PlainButton text="Customer gets the bill later…" onPress={() => { setLaterChip(null); setLaterText(''); setLaterOpen(true); }} />
+              <MainButton text={copyBusy ? 'Sending the copy…' : buttonOf('pay', copy.way).text} icon={buttonOf('pay', copy.way).icon} waiting={copyBusy} onPress={giveCopy} />
+              <TouchableOpacity style={styles.later} onPress={takeLater} disabled={copyBusy} accessibilityRole="button">
+                <Text style={styles.laterText}>Take payment now, send the copy later</Text>
+              </TouchableOpacity>
             </>
           ) : choice ? (
             <>
@@ -382,19 +395,6 @@ export default function PayScreen({ route, navigation }) {
         </Foot>
       </KeyboardAvoidingView>
 
-      <Sheet visible={laterOpen} onClose={() => setLaterOpen(false)} bottom={insets.bottom} keyboard>
-        <View style={payStyles.sheetBody}>
-          <Text style={payStyles.sheetTitle} accessibilityRole="header">Bill later, payment now?</Text>
-          <Text style={payStyles.sheetSub}>{`The office sends ${label} to the customer. Say why.`}</Text>
-          <Pills items={LATER_REASONS.map((r) => ({ key: r, label: r, toggle: true }))} value={laterChip} onPick={setLaterChip} />
-          <TextInput style={payStyles.input} value={laterText} onChangeText={setLaterText} maxLength={250} placeholder="More words, if needed"
-            placeholderTextColor={colors.fgMutedField} accessibilityLabel="Why the bill is sent later" />
-          <MainButton text="Take the payment" off={!laterReason} onPress={takeLater} />
-          <TouchableOpacity style={payStyles.plainLink} onPress={() => setLaterOpen(false)} accessibilityRole="button">
-            <Text style={payStyles.plainLinkText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </Sheet>
 
       <Sheet visible={!!voiding} onClose={() => setVoiding(null)} bottom={insets.bottom} keyboard>
         {voiding ? (
@@ -427,6 +427,10 @@ export default function PayScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  // d5: the copy first — the box, the bill in one row, the choice
+  copyFirst: { gap: 14, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+  later: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  laterText: { fontSize: 17, fontWeight: '700', color: colors.fgSecondary },
   stretch: { alignSelf: 'stretch', gap: 10 },
   paidBox: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 16, borderWidth: 1.5, borderColor: colors.successBorder, backgroundColor: colors.successBg },
   paidDot: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.successBorder },
