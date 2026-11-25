@@ -94,6 +94,16 @@ export function skipReason(text) {
   const one = String(text || '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
   return one ? one.slice(0, REASON_MAX) : null;
 }
+// One client_request_id for an open sheet and a chosen reason (the Architect on #102): the same
+// reason pressed again after a lost answer goes with the same id, and the server answers 200
+// «nothing new» instead of a second skip. ids: the sheet's own map (new each time it opens);
+// make() — a new id (actions.js newRequestId)
+export function requestIdFor(ids, reason, make) {
+  const key = skipReason(reason);
+  if (!key) return null;
+  if (!ids[key]) ids[key] = make();
+  return ids[key];
+}
 export function skipBody(text, requestId) {
   const reason = skipReason(text);
   return reason ? { reason, client_request_id: requestId } : null;
