@@ -101,6 +101,18 @@ test('no bill on the visit: a recall — nothing before Finish, the green line a
     { kind: 'nobill', title: 'Finished · no bill on this visit', line: 'Deposit $200.00 on the job' });
 });
 
+test('a recall or Deposit taken with a bill the office issued: the three as usual, not «no bill» (the Architect on #96)', () => {
+  const office = knownOf(issued());
+  for (const v of [closed({ visit_kind: 'recall', outcome: 'recall' }), closed({ visit_kind: 'repair', outcome: 'deposit' }), visit({ visit_kind: 'recall' })]) {
+    const t = threeOf(ctx({ visit: v, known: office, deposits: 20000 }));
+    assert.equal(t.kind, 'three', `${v.visit_kind} ${v.outcome}`);
+    assert.ok(t.buttons.some((b) => b.key === 'pay' && b.state === 'todo'), 'Get paid is there');
+    assert.equal(t.row.title, 'Bill NY-1053 · $136.09');
+  }
+  // without an issued bill (a draft, none) — still the green line
+  assert.equal(threeOf(ctx({ visit: closed({ visit_kind: 'repair', outcome: 'deposit' }), known: knownOf(null) })).kind, 'nobill');
+});
+
 test('not here: a helper, an old task, no money permission, closed without work', () => {
   assert.equal(threeOf(ctx({ visit: visit({ role: 'helper' }) })), null);
   assert.equal(threeOf(ctx({ visit: visit({ legacy: true }) })), null);

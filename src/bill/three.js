@@ -158,9 +158,12 @@ export function threeOf(ctx) {
   const { visit, known, ack, now } = ctx;
   const closed = stateOf(visit) === 'closed';
   // no bill on this visit: a recall (always free) — nothing before Finish, a green line after;
-  // closed as Deposit taken — the green line with the job's deposit
+  // closed as Deposit taken — the green line with the job's deposit. Only while no bill is issued:
+  // a bill the office issued there (the Architect on #96) has the three as usual — the money can
+  // be taken, as the Pay tile on main lets it
   const kind = visit.visit_kind;
-  if (kind === 'recall' || (closed && visit.outcome === 'deposit')) {
+  const issuedHere = !!known && known.status === 'issued' && !!known.bill;
+  if (!issuedHere && (kind === 'recall' || (closed && visit.outcome === 'deposit'))) {
     if (!closed) return null;
     const deposit = visit.outcome === 'deposit' && Number(ctx.deposits) > 0 ? `Deposit ${usd(ctx.deposits)} on the job` : null;
     return { kind: 'nobill', title: 'Finished · no bill on this visit', line: deposit };
