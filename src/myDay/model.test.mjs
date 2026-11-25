@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   nyOffsetMinutes, nyWall, momentWall, parseWall, addDays, weekOf, dayLabel, weekdayLetter, dayOfMonth,
-  clock, clockAmPm, windowText, durationText, greeting, firstName, shortName, planOf, visitDay, stateOf, kindText, areaOf, tagOf,
+  clock, clockAmPm, windowText, windowLines, durationText, greeting, firstName, shortName, planOf, visitDay, stateOf, kindText, areaOf, tagOf,
   buildDay, listItems, stripOf, headerLine, weekCounts, nextBusyDay, offerText, emptyText, keepWeek, keptWeek, offlineText, failedText,
   skewOf, nowWall, addressLine, directionsLinks, telLink, MAX_WEEKS_KEPT, DAY_START, DAY_END, isLogged, movedToText, loggedTag,
 } from './model.js';
@@ -286,6 +286,40 @@ test('a visit planned before midnight is on its own day; one planned after midni
   assert.equal(buildDay([late], TUE, NOW).rows[0].winEnd, 1440);
 });
 
+test('a plan on another day outside the customer window goes by the window (the owner, 2026-11-24)', () => {
+  // window today 10 PM–12 AM, the booking form planned the work 12–1 AM tomorrow
+  const off = { ...visit({ id: 63, w0: '22:00', w1: '00:00', w1date: '2026-11-11' }), planned_start: '2026-11-11 00:00:00', duration_minutes: 60 };
+  assert.equal(visitDay(off), TUE);
+  assert.deepEqual(planOf(off).start, { date: TUE, minutes: 22 * 60 });
+  const day = buildDay([off], TUE, NOW);
+  assert.deepEqual(day.rows.map((r) => [r.id, r.window, r.timeText, r.start]), [[63, '10 PM–12 AM', 'plan 10:00', 22 * 60]]);
+  assert.deepEqual(buildDay([off], '2026-11-11', NOW).rows, []);
+  // inside the window across midnight: on the plan's day, as before
+  const inside = { ...visit({ id: 64, w0: '22:00', w1: '01:00', w1date: '2026-11-11' }), planned_start: '2026-11-11 00:30:00' };
+  assert.equal(visitDay(inside), '2026-11-11');
+  // outside the window on the window's own day: the office's plan stays
+  const sameDay = visit({ id: 65, w0: '09:00', w1: '11:00', p: '11:30' });
+  assert.deepEqual(planOf(sameDay).start, { date: TUE, minutes: 11 * 60 + 30 });
+  // no window end: a plan before the window on another day goes by the window too
+  const early = { ...visit({ id: 66, w0: '09:00', w1: '11:00' }), scheduled_end: null, planned_start: '2026-11-09 23:00:00' };
+  assert.equal(visitDay(early), TUE);
+});
+
+test('free time from before the working day says AM (the owner read «Free 1:00–7:00 PM · 18h»)', () => {
+  const night = { ...visit({ id: 67, date: '2026-11-11', w0: '00:00', w1: '01:00' }), duration_minutes: 60 };
+  const gaps = buildDay([night], '2026-11-11', NOW).gaps;
+  assert.deepEqual(gaps.map((g) => g.text), ['Free 1:00 AM–7:00 PM · 18h']);
+});
+
+test('windowLines: AM/PM windows break after the dash, short ones stay in one line', () => {
+  assert.deepEqual(windowLines('10 PM–12 AM'), ['10 PM–', '12 AM']);
+  assert.deepEqual(windowLines('9:30 AM–10 PM'), ['9:30 AM–', '10 PM']);
+  assert.deepEqual(windowLines('11–2'), ['11–2']);
+  assert.deepEqual(windowLines('9:30–12'), ['9:30–12']);
+  assert.deepEqual(windowLines(''), ['']);
+  assert.deepEqual(windowLines(null), ['']);
+});
+
 test('a past day: closed visits, no free time', () => {
   const MON = '2026-11-09';
   const vs = [visit({ date: MON, id: 71, w0: '09:00', w1: '12:00', status: 'completed', outcome: 'done', updated_at: '2026-11-09T15:00:00Z' })];
@@ -322,6 +356,14 @@ test('the customer in the list: the surname and the first initial, as in the des
   assert.equal(shortName('Rossi A.'), 'Rossi A.');
   assert.equal(shortName('Acme Plumbing LLC'), 'Acme Plumbing LLC');
   assert.equal(shortName('Smith & Sons'), 'Smith & Sons');
+  // not made of name words: as it is (the owner saw 'test) T.')
+  assert.equal(shortName('Test (test)'), 'Test (test)');
+  assert.equal(shortName('Tina Test (test)'), 'Tina Test (test)');
+  assert.equal(shortName('Unit 4B Tenant'), 'Unit 4B Tenant');
+  assert.equal(shortName('"Bob" Jones'), '"Bob" Jones');
+  assert.equal(shortName('Jones, Bob (2)'), 'Jones, Bob (2)');
+  assert.equal(shortName("Sean O'Brien"), "O'Brien S.");
+  assert.equal(shortName('Patel, Sanjay Jr.'), 'Patel S.');
   assert.equal(shortName(''), 'Customer');
   assert.equal(shortName(null), 'Customer');
   // the row keeps the full name for the card and VoiceOver

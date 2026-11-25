@@ -29,13 +29,13 @@ test('the list is one, in the order of the visit', () => {
   assert.deepEqual(VISIT_STEPS.map((s) => s.key), ['approve', 'finish', 'bill', 'give', 'pay', 'signs', 'next']);
 });
 
-test('not signed yet: Approve the repair, Finish beside it (Approve may be passed)', () => {
+test('not signed yet: Finish the repair lit, «Customer approves» beside it plain (d0: Approve may be passed)', () => {
   const s = stepsOf(ctx());
-  assert.deepEqual(keys(s), ['approve', 'finish']);
-  assert.equal(s.main.label, 'Approve the repair');
-  assert.equal(s.second.label, 'Finish');
+  assert.deepEqual(keys(s), ['finish', 'approve']);
+  assert.equal(s.main.label, 'Finish the repair');
+  assert.equal(s.second.label, 'Customer approves');
   // no bill yet: whether parts get replaced is not known, so no «Signs» yet
-  assert.equal(marks(s), 'Approve:now Bill:todo Given:todo Pay:todo');
+  assert.equal(marks(s), 'Approve:todo Bill:todo Given:todo Pay:todo');
 });
 
 test('signed: Finish, nothing beside it', () => {
@@ -135,7 +135,7 @@ test('a recall has no Approve', () => {
 test('a diagnostics visit has no Approve step either: Finish first (the tile stays on the screen)', () => {
   const s = stepsOf(ctx({ visit: visit({ visit_kind: 'diagnostics' }) }));
   assert.deepEqual(keys(s), ['finish', null]);
-  assert.equal(s.main.label, 'Finish');
+  assert.equal(s.main.label, 'Finish diagnostics');
   assert.equal(marks(s), 'Bill:todo Given:todo Pay:todo');
 });
 

@@ -93,6 +93,13 @@ export function windowText(start, end) {
   }
   return `${short(start.minutes)}–${short(end.minutes)}`;
 }
+// The window in the list's narrow time column: the short form in one line; one with AM/PM
+// ('10 PM–12 AM') in two, the break after the dash — else it wrapped into three ('10 / PM–12 /
+// AM', the owner 2026-11-24). [line] or [line1, line2]
+export function windowLines(text) {
+  const m = typeof text === 'string' && /[AP]M/.test(text) ? text.match(/^(.+?–)(.+)$/) : null;
+  return m ? [m[1], m[2]] : [text || ''];
+}
 // '1h', '45m', '1h 15m'
 export function durationText(minutes) {
   if (minutes >= 60) return `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`;
@@ -106,8 +113,15 @@ export function greeting(minutes) {
 export const firstName = (name) => (typeof name === 'string' && name.trim() ? name.trim().split(/\s+/)[0] : '');
 
 // The customer in the day's list, short as in the design: 'Sanjay Patel' → 'Patel S.' (the
-// surname and the first initial; 'Patel, Sanjay' too). One word, or a business ('… LLC'), stays
-// as it is; the full name is on the visit card.
+// surname and the first initial; 'Patel, Sanjay' too). One word, a business ('… LLC'), or a name
+// that is not made of name words ('Test (test)', 'Unit 4B', 'J.R.R. 2nd') stays as it is — the
+// owner saw 'test) T.' (2026-11-24); the full name is on the visit card.
+// A name word: a letter of any cased alphabet, then letters, ' ’ - . (O'Brien, Rodriguez-Villanueva)
+const nameWord = (w) => {
+  const chars = [...w];
+  const letter = (ch) => ch.toLowerCase() !== ch.toUpperCase();
+  return chars.length > 0 && letter(chars[0]) && chars.every((ch) => letter(ch) || "'’-.".includes(ch));
+};
 const TITLES = /^(mr|mrs|ms|miss|dr)\.?$/i;
 const SUFFIXES = /^(jr|sr|ii|iii|iv)\.?,?$/i;
 const BUSINESS = /^(llc|inc|corp|corporation|co|ltd|company|group|&)\.?,?$/i;
@@ -118,14 +132,17 @@ export function shortName(name) {
   let first;
   const comma = full.match(/^([^,]+),\s*(.+)$/);
   if (comma && !BUSINESS.test(comma[2].split(' ')[0])) {
+    const given = comma[2].split(' ').filter((w) => !TITLES.test(w) && !SUFFIXES.test(w));
+    if (![...comma[1].split(' '), ...given].every(nameWord)) return full;
     surname = comma[1];
-    first = comma[2].split(' ').filter((w) => !TITLES.test(w))[0];
+    first = given[0];
   } else {
     const words = full.split(' ');
     if (words.some((w) => BUSINESS.test(w))) return full;
     const parts = words.filter((w) => !TITLES.test(w));
     while (parts.length > 2 && SUFFIXES.test(parts[parts.length - 1])) parts.pop();
     if (parts.length < 2) return full;
+    if (!parts.every((w) => nameWord(w.replace(/,$/, '')))) return full;
     // already short ('Rossi A.'): the last word is one initial
     if (parts[parts.length - 1].replace(/\.$/, '').length === 1) return full;
     surname = parts[parts.length - 1].replace(/,$/, '');
@@ -150,14 +167,25 @@ export const OUTCOMES = {
   client_rescheduled: ['Moved', 'Moved', 'moved', 'neutral'],
 };
 
-// When the visit's work is planned: { start, end } as wall clock; the plan, else the window start
+// When the visit's work is planned: { start, end } as wall clock; the plan, else the window start.
+// A plan on another day than the customer's window and outside it goes by the window (the owner's
+// test visit 2026-11-24: window today 10 PM–12 AM, the booking form put the work at 12–1 AM
+// tomorrow over the technician's time off — the visit is the customer's today, not tomorrow).
+// A plan outside the window on the window's own day stays: the office may plan it so.
+const wallKey = (w) => `${w.date} ${String(w.minutes).padStart(4, '0')}`;
+function offWindowDay(planned, ws, we) {
+  if (!planned || !ws || planned.date === ws.date) return false;
+  return wallKey(planned) < wallKey(ws) || (!!we && wallKey(planned) >= wallKey(we));
+}
 export function planOf(visit) {
-  const start = parseWall(visit.planned_start) || parseWall(visit.scheduled_start);
+  const planned = parseWall(visit.planned_start);
+  const ws = parseWall(visit.scheduled_start);
+  const start = (offWindowDay(planned, ws, parseWall(visit.scheduled_end)) ? ws : planned) || ws;
   if (!start) return null;
   const duration = Number.isFinite(visit.duration_minutes) && visit.duration_minutes > 0 ? visit.duration_minutes : DEFAULT_DURATION;
   return { start, duration, endMinutes: start.minutes + duration };
 }
-// The day a visit is listed on: the day of its planned start (else of its window)
+// The day a visit is listed on: the day of its planned start (else of its window; planOf)
 export function visitDay(visit) {
   const plan = planOf(visit);
   return plan ? plan.start.date : null;
@@ -178,6 +206,10 @@ const isCurrentState = (state) => state === 'onway' || state === 'onsite';
 
 // 'Repair', 'Diagnostics' … ('Visit' for a kind the app does not know)
 export const kindWord = (visit) => KINDS[visit && visit.visit_kind] || 'Visit';
+// The one lit button before Finish (design-mockups/tech-bill-plain d0): 'Finish diagnostics',
+// 'Finish the repair'; other kinds — 'Finish'
+const FINISH_WORDS = { diagnostics: 'Finish diagnostics', repair: 'Finish the repair' };
+export const finishLabel = (visit) => FINISH_WORDS[visit && visit.visit_kind] || 'Finish';
 // 'Repair 2/2'; an old task (legacy) has no kind and no number (its tag says «Old task»)
 export function kindText(visit) {
   if (visit.legacy) return '';
@@ -389,7 +421,10 @@ export function freeTime(rows, { isToday, isPast, now }) {
   return gaps;
 }
 function gap(afterId, from, to) {
-  return { afterId, from, to, text: `Free ${clock(from)}–${clockAmPm(to)} · ${durationText(to - from)}` };
+  // 'Free 11:20–2:00 PM' as designed; a start before the working day says AM: 'Free 1:00 AM–7:00 PM'
+  // (the owner read the old 'Free 1:00–7:00 PM · 18h' as an afternoon of 18 hours)
+  const fromText = from < DAY_START ? clockAmPm(from) : clock(from);
+  return { afterId, from, to, text: `Free ${fromText}–${clockAmPm(to)} · ${durationText(to - from)}` };
 }
 
 // The list in order: [{ type: 'row', row } | { type: 'gap', gap }]; a gap follows the row

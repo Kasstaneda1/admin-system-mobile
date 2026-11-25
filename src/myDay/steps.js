@@ -41,7 +41,7 @@
 import { billFirst, canBill, overApproval, usd } from '../bill/model.js';
 import { billHasParts } from '../ack/model.js';
 import { NO_APPROVE_KINDS } from '../approve/model.js';
-import { clock, stateOf } from './model.js';
+import { clock, finishLabel, stateOf } from './model.js';
 import { dueOf } from '../pay/model.js';
 
 const closed = (ctx) => stateOf(ctx.visit) === 'closed';
@@ -70,7 +70,8 @@ export const VISIT_STEPS = [
     // the signature before the work goes with today's open visit, as Finish; a new one over a grown
     // bill also after it (the server takes it, marked late)
     can: (ctx) => finishAllowed(ctx) || overBill(ctx),
-    button: (ctx) => (overBill(ctx) ? { label: 'Approve again', icon: 'doc' } : { label: 'Approve the repair', icon: 'doc' }),
+    // «Customer approves» beside the lit Finish, plain (design-mockups/tech-bill-plain d0)
+    button: (ctx) => (overBill(ctx) ? { label: 'Approve again', icon: 'doc' } : { label: 'Customer approves', icon: 'doc' }),
   },
   {
     key: 'finish',
@@ -80,7 +81,7 @@ export const VISIT_STEPS = [
     on: () => true,
     state: (ctx) => (closed(ctx) ? 'done' : 'todo'),
     can: (ctx) => finishAllowed(ctx),
-    button: () => ({ label: 'Finish', icon: 'check' }),
+    button: (ctx) => ({ label: finishLabel(ctx.visit), icon: 'check' }),
   },
   {
     key: 'bill',
@@ -145,7 +146,8 @@ export const VISIT_STEPS = [
 // The steps of this visit: null when it has none (a helper, an old task, a cancelled or moved
 // visit, closed without work, or no money permission: then the bottom of the visit is as before).
 // { strip: [{ key, label, n, mark: 'done' | 'now' | 'todo' }],
-//   main: { key, label, icon, tone?, server } | null — the big button: the first step after the last one done;
+//   main: { key, label, icon, tone?, server } | null — the big button: the first step after the last one done
+//         (before Finish: Finish, the step that may be passed before it is the second);
 //         null when the server does not allow it now (an open visit of another day);
 //   second: { key, label, icon, tone?, server } | null — the step after it, when the main one may be passed }
 export function stepsOf(ctx, steps = VISIT_STEPS) {
@@ -158,13 +160,17 @@ export function stepsOf(ctx, steps = VISIT_STEPS) {
   const at = held >= 0 ? held : Math.min(last + 1, list.length - 1);
   const current = list[at];
   const buttonOf = (s) => (!s.step.can || s.step.can(ctx) ? { key: s.step.key, server: !!s.step.server, ...s.step.button(ctx, s.state) } : null);
-  const main = buttonOf(current);
-  const after = !current.step.required && list[at + 1] ? list[at + 1] : null;
+  let lit = current;
+  let after = !current.step.required && list[at + 1] ? list[at + 1] : null;
+  // before Finish the lit button is Finish: a step that may be passed before it (Approve) stands
+  // beside it plain (design-mockups/tech-bill-plain d0), unless it holds the rest (Approve again)
+  if (after && after.step.key === 'finish' && held !== at) [lit, after] = [after, current];
+  const main = buttonOf(lit);
   const second = main && after ? buttonOf(after) : null;
   const strip = [];
   list.forEach((s, i) => {
     if (!s.step.label) return;
-    strip.push({ key: s.step.key, label: s.step.label, n: strip.length + 1, mark: s.state === 'done' ? 'done' : i === at ? 'now' : 'todo' });
+    strip.push({ key: s.step.key, label: s.step.label, n: strip.length + 1, mark: s.state === 'done' ? 'done' : s === lit ? 'now' : 'todo' });
   });
   return { strip, main, second };
 }
