@@ -7,6 +7,8 @@
 //     screen reads it again on return.
 //   - The company's approval terms (latest version) — Read shows them; their version goes with
 //     the signature. NYC: the customer chooses about the written estimate (§2-255).
+//   - «Sign» opens the sign screen (sign/SignSheet.js, USABILITY §3): the customer signs on the
+//     whole screen and «Done» approves.
 //   - Approve: kept on the phone, then sent with the amount the customer saw. Sent — the
 //     approval and the customer's copy (Share the PDF / Handed a printed copy, §2-258). No
 //     connection — «Signed · saved on this phone», it goes by itself. The draft or the terms
@@ -35,7 +37,8 @@ import {
 } from '../approve/model';
 import { approvals } from '../approve/store';
 import { downloadApprovalPdf } from '../approve/pdf';
-import SignaturePad from '../approve/SignaturePad';
+import SignSheet from '../sign/SignSheet';
+import { signHeadOf, signerLine } from '../sign/model';
 
 export default function ApproveScreen({ route, navigation }) {
   // back: the word of the back button — the screen it goes back to (Visit, or Bill / Preview
@@ -83,23 +86,12 @@ export default function ApproveScreen({ route, navigation }) {
   const [name, setName] = useState((visit && visit.client_name) || '');
   const [estimate, setEstimate] = useState(null);    // { choice, price }
   const [estimatePrice, setEstimatePrice] = useState(0); // the written estimate's price (the price book's estimate_fee)
-  const [drawn, setDrawn] = useState(false);
-  const [choiceNote, setChoiceNote] = useState(false); // the estimate choice changed after the signature: shown over the box
-  // a written-estimate choice: another one after the signature is drawn wipes the signature
-  const chooseEstimate = (next) => {
-    const { estimate: chosenNow, clear } = pickEstimate(estimate, next, drawn);
-    setEstimate(chosenNow);
-    if (clear) {
-      if (pad.current) pad.current.clear();
-      setDrawn(false);
-      setChoiceNote(true);
-    }
-  };
+  // a written-estimate choice; the signature comes after it, on the sign screen
+  const chooseEstimate = (next) => setEstimate(pickEstimate(estimate, next, false).estimate);
   const [sending, setSending] = useState(false);
   const [said, setSaid] = useState(null);            // { kind, text } of the last try
   const [termsOpen, setTermsOpen] = useState(false);
-  const pad = useRef(null);
-  const [scroll, setScroll] = useState(true);
+  const [signOpen, setSignOpen] = useState(false);   // the sign screen (sign/SignSheet.js)
 
   const agreed = agreedOf(bill);
   const termsLine = termsLineOf(terms, bill && bill.company && (bill.company.name || bill.company.legal_name));
@@ -111,21 +103,23 @@ export default function ApproveScreen({ route, navigation }) {
   const mustChoose = nyc && !estimate && !kept;
   const written = writtenText(latest);
 
-  const approve = async () => {
+  // «Done» on the sign screen: png — the customer's signature
+  const approve = async (png) => {
     if (sending) return;
-    // the moment the customer signed: the press of Approve, by this phone's clock (13г, signed_at)
+    // the moment the customer signed: the press of Done, by this phone's clock (13г, signed_at)
     const signedMs = Date.now();
-    const png = pad.current ? await pad.current.png() : null;
     const { body, error } = authBody({
       name, png, agreed, terms, rule,
       estimate: kept ? { choice: kept.choice, price: kept.price } : estimate ? { choice: estimate, price: estimatePrice } : null,
       requestId: newRequestId(),
     });
-    if (error) { setSaid({ kind: 'refused', text: error }); return; }
+    if (error) { setSignOpen(false); setSaid({ kind: 'refused', text: error }); return; }
     setSending(true);
     setSaid(null);
     const r = await approvals.sign({ visitId: id, userId, body, at: signedMs });
     setSending(false);
+    // an answer: the form says it (approved, kept on the phone, refused)
+    if (r.result !== 'busy') setSignOpen(false);
     if (r.result === 'sent') {
       setAgain(false);
       setPending(null);
@@ -142,7 +136,7 @@ export default function ApproveScreen({ route, navigation }) {
     // the clock blamed only when it is known to be off (approve/model.js clockBoxNow)
     setSaid(r.result === 'clock' ? { kind: 'clock', ...clockBoxNow(r.failed, visit) } : r.failed);
     // a new signature is a new choice about the written estimate («Архитектор ПО», #44)
-    if (r.result === 'resign' || r.result === 'refused' || r.result === 'clock') { pad.current && pad.current.clear(); setEstimate(null); load(); }
+    if (r.result === 'resign' || r.result === 'refused' || r.result === 'clock') { setEstimate(null); load(); }
     if (r.result === 'gone') Alert.alert('The visit changed', r.failed.text, [{ text: 'OK', onPress: () => navigation.goBack() }]);
   };
 
@@ -212,7 +206,7 @@ export default function ApproveScreen({ route, navigation }) {
       <StatusBar style="dark" />
       {top}
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.body} scrollEnabled={scroll} canCancelContentTouches={scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {waitingOnPhone ? (
             <Box kind="done" icon="checkc" title="Signed · saved on this phone" text="No connection. The signature goes to the office by itself when the phone is back online. You can start the repair." style={styles.boxGap} />
           ) : null}
@@ -325,10 +319,6 @@ export default function ApproveScreen({ route, navigation }) {
                 <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name of who signs" placeholderTextColor={colors.fgMutedField}
                   autoCapitalize="words" autoCorrect={false} returnKeyType="done" maxLength={200} accessibilityLabel="Customer name" />
               </View>
-              {choiceNote ? <Box kind="warn" icon="warn" text="The choice changed: the customer signs again." style={styles.noteOverPad} /> : null}
-              <View onTouchStart={() => setScroll(false)} onTouchEnd={() => setScroll(true)} onTouchCancel={() => setScroll(true)}>
-                <SignaturePad ref={pad} onDrawn={(d) => { setDrawn(d); if (d) setChoiceNote(false); }} disabled={sending || mustChoose} />
-              </View>
               <Text style={styles.rule}>{ruleText(rule)}</Text>
             </>
           ) : null}
@@ -337,18 +327,21 @@ export default function ApproveScreen({ route, navigation }) {
         <Foot bottom={insets.bottom}>
           {signing && !waitingOnPhone ? (
             <>
-              <MainButton text={agreed ? `Approve · ${usd(agreed.amount)}` : 'Approve'} icon="check" onPress={approve} waiting={sending}
-                off={!agreed || !drawn || !name.trim() || mustChoose} />
+              <MainButton text="Sign" icon="check" onPress={() => { setSaid(null); setSignOpen(true); }} waiting={sending}
+                off={!agreed || !name.trim() || mustChoose} />
               <Text style={styles.byPhone}>Agreed by phone? The office records it.</Text>
               {latest && again ? <TouchableOpacity onPress={() => setAgain(false)} accessibilityRole="button"><Text style={styles.cancelAgain}>Keep the earlier approval</Text></TouchableOpacity> : null}
             </>
           ) : waitingOnPhone ? (
             <PlainButton text={`Back to the ${back === 'Preview' ? 'bill preview' : back.toLowerCase()}`} icon="back" onPress={() => navigation.goBack()} />
           ) : (
-            <PlainButton text="The customer signs again" icon="replay" onPress={() => { setAgain(true); setDrawn(false); setEstimate(null); setSaid(null); }} />
+            <PlainButton text="The customer signs again" icon="replay" onPress={() => { setAgain(true); setEstimate(null); setSaid(null); }} />
           )}
         </Foot>
       </KeyboardAvoidingView>
+
+      <SignSheet visible={signOpen} back="Back" sending={sending} onDone={approve} onClose={() => setSignOpen(false)}
+        head={signHeadOf({ kind: 'approve', name, amountCents: agreed ? agreed.amount : null })} caption={signerLine(name, today)} />
 
       <Modal visible={termsOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTermsOpen(false)}>
         <SafeAreaView edges={['top', 'bottom']} style={billStyles.screen}>
@@ -371,7 +364,6 @@ const styles = StyleSheet.create({
   body: { paddingTop: 12, paddingBottom: 24 },
   pad: { paddingHorizontal: 16, paddingBottom: 12 },
   boxGap: { marginHorizontal: 16, marginBottom: 12 },
-  noteOverPad: { marginHorizontal: 16, marginBottom: 8 },
   flex: { flex: 1 },
   label: { marginBottom: 8, fontSize: 13, fontWeight: '800', letterSpacing: 1.1, color: colors.fgSecondary },
   labelGap: { marginTop: 16 },

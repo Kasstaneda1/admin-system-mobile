@@ -6,8 +6,8 @@
 //   - One signature per bill. A bill that is not issued, not delivered or void cannot be signed
 //     for: the screen says what comes first.
 //   - Replaced parts by the bill's lines (§2-259): parts on it — returned or given up; none —
-//     only «No parts were replaced». The customer signs under one choice: a different choice
-//     after the signature is drawn wipes it, they sign again.
+//     only «No parts were replaced». The customer chooses on the form, then signs on the
+//     sign screen: the signature goes with that choice.
 //   - The company's acknowledgment terms (latest version), if it has any — Read shows them; their
 //     version goes with the signature. None — nothing is sent about them.
 //   - Kept on the phone, then sent (ack/queue.js, USABILITY §10): without the connection
@@ -16,7 +16,10 @@
 //     (ACK-T). Refused meanwhile (the terms or the bill changed, its time) — the screen says why
 //     (the visit's Bill tile too), the customer signs again. The copy comes once the office has the signature. Opening the screen
 //     still needs the server (the bill, the terms).
-//   - A failed try is said over «Save the signature» (the Designer, §10).
+//   - «Sign» opens the sign screen (sign/SignSheet.js, USABILITY §3): the customer signs on the
+//     whole screen, under «By signing, you agree to the Terms and conditions of bill …» and
+//     «Read the terms» when the bill printed terms (printed_terms, 2P-BE п. 4); «Done» saves.
+//   - A failed try is said over «Sign» (the Designer, §10).
 //   - Signed: the line «Signed 12:50 · parts returned» and the customer's copy (Share the copy /
 //     Handed a printed copy), as the approval's.
 import React, { useCallback, useRef, useState } from 'react';
@@ -35,7 +38,8 @@ import { CONSENT_WORDS, billError, deliverBody } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 import { ackBody, ackStage, ackTermsLine, billHasParts, billHeadOf, initialParts, partsChoicesOf, partsNote, partsOf, pickParts, signedLine, stageText } from '../ack/model';
 import { downloadAckPdf } from '../ack/pdf';
-import SignaturePad from '../approve/SignaturePad';
+import SignSheet from '../sign/SignSheet';
+import { consentOf, signHeadOf, signerLine } from '../sign/model';
 import { acks } from '../ack/store';
 
 export default function AckScreen({ route, navigation }) {
@@ -86,40 +90,30 @@ export default function AckScreen({ route, navigation }) {
   const [name, setName] = useState((visit && visit.client_name) || '');
   const [parts, setParts] = useState(null);           // 'returned' | 'waived' | 'none' the customer tapped
   const picked = parts !== null ? parts : initialParts(bill); // a bill without parts: «none» at once
-  const [choiceNote, setChoiceNote] = useState(false);  // the choice changed after the signature: shown over the box
-  const [drawn, setDrawn] = useState(false);
   const [sending, setSending] = useState(false);
   const [said, setSaid] = useState(null);             // { kind, text } of the last try
   const [termsOpen, setTermsOpen] = useState(false);
-  const [scroll, setScroll] = useState(true);
-  const pad = useRef(null);
+  const [signOpen, setSignOpen] = useState(false);    // the sign screen (sign/SignSheet.js)
 
-  const startOver = () => {
-    if (pad.current) pad.current.clear();
-    setDrawn(false);
-  };
-  // a choice: another one after the signature is drawn wipes the signature
+  // a choice; the signature comes after it, on the sign screen
   const choose = (next) => {
-    const { parts: chosenNow, clear } = pickParts(picked, next, drawn);
-    setParts(chosenNow);
+    setParts(pickParts(picked, next, false).parts);
     setSaid(null);
-    if (clear) {
-      startOver();
-      setChoiceNote(true);
-    }
   };
 
+  // «Done» on the sign screen: png — the customer's signature.
   // One request id per signature: the queue sends it again with the same one, the server takes it once
-  const sign = async () => {
+  const sign = async (png) => {
     if (sending || userId === null) return;
     const signedMs = Date.now();                      // the moment the customer signed, by this phone's clock
-    const png = pad.current ? await pad.current.png() : null;
     const { body, error } = ackBody({ name, png, parts: picked, terms, requestId: newRequestId(), bill });
-    if (error) { setSaid({ kind: 'refused', text: error }); return; }
+    if (error) { setSignOpen(false); setSaid({ kind: 'refused', text: error }); return; }
     setSending(true);
     setSaid(null);
     const r = await acks.sign({ visitId: id, userId, body, at: signedMs });
     setSending(false);
+    // an answer: the form says it (signed, kept on the phone, refused)
+    if (r.result !== 'busy') setSignOpen(false);
     if (r.result === 'sent') {
       setPending(null);
       setAck(r.acknowledgment);
@@ -133,7 +127,6 @@ export default function AckScreen({ route, navigation }) {
     if (r.result === 'gone') {
       Alert.alert('The visit changed', r.failed.text, [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } else if (r.result === 'resign' || r.result === 'bill_changed' || r.result === 'clock') {
-      startOver();
       load();
     } else if (r.result === 'signed' || r.result === 'stage') {
       load();
@@ -218,7 +211,7 @@ export default function AckScreen({ route, navigation }) {
       <StatusBar style="dark" />
       {top}
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.body} scrollEnabled={scroll} canCancelContentTouches={scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {head && head.delivered ? (
             <View style={styles.pad}>
               <View style={styles.chip} accessible accessibilityLabel={head.delivered}>
@@ -342,22 +335,21 @@ export default function AckScreen({ route, navigation }) {
                 <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Name of who signs" placeholderTextColor={colors.fgMutedField}
                   autoCapitalize="words" autoCorrect={false} returnKeyType="done" maxLength={200} accessibilityLabel="Customer name" />
               </View>
-              {choiceNote ? <Box kind="warn" icon="warn" text="The choice changed: the customer signs again." style={styles.noteOverPad} /> : null}
-              <View onTouchStart={() => setScroll(false)} onTouchEnd={() => setScroll(true)} onTouchCancel={() => setScroll(true)}>
-                <SignaturePad ref={pad} onDrawn={(d) => { setDrawn(d); if (d) setChoiceNote(false); }} disabled={sending || mustChoose} />
-              </View>
             </>
           ) : null}
         </ScrollView>
 
         <Foot bottom={insets.bottom} failure={said && !(refusedOnPhone && said.text === refusedOnPhone.text) ? said.text : null}>
           {signing ? (
-            <MainButton text="Save the signature" icon="check" onPress={sign} waiting={sending} off={!drawn || !name.trim() || mustChoose} />
+            <MainButton text="Sign" icon="check" onPress={() => { setSaid(null); setSignOpen(true); }} waiting={sending} off={!name.trim() || mustChoose} />
           ) : (
             <PlainButton text={back === 'Visit' ? 'Back to the visit' : 'Back to the bill'} icon="back" onPress={() => navigation.goBack()} />
           )}
         </Foot>
       </KeyboardAvoidingView>
+
+      <SignSheet visible={signOpen} back="Back" sending={sending} onDone={sign} onClose={() => setSignOpen(false)}
+        head={signHeadOf({ kind: 'ack', name, bill })} consent={consentOf(bill)} caption={signerLine(name, today)} />
 
       <Modal visible={termsOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTermsOpen(false)}>
         <SafeAreaView edges={['top', 'bottom']} style={billStyles.screen}>
@@ -392,7 +384,6 @@ const styles = StyleSheet.create({
   body: { paddingTop: 12, paddingBottom: 24 },
   pad: { paddingHorizontal: 16, paddingBottom: 12 },
   boxGap: { marginHorizontal: 16, marginBottom: 12 },
-  noteOverPad: { marginHorizontal: 16, marginBottom: 8 },
   flex: { flex: 1 },
   // the delivered chip (design .iv-chip): success-soft with a success border
   chip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: colors.successBorder, backgroundColor: colors.successBg },
