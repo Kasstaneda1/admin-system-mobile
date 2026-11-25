@@ -190,3 +190,10 @@ export function nextOfDay(day, id) {
   const row = others.find((r) => r.state === 'onway' || r.state === 'onsite') || others.find((r) => r.state === 'sched') || null;
   return row ? { id: row.id, n: row.n, client: row.client, start: row.start, visit: row.visit } : null;
 }
+
+// «Next: Nguyen T. · 11:30» (or «Back to My day») as the big button of a visit whose three bill
+// buttons are all done (T3, design-mockups/tech-bill-plain d7): the step «next» of the list above
+export function nextButtonOf(next) {
+  const step = VISIT_STEPS.find((s) => s.key === 'next');
+  return { key: 'next', server: false, ...step.button({ next }) };
+}

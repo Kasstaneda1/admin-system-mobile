@@ -124,10 +124,11 @@ test('the Approve tile after the bill is issued: gone at diagnostics and a recal
   assert.equal(approveTileAfterIssue(none, { ...VISIT, visit_kind: 'recall' }, issued), null);
   assert.equal(approveTileAfterIssue(signed, diag, issued), signed);
   assert.equal(approveTileAfterIssue(pending, diag, issued), pending);
-  // before the issue it stays (a repair on the spot), and a repair keeps it as it was
-  assert.equal(approveTileAfterIssue(none, diag, draft), none);
-  assert.equal(approveTileAfterIssue(none, diag, null), none);
-  assert.equal(approveTileAfterIssue(none, diag, { status: 'unknown', bill: null }), none);
+  // before the issue too (T3: no Approve at diagnostics at all); a repair keeps it as it was
+  assert.equal(approveTileAfterIssue(none, diag, draft), null);
+  assert.equal(approveTileAfterIssue(none, diag, null), null);
+  assert.equal(approveTileAfterIssue(none, diag, { status: 'unknown', bill: null }), null);
+  assert.equal(approveTileAfterIssue(signed, diag, draft), signed);
   assert.equal(approveTileAfterIssue(none, { ...VISIT, visit_kind: 'repair' }, issued), none);
   assert.equal(approveTileAfterIssue(null, diag, issued), null);
 });

@@ -8,6 +8,7 @@ import Icon from './Icon';
 import { TAG_FAMILIES } from './parts';
 import { FinishDiagnosisField } from '../diagnosis/field';
 import { PART_NAME_MAX, PART_NUMBER_MAX } from './actions';
+import { ThreeButtons } from '../bill/ThreeParts';
 
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
 // when it got no answer (Try again sends the same request); blocked: why nothing can be
@@ -20,9 +21,14 @@ import { PART_NAME_MAX, PART_NUMBER_MAX } from './actions';
 // bill: «Open the bill» as the big amber button of a closed visit without steps (no money
 // permission: the office issues the bill); billLink: the same as an underlined link under the
 // step (design usab-u1), not while Undo shows: { label, onPress } or null
-export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null, bill = null, steps = null, onStep = null, billLink = null }) {
-  const main = steps && steps.main ? steps.main : null;
-  if (bar.empty && !failure && !main) return null;
+// three: bill/three.js threeOf() — the bill's three buttons (T3, design-mockups/tech-bill-plain):
+// a column under On my way / Finish, before Finish too; then the steps' big button is gone, and the
+// only one left of them is «Next: …» once all three are done (threeNext) and «Customer approves»
+// plain beside Finish. threeBusy / threeFailure / onThree: bill/ThreeParts.js ThreeButtons.
+export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null, bill = null, steps = null, onStep = null, billLink = null,
+  three = null, threeNext = null, threeBusy = null, threeFailure = null, onThree = null }) {
+  const main = three ? threeNext : steps && steps.main ? steps.main : null;
+  if (bar.empty && !failure && !main && !three) return null;
   const waiting = !!pending && !failure;
   const off = waiting || !!failure || !!blocked;
   const spinner = (action) => waiting && pending.action === action;
@@ -38,7 +44,14 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
   const omwFirst = !!(bar.primary && bar.primary.action === 'omw');
   const primary = omwFirst ? buttonOf(bar.primary, false)
     : main ? buttonOf(main, true) : bar.primary ? buttonOf(bar.primary, false) : null;
-  const plains = (omwFirst ? [bar.secondary ? buttonOf(bar.secondary, false) : null] : [
+  // with the three: «Customer approves» (a repair, before Finish) stays a plain step beside Finish
+  const approve = three && !omwFirst && steps ? [steps.main, steps.second].find((b) => b && b.key === 'approve') || null : null;
+  // with the three under it On my way stands alone (README d0: «On my way», then «Finish …»): the
+  // foot would take half the screen with a plain Finish too
+  const plains = (omwFirst ? [bar.secondary && !three ? buttonOf(bar.secondary, false) : null] : three ? [
+    approve ? buttonOf(approve, true) : null,
+    bar.secondary ? buttonOf(bar.secondary, false) : null,
+  ] : [
     main && steps.second ? buttonOf(steps.second, true) : null,
     bar.secondary ? buttonOf(bar.secondary, false) : null,
   ]).filter(Boolean);
@@ -110,6 +123,8 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
           ))}
         </View>
       ) : null}
+
+      {three ? <ThreeButtons three={three} busy={threeBusy} failure={threeFailure} onPress={onThree} /> : null}
 
       {bar.noAccess ? (
         <TouchableOpacity style={styles.link} disabled={off} onPress={() => onPress('no_access')} accessibilityRole="button" accessibilityState={{ disabled: off }}>
