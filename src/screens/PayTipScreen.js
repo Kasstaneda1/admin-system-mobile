@@ -43,7 +43,7 @@ export default function PayTipScreen({ route, navigation }) {
   return (
     <SafeAreaView edges={['top']} style={billStyles.screen}>
       <StatusBar style="dark" />
-      <TopBar back="Card" title="Add tip" onBack={() => navigation.goBack()} />
+      <TopBar back="Payment" title="Add tip" onBack={() => navigation.goBack()} />
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {lock ? <Box kind="warn" icon="warn" title={lock.title} text={lock.text} /> : null}

@@ -94,7 +94,7 @@ export function afterPhotoUpload(file, { left = false } = {}) {
   return { go: true, fileId: file ? file.fileId : null };
 }
 
-// The line of the photo on the method screen
+// The line of the photo under Check on the Pay screen
 export const PHOTO_ADDED = 'Photo of the front added';
 export const PHOTO_ASK = 'Add a photo of the front';
 export const PHOTO_NOTE = 'Not saved to your photos. Deleted by itself 90 days after the payment.';
