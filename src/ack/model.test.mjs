@@ -29,7 +29,7 @@ test('the customer signs only for an issued bill that was delivered', () => {
   assert.equal(ackStage(null), 'none');
   assert.equal(stageText('open'), null);
   assert.match(stageText('undelivered'), /^Give the bill to the customer first/);
-  assert.match(stageText('draft'), /^Issue the bill/);
+  assert.match(stageText('draft'), /^Make the bill final/);
   assert.equal(stageText('none'), stageText('draft'));
   assert.match(stageText('void'), /void/);
 });
@@ -156,6 +156,6 @@ test('ackStage: the copy before the signature where Give the bill is Required (v
   assert.equal(ackStage({ ...notGiven, bill_before_payment: false }), 'open');
   assert.equal(ackStage({ ...notGiven, bill_before_payment: false }, { steps: null }), 'open');
   assert.equal(ackStage(notGiven, {}), 'undelivered');
-  assert.equal(stageText('draft', { bill_before_payment: true }, steps('optional')), 'Issue the bill first. Then the customer signs for it.');
-  assert.equal(stageText('draft', { bill_before_payment: false }, steps('required')), 'Issue the bill and give it to the customer first. Then they sign that they got it.');
+  assert.equal(stageText('draft', { bill_before_payment: true }, steps('optional')), 'Make the bill final first. Then the customer signs for it.');
+  assert.equal(stageText('draft', { bill_before_payment: false }, steps('required')), 'Make the bill final and give it to the customer first. Then they sign that they got it.');
 });

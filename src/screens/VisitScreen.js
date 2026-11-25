@@ -52,7 +52,7 @@ import SkipSheet from '../steps/SkipSheet';
 import { requestIdFor, skipBody, skipError } from '../steps/skip';
 import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
 import { nextButtonOf, nextOfDay, nowWordsOf, stepsOf, stripLabel } from '../myDay/steps';
-import { issueFailText, pressOf, threeOf } from '../bill/three';
+import { issueFailText, pressOf, threeOf, threeOffersNext } from '../bill/three';
 import { BillRow } from '../bill/ThreeParts';
 import { SendSheet } from '../bill/CopyParts';
 import { copyRequired } from '../bill/copy';
@@ -327,7 +327,7 @@ export default function VisitScreen({ route, navigation }) {
   // Finish too; with them the Bill and Pay tiles, the strip and «Open the bill» are gone
   const three = shown ? threeOf({ visit: shown.visit, known, ack: ackKnown, money: payments, now,
     deposits: shown.visit.deposits && Number.isFinite(shown.visit.deposits.open_cents) ? shown.visit.deposits.open_cents : 0 }) : null;
-  const threeNext = three && card && card.state === 'closed' && (three.kind === 'nobill' || three.allDone) ? nextButtonOf(next) : null;
+  const threeNext = three && card && card.state === 'closed' && threeOffersNext(three) ? nextButtonOf(next) : null;
   const billButton = closedBill && !steps && !three ? { label: 'Open the bill', onPress: openBill } : null;
   const billLink = closedBill && steps && !three && steps.main && steps.main.key !== 'bill' ? { label: 'Open the bill', onPress: openBill } : null;
   // «Pay» (src/pay): what the bill's money says under the button; the last known balance without

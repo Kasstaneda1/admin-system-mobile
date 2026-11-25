@@ -143,7 +143,7 @@ export default function BillSendScreen({ route, navigation }) {
             <Icon name="doc" size={24} color={colors.brandPressed} />
             <View style={styles.flex}>
               <Text style={styles.pdfName}>{pdfName(bill)}</Text>
-              <Text style={styles.pdfSub}>The customer’s copy, frozen at the issue</Text>
+              <Text style={styles.pdfSub}>The customer’s copy, frozen when the bill became final</Text>
             </View>
             {pdfBusy === 'view' ? <ActivityIndicator color={colors.brandPressed} /> : <Text style={styles.link}>View</Text>}
           </TouchableOpacity>

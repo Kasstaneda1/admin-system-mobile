@@ -58,7 +58,7 @@ test('the server’s no in the technician’s words', () => {
   assert.match(no(409, 'nothing_due').text, /Nothing is due/);
   assert.match(no(409, 'over_balance', { balance_cents: 4000 }).text, /Only \$40\.00 is due now/);
   assert.match(no(409, 'bill_void').text, /void/);
-  assert.match(no(409, 'not_issued').text, /Issue the bill first/);
+  assert.match(no(409, 'not_issued').text, /The bill is not final yet/);
   assert.match(no(403, 'payments_off').text, /turned off/);
   assert.equal(no(404).kind, 'gone');
   assert.match(no(429).text, /Wait a minute/);

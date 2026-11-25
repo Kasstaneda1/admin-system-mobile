@@ -92,7 +92,10 @@ export default function AckScreen({ route, navigation }) {
   const [drawn, setDrawn] = useState(false);
   const [scroll, setScroll] = useState(true);         // the page stands still while the finger signs
   const pad = useRef(null);
-  const copy = useCopy({ id, bill, required: true });
+  // starts on Printed copy handed (no tick to miss); a stop scrolls down to the choice (QA 25.11:
+  // Email was chosen, its tick under the fold, the first «Done · signed» always failed)
+  const copy = useCopy({ id, bill, required: true, quiet: true });
+  const page = useRef(null);
 
   const choose = (next) => {
     const { parts: chosen, clear } = pickParts(picked, next, drawn);
@@ -116,7 +119,11 @@ export default function AckScreen({ route, navigation }) {
     if (copyMissing(bill, visit)) {
       setSending('copy');
       const gave = await copy.give();
-      if (!gave.ok) { setSending(null); if (gave.text) setSaid(gave.text); return; }
+      if (!gave.ok) {
+        setSending(null);
+        if (gave.text) { setSaid(gave.text); if (page.current) page.current.scrollToEnd({ animated: true }); }
+        return;
+      }
       current = gave.bill || await billAPI.get(id).then((d) => d.bill).catch(() => bill);
       setBill(current);
     }
@@ -216,7 +223,7 @@ export default function AckScreen({ route, navigation }) {
       <StatusBar style="dark" />
       {top}
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={scroll}>
+        <ScrollView ref={page} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" scrollEnabled={scroll}>
           <BillCard card={card} compact={withCopy} style={styles.gap} />
 
           {signed ? (

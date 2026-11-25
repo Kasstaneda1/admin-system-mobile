@@ -4,11 +4,12 @@
 // screen); until then the lines change by «Change» on the bill's row. Without React Native
 // (three.test.mjs runs it on node).
 //
-// The order and the modes come with the visit (visit.steps, VS-BE2: [{ key, mode }], mode required
-// | optional | off): signs → Get signature, collect → Get paid, give → Send the bill — always the
-// company's order (the Architect, QUEUE «SO»; the server's default becomes issue → give → signs →
-// collect). Give required stands last: the signature's and the payment's screens give the copy
-// first (d2-ny, d5). Signs or collect off — no button; give off — Send the bill stays, calm. No
+// On the screen always one order: Get signature · Get paid · Send the bill (the lead 25.11, after
+// QA: NY and NJ showed them in different orders, against the Visit steps page). The modes and the
+// company's order come with the visit (visit.steps, VS-BE2: [{ key, mode }], mode required |
+// optional | off): signs → Get signature, collect → Get paid, give → Send the bill; the company's
+// order decides only which one is orange next (the Architect, QUEUE «SO»). Give required comes last
+// there: the signature's and the payment's screens give the copy first (d2-ny, d5). Signs or collect off — no button; give off — Send the bill stays, calm. No
 // steps (an older server) — signature, payment, sending, all optional.
 // Issue off (the office makes the bill final): the three are not there until the office has
 // issued it, then only Get paid, plain (the Architect, QUEUE «T3-СЕРВЕР» п. 4).
@@ -19,7 +20,7 @@
 //   { kind: 'three', row, buttons, lit, allDone, empty }
 //     row: the bill's row { title, line, change } (change: «Change» opens the lines) or null;
 //     buttons: [{ key: 'sign' | 'pay' | 'send', title, line, state: 'todo' | 'done' | 'part' |
-//                 'wait' | 'unknown', lit, icon, required, label (VoiceOver) }] in the company's order;
+//                 'wait' | 'unknown', lit, icon, required, label (VoiceOver) }] sign · pay · send;
 //     lit: the key of the orange one — after Finish litOf(), before Finish none (the orange
 //          button then is On my way / Finish);
 //     allDone: every button there is done (the visit's foot offers the next visit);
@@ -39,10 +40,11 @@ const DEFAULT_ORDER = ['sign', 'pay', 'send'];
 const PAID = ['paid', 'overpaid', 'no_charge'];
 const ICONS = { sign: 'pen', pay: 'money', send: 'mail' };
 
-// The three in the company's order with their modes: [{ key, mode }]; issue: its mode
+// The three with their modes, always sign · pay · send: { list: [{ key, mode }], issue: its mode,
+// next: the keys in the company's order — which one is orange next (litOf) }
 export function orderOf(visit) {
   const steps = visit && Array.isArray(visit.steps) ? visit.steps : null;
-  if (!steps) return { list: DEFAULT_ORDER.map((key) => ({ key, mode: 'optional' })), issue: 'optional' };
+  if (!steps) return { list: DEFAULT_ORDER.map((key) => ({ key, mode: 'optional' })), issue: 'optional', next: DEFAULT_ORDER.slice() };
   const modeOf = (k) => { const s = steps.find((x) => x && x.key === k); return s && s.mode ? s.mode : 'optional'; };
   const at = (key) => {
     const i = steps.findIndex((x) => x && x.key === THREE_KEYS[key]);
@@ -51,20 +53,21 @@ export function orderOf(visit) {
     return i < 0 ? 100 + DEFAULT_ORDER.indexOf(key) : i;
   };
   const list = DEFAULT_ORDER.map((key) => ({ key, mode: modeOf(THREE_KEYS[key]) }))
-    .filter((s) => s.key === 'send' || s.mode !== 'off')
-    .sort((a, b) => at(a.key) - at(b.key));
-  return { list, issue: modeOf('issue') };
+    .filter((s) => s.key === 'send' || s.mode !== 'off');
+  const next = list.map((x) => x.key).sort((a, b) => at(a) - at(b));
+  return { list, issue: modeOf('issue'), next };
 }
 
-// The orange one: the first not done in the order. Send the bill: never when give is off; when
+// The orange one: the first not done in the company's order (next: keys, orderOf). Send the bill: never when give is off; when
 // give is required only once the signature is done or not there (until then the signature's or the
 // payment's screen gives the copy) — the Architect, «SO»
 // A skipped step counts as finished here (VS-APP, design app-skip): not lit, «all done» with it
 const finished = (b) => b.state === 'done' || b.state === 'skipped';
-function litOf(buttons) {
+function litOf(buttons, next) {
   const sign = buttons.find((b) => b.key === 'sign');
   const signOpen = !!sign && !finished(sign);
-  return buttons.find((b) => {
+  const rank = (b) => { const i = next.indexOf(b.key); return i < 0 ? 99 : i; };
+  return buttons.slice().sort((a, b) => rank(a) - rank(b)).find((b) => {
     if (finished(b)) return false;
     if (b.key !== 'send') return true;
     if (b.mode === 'off') return false;
@@ -90,6 +93,11 @@ export function linesLine(bill) {
   const tax = Number(bill.tax_cents) > 0 ? ' + tax' : '';
   return `${first.name || 'Line'}${amount}${more}${tax}`;
 }
+
+// After Finish, the way on to the next visit («Next: …» / «Back to My day», steps.js nextButtonOf)
+// under the three: no bill here, every one done — or nothing to charge for (QA 25.11: a repair with
+// nothing on the bill closed with neither an orange button nor Next; «Change» still adds the work)
+export const threeOffersNext = (three) => !!three && (three.kind === 'nobill' || !!three.allDone || !!three.empty);
 
 // The bill's row over the three (d0, d1, d3, d7)
 export function billRow(known, { issueOff = false } = {}) {
@@ -173,7 +181,7 @@ export function threeOf(ctx) {
     const at = closedMoment(visit);
     return { kind: 'nobill', title: `Finished${at ? ` ${clock(at.minutes)}` : ''} · no bill`, line: deposit };
   }
-  const { list, issue } = orderOf(visit);
+  const { list, issue, next } = orderOf(visit);
   const issueOff = issue === 'off';
   const bill = known && known.bill ? known.bill : null;
   const issued = bill && known.status === 'issued' ? bill : null;
@@ -195,7 +203,7 @@ export function threeOf(ctx) {
   const open = (b) => !finished(b);
   // nothing to charge for yet (an empty bill): the three are calm, none lit — so no Skip under one
   // either; «Change» on the bill's row is what to do (the Designer on #102)
-  const litOne = closed && !issueOff && !empty ? litOf(buttons) : null;
+  const litOne = closed && !issueOff && !empty ? litOf(buttons, next) : null;
   if (litOne) litOne.lit = true;
   for (const b of buttons) b.label = b.state === 'skipped' ? skippedLabel(THREE_KEYS[b.key], b.skipped) : LABELS[b.key](b);
   // the quiet link under the orange one, when its step may be skipped (only one on the screen)

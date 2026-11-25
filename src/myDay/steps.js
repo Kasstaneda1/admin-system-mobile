@@ -90,7 +90,7 @@ export const VISIT_STEPS = [
     on: () => true,
     state: (ctx) => (issuedOf(ctx) ? 'done' : billUnknown(ctx) ? 'unknown' : 'todo'),
     // not known yet: the bill opens as it is, and says itself what is next
-    button: (ctx, state) => (state === 'unknown' ? { label: 'Open the bill', icon: 'doc' } : { label: 'Issue the bill', icon: 'doc' }),
+    button: (ctx, state) => (state === 'unknown' ? { label: 'Open the bill', icon: 'doc' } : { label: 'Make the bill final', icon: 'doc' }),
   },
   {
     key: 'give',
@@ -201,7 +201,7 @@ export function nextButtonOf(next) {
 // «What to do now» under the visit's data (README tech-bill-plain, the Designer after mobile #95):
 // only for the main technician on the way or on site; before it and after Finish — none
 const NOW_WORDS = {
-  diagnostics: 'Find the problem, write the diagnosis, then tap Finish.',
+  diagnostics: 'Find the problem, then tap Finish and write what you found.',
   repair: 'Fix it, add parts to the bill, then tap Finish.',
   installation: 'Install and test the new unit, then tap Finish.',
   recall: 'Check the earlier work, then tap Finish.',

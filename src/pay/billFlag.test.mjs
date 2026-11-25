@@ -74,9 +74,9 @@ test('before_delivery: asked only with the rule; never sent for a company withou
 });
 
 test('words without an issued bill and after issuing', () => {
-  assert.equal(noBillText(null), 'The customer pays an issued bill. Open the bill, issue it, then give it to the customer.');
-  assert.equal(noBillText({ status: 'draft', bill_before_payment: true }), 'The customer pays an issued bill. Open the bill, issue it, then give it to the customer.');
-  assert.equal(noBillText({ status: 'draft', bill_before_payment: false }), 'The customer pays an issued bill. Open the bill and issue it.');
+  assert.equal(noBillText(null), 'The customer pays a final bill. Open the bill and check it, then the customer gets a copy.');
+  assert.equal(noBillText({ status: 'draft', bill_before_payment: true }), 'The customer pays a final bill. Open the bill and check it, then the customer gets a copy.');
+  assert.equal(noBillText({ status: 'draft', bill_before_payment: false }), 'The customer pays a final bill. Open the bill and check it.');
   assert.equal(issuedText(ON), 'It is frozen and has its PDF. Give it to the customer before taking the payment.');
   assert.equal(issuedText(NOT_GIVEN), 'It is frozen and has its PDF. Give it to the customer before taking the payment.');
   assert.equal(issuedText(OFF), 'It is frozen and has its PDF.');
@@ -91,9 +91,9 @@ test('the signature «after the work»: open without the bill given only when th
   assert.equal(ackStage(OFF), 'open');
   assert.equal(ackStage({ ...OFF, status: 'draft' }), 'draft');
   assert.equal(ackStage({ ...OFF, status: 'void' }), 'void');
-  assert.equal(stageText('draft', { status: 'draft', bill_before_payment: false }), 'Issue the bill first. Then the customer signs for it.');
-  assert.equal(stageText('draft', { status: 'draft', bill_before_payment: true }), 'Issue the bill and give it to the customer first. Then they sign that they got it.');
-  assert.equal(stageText('draft'), 'Issue the bill and give it to the customer first. Then they sign that they got it.');
+  assert.equal(stageText('draft', { status: 'draft', bill_before_payment: false }), 'Make the bill final first. Then the customer signs for it.');
+  assert.equal(stageText('draft', { status: 'draft', bill_before_payment: true }), 'Make the bill final and give it to the customer first. Then they sign that they got it.');
+  assert.equal(stageText('draft'), 'Make the bill final and give it to the customer first. Then they sign that they got it.');
   assert.equal(stageText('void', OFF), 'This bill is void. The customer does not sign for it.');
   // the server still says not_delivered (the office turned the rule on meanwhile): its words stay
   assert.equal(ackError({ response: { status: 409, data: { code: 'not_delivered' } } }).kind, 'stage');

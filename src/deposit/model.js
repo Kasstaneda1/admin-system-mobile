@@ -142,7 +142,7 @@ export function depositError(error, { company = 'the company', billLabel = null 
   switch (code) {
     case 'deposits_off': return { kind: 'refused', text: `Deposits are off for ${company}. An admin turns them on in Company profile.` };
     case 'job_closed': return { kind: 'refused', text: 'This job is closed or cancelled.' };
-    case 'bill_issued': return { kind: 'refused', text: `${billLabel ? `Bill ${billLabel}` : 'The final bill'} is issued. Take the money as a payment on the bill.` };
+    case 'bill_issued': return { kind: 'refused', text: `${billLabel ? `Bill ${billLabel}` : 'The final bill'} is final. Take the money as a payment on the bill.` };
     case 'deposit_applied': return { kind: 'refused', text: `Applied to ${billLabel || 'the bill'}. Void the bill to change it.` };
     case 'request_used': return { kind: 'refused', text: 'This deposit was already sent with other details. Open the visit again.' };
     case 'payments_off': return { kind: 'refused', text: 'Taking money is off for you. Ask the office.' };
@@ -240,7 +240,7 @@ export function historyLabel(rows, countWord) {
 export function blockedOf(visit, bill) {
   const own = bill && bill.status === 'issued' ? (bill.label || (bill.bill_number ? `#${bill.bill_number}` : null)) : null;
   return {
-    title: own ? `Bill ${own} is issued` : 'The final bill is issued',
+    title: own ? `Bill ${own} is final` : 'The bill is final',
     text: own ? 'Money for this job now goes to the bill. Take it with Pay: it lowers what is due.'
       : 'Money for this job now goes to the repair or installation bill. Take it with Pay on that visit.',
     pay: !!own,

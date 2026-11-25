@@ -93,7 +93,7 @@ export default function BillPreviewScreen({ route, navigation }) {
     const ask = issueAsk(bill);
     Alert.alert(ask.title, ask.text, [
       { text: 'Not yet', style: 'cancel' },
-      { text: 'Issue', onPress: issue },
+      { text: 'Make final', onPress: issue },
     ]);
   };
 
@@ -219,8 +219,8 @@ export default function BillPreviewScreen({ route, navigation }) {
                 text: overApproval(bill).text,
                 onAgain: !visit || canApprove(visit) ? () => navigation.navigate('Approve', { id, visit, again: true, back: 'Preview' }) : null,
               } : null}
-              note={blockers.length ? blockers.map((b) => b.text).join(' ') : 'Issuing gives the number, freezes the bill and makes the PDF. To change it later: Void & reissue.'}>
-              <MainButton text={stopped ? 'Issue · the office has to fix it' : 'Issue the bill'} icon="doc"
+              note={blockers.length ? blockers.map((b) => b.text).join(' ') : 'Making it final gives the number, freezes the bill and makes the PDF. To change it later, the office voids it.'}>
+              <MainButton text={stopped ? 'Make final · the office has to fix it' : 'Make the bill final'} icon="doc"
                 off={stopped} waiting={issuing} onPress={askIssue} />
               {retryTax(blockers) ? (
                 <TouchableOpacity style={styles.retryTax} onPress={askIssue} disabled={issuing} accessibilityRole="button">

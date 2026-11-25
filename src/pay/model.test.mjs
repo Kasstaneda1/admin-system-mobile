@@ -234,7 +234,7 @@ test('the server\'s refusals in words', () => {
   assert.match(payError(err(400, { code: 'note_required' })).text, /note/);
   assert.match(payError(err(403, { code: 'void_window_passed' })).text, /an admin voids it/);
   assert.match(payError(err(403, { code: 'payments_off' })).text, /turned off/);
-  assert.match(payError(err(409, { code: 'not_issued' })).text, /Issue the bill first/);
+  assert.match(payError(err(409, { code: 'not_issued' })).text, /The bill is not final yet/);
   assert.match(payError(err(409, { code: 'bill_void' })).text, /void/);
   assert.equal(payError(err(404, { error: 'This visit has no bill yet: draft it first' })).code, 'no_bill');
   assert.equal(payError(err(404, { error: 'Payment not found' })).code, 'not_found');
@@ -260,4 +260,13 @@ test('numbers of a bill that took a deposit (DEP-2, design deposits app-repair-p
   const partly = { ...took, paid_cents: 5000, balance_cents: 2529 };
   assert.deepEqual(numbersOf(partly).map((n) => n.label), ['Total', 'Deposit', 'Paid', 'Due']);
   assert.deepEqual(numbersOf(ISSUED).map((n) => n.label), ['Total', 'Paid', 'Due']);
+});
+
+test('a check with no number: asked once (QA 25.11), not a ban; cash and a number never asked', async () => {
+  const { askCheckNumber, NO_CHECK_NUMBER } = await import('./model.js');
+  assert.equal(askCheckNumber('check', ''), true);
+  assert.equal(askCheckNumber('check', '   '), true);
+  assert.equal(askCheckNumber('check', '1042'), false);
+  assert.equal(askCheckNumber('cash', ''), false);
+  assert.equal(NO_CHECK_NUMBER.go, 'Record without a number');
 });

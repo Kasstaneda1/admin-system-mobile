@@ -28,7 +28,7 @@ const NO_WORK = ['no_access', 'client_rescheduled'];
 const FINISH_ASKS = ['diagnostics_only', 'deposit', 'estimate_needed'];
 
 export const DIAGNOSIS_HINT = 'What did you find, and what needs to be done? The customer will see this.';
-export const LOCKED_HINT = 'The bill is already issued. Your note is added to the visit and the estimate; the office can reissue the bill if the customer needs it on paper.';
+export const LOCKED_HINT = 'The bill is already final. Your note is added to the visit and the estimate; the office can make a new bill if the customer needs it on paper.';
 
 const words = (value) => (typeof value === 'string' && value.trim() ? value.trim() : null);
 

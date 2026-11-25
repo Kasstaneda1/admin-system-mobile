@@ -192,7 +192,7 @@ export function footOf(bill) {
 export function statusOf(bill, now) {
   if (bill.status === 'issued') {
     const at = momentWall(bill.issued_at);
-    return { chip: { text: `Issued · ${bill.label || `#${bill.bill_number}`}`, icon: 'checkc', kind: 'done' }, saved: at ? `Frozen ${whenText(at, now)}` : '' };
+    return { chip: { text: `Final · ${bill.label || `#${bill.bill_number}`}`, icon: 'checkc', kind: 'done' }, saved: at ? `Frozen ${whenText(at, now)}` : '' };
   }
   if (bill.status === 'void') return { chip: { text: 'Void', icon: 'doc', kind: 'neutral' }, saved: '' };
   const at = momentWall(bill.updated_at);
@@ -228,8 +228,8 @@ const BLOCKING = {
   tax_missing: (company) => taxWords(company),
 };
 // No tax: the technician cannot issue without it (only the office may), so the words say who
-// sets it: 'No sales tax set for SEMIX CORP. The office sets it, then you can issue.'
-export const taxWords = (company) => `No sales tax set for ${company || 'the company'}. The office sets it, then you can issue.`;
+// sets it: 'No sales tax set for SEMIX CORP. The office sets it, then try again.'
+export const taxWords = (company) => `No sales tax set for ${company || 'the company'}. The office sets it, then try again.`;
 const companyName = (bill) => (bill && bill.company && (bill.company.name || bill.company.legal_name)) || null;
 // The warnings of a draft that only the office can fix: [{ code, text, hard }]. hard: the
 // technician's issue cannot go (no company, no company details, no tax, nothing to charge).
@@ -293,7 +293,7 @@ export function draftedFrom(bill) {
     return { title: 'The bill is started for you', text: `Nothing was found for a ${kind.toLowerCase()} visit. ${addsLines ? 'Add the lines from the price book.' : 'The office adds the lines.'}` };
   }
   const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-  return { title: 'The bill is drafted for you', text: `Made from the visit kind ${kind}: ${list}. ${issues ? 'Check it with the customer, then issue.' : 'The office issues it.'}` };
+  return { title: 'The bill is drafted for you', text: `Made from the visit kind ${kind}: ${list}. ${issues ? 'Check it with the customer.' : 'The office makes it final.'}` };
 }
 
 // ---------- the visit's Bill button ----------
@@ -469,7 +469,7 @@ export function previewOf(bill, visit, today) {
   const issued = bill.status !== 'draft';
   const issuedAt = momentWall(bill.issued_at);
   const facts = [
-    ['Bill #', issued ? (bill.label || `#${bill.bill_number}`) : 'Given when issued', !issued],
+    ['Bill #', issued ? (bill.label || `#${bill.bill_number}`) : 'Given when final', !issued],
     ['Job #', bill.job_id ? String(bill.job_id) : ''],
     ['Bill date', dateText(issuedAt ? issuedAt.date : today)],
     [visitDates(visit).length > 1 ? 'Visits' : 'Visit', visitDates(visit).join(' · ')],
@@ -547,19 +547,19 @@ export function visitDates(visit) {
 
 // ---------- when the server says no ----------
 const ISSUE_WORDS = {
-  profile_missing: 'The office has not filled in the company details yet. Ask the office, then issue.',
-  company_missing: 'The job has no company. Ask the office to set one, then issue.',
+  profile_missing: 'The office has not filled in the company details yet. Ask the office, then try again.',
+  company_missing: 'The job has no company. Ask the office to set one, then try again.',
   no_lines: 'The bill has nothing to charge for. Add a service or a part.',
-  credit_changed: 'The diagnostics credit changed meanwhile. Check the bill and issue again.',
+  credit_changed: 'The diagnostics credit changed meanwhile. Check the bill and try again.',
   // Д-2 (be#211): a diagnostics visit or Estimate needed — no bill without its diagnosis
   diagnosis_missing: 'Write the diagnosis first: it is printed on the bill. Add it above the lines.',
 };
 // «Issue the bill?» before the issue: { title, text }. A bill without a diagnosis where it is
 // not required (the server's warning diagnosis_missing, Д-2) asks first, as the spec says
-export const ISSUE_TEXT = 'It gets its number and its PDF and is frozen. To change it later, the office voids and reissues it.';
+export const ISSUE_TEXT = 'It gets its number and its PDF and is frozen. To change it later, the office voids it and makes a new one.';
 export function issueAsk(bill) {
   const missing = bill && Array.isArray(bill.warnings) && bill.warnings.some((w) => w && w.code === 'diagnosis_missing');
-  return missing ? { title: 'No diagnosis on this bill. Issue anyway?', text: ISSUE_TEXT } : { title: 'Issue the bill?', text: ISSUE_TEXT };
+  return missing ? { title: 'No diagnosis on this bill. Make it final anyway?', text: ISSUE_TEXT } : { title: 'Make the bill final?', text: ISSUE_TEXT };
 }
 // A failed request on the bill: { kind, text, total? }
 //   offline — no answer (the same request may go again); none — the visit has no bill yet;
@@ -573,7 +573,7 @@ export function billError(error, { issue = false, company = null } = {}) {
   const data = (response && response.data) || {};
   const said = typeof data.error === 'string' && data.error ? data.error : '';
   if (!status) {
-    return { kind: 'offline', text: issue ? 'No connection. The bill is issued only online: the number comes from the server.' : 'No connection. Try again.' };
+    return { kind: 'offline', text: issue ? 'No connection. The bill is made final only online: the number comes from the server.' : 'No connection. Try again.' };
   }
   if (status === 404) {
     if (/no bill yet/i.test(said)) return { kind: 'none', text: 'This visit has no bill yet.' };
@@ -582,7 +582,7 @@ export function billError(error, { issue = false, company = null } = {}) {
   }
   if (status === 409 && /already marked delivered/i.test(said)) return { kind: 'refused', text: 'This bill is already marked delivered.' };
   if (status === 409 && data.code === 'total_changed') {
-    return { kind: 'refused', text: `The total changed to ${usd(data.total_cents)}. Check the bill and issue again.`, total: data.total_cents };
+    return { kind: 'refused', text: `The total changed to ${usd(data.total_cents)}. Check the bill and try again.`, total: data.total_cents };
   }
   if ((status === 409 || status === 400) && data.code === 'tax_missing') return { kind: 'refused', text: taxWords(company) };
   // over the approved amount by the rule of the job's place (backend billIssue.js): no way

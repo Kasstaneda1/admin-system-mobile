@@ -45,7 +45,7 @@ export function taxSection(bill) {
     return { change, taxable: null, rate: { title: rateName(bill.tax_name, bill.tax_rate), sub: `${base} · set by the office`, amount: usd(bill.tax_cents || 0), open: false, locked: true } };
   }
   const taxable = off
-    ? { on: false, sub: 'Off: no sales tax on this bill', note: 'The office sees «Tax turned off» on this bill. Turn it on again any time before you issue.' }
+    ? { on: false, sub: 'Off: no sales tax on this bill', note: 'The office sees «Tax turned off» on this bill. Turn it on again any time before the bill is final.' }
     : { on: true, sub: 'Sales tax on this bill', note: null };
   if (off) return { change, taxable, rate: null };
   if (!hasRate(bill.tax_rate)) {
