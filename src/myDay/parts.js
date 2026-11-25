@@ -5,7 +5,7 @@ import React, { useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from './Icon';
-import { dayOfMonth, weekdayLetter, weekdayOf } from './model';
+import { dayOfMonth, weekdayLetter, weekdayOf, windowLines } from './model';
 import { FRESH_TEXT, badgeText, markLabel, tabLabel } from './fresh';
 import { useUnread } from '../estimate/unread';
 import { accessLine, accessParts } from './access';
@@ -132,7 +132,10 @@ export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
     <>
       <View style={styles.left}>
         <NumberDot row={row} />
-        <Text style={[styles.window, row.state === 'closed' && styles.closedText, row.state === 'moved' && styles.movedText]}>{row.window}</Text>
+        {windowLines(row.window).map((line, i, lines) => (
+          <Text key={i} style={[styles.window, lines.length > 1 && styles.windowLong, row.state === 'closed' && styles.closedText, row.state === 'moved' && styles.movedText]}
+            numberOfLines={lines.length > 1 ? 1 : undefined} adjustsFontSizeToFit={lines.length > 1}>{line}</Text>
+        ))}
         <Text style={styles.time}>{row.timeText}</Text>
       </View>
       <View style={styles.middle}>
@@ -329,6 +332,7 @@ const styles = StyleSheet.create({
   whereText: { flex: 1, fontSize: 12, fontWeight: '700' },
   left: { width: 92, paddingLeft: 30 },
   window: { fontSize: 18, lineHeight: 22, fontWeight: '700', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
+  windowLong: { fontSize: 15, lineHeight: 19 },
   time: { fontSize: 12, fontWeight: '600', color: colors.fgMutedField },
   closedText: { color: colors.fgSecondary },
   movedText: { color: colors.fgMutedField, textDecorationLine: 'line-through' },

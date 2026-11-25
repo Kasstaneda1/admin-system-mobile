@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   PUSH_PROMPT, PUSH_ROWS, appVersionOf, deviceBody, isPushToken, permissionStep, projectIdOf, pushRowOf, registerOutcome, responseKey, visitOfResponse, promptDue,
+  WAKE_AGAIN_MS, wakeRegisterDue,
 } from './model.js';
 
 const PROJECT = 'fb311ee4-83cd-412b-9432-227f5210af87';
@@ -141,4 +142,19 @@ test('the sheet before the system window: once, only while never asked', () => {
     yes: 'Turn on notifications',
     no: 'Not now',
   });
+});
+
+test('wakeRegisterDue: a return to the app registers until it got there; then again after 6 hours', () => {
+  const t = 1_800_000_000_000;
+  // never tried in this run, or not there yet: every return
+  assert.equal(wakeRegisterDue(null, t), true);
+  for (const outcome of ['later', 'ask', 'off', 'none']) assert.equal(wakeRegisterDue({ outcome, at: t }, t + 1000), true, outcome);
+  // there, or refused for good: not again before 6 hours
+  for (const outcome of ['ok', 'quiet', 'bad']) {
+    assert.equal(wakeRegisterDue({ outcome, at: t }, t + 1000), false, outcome);
+    assert.equal(wakeRegisterDue({ outcome, at: t }, t + WAKE_AGAIN_MS - 1), false, outcome);
+    assert.equal(wakeRegisterDue({ outcome, at: t }, t + WAKE_AGAIN_MS), true, outcome);
+  }
+  // a broken time: tries
+  assert.equal(wakeRegisterDue({ outcome: 'ok', at: NaN }, t), true);
 });

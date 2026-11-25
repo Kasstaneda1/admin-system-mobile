@@ -6,7 +6,7 @@
 //   helper: omw and undo_omw (their own «On my way», the visit's status does not change).
 // No queue without the network: a button waits for the answer; with none, «No connection.
 // Try again» sends the same request again (the same client_request_id, written once).
-import { clock, closedMoment, firstName, kindText, momentWall, shortName, stateOf } from './model.js';
+import { clock, closedMoment, finishLabel, firstName, kindText, momentWall, shortName, stateOf } from './model.js';
 import { keepCard } from './visit.js';
 
 export const UNDO_MINUTES = 15;
@@ -106,12 +106,13 @@ function closedWord(visit) {
 // server's clock):
 // { primary: { action, label, icon } | null, secondary: { … } | null, noAccess,
 //   undo: { action, text, left } | null, closed: { text, note } | null, line, empty }
-//   primary — the big amber button, the one of the day: Finish whenever the server allows it,
-//             right from a planned visit (the owner's decision of 2026-11-11: his technicians
-//             tell the office they are on the way in Telegram, so On my way is optional; the
-//             server lets the main technician finish an open visit of today, #140); else On my
-//             way (a helper, who does not close the visit);
-//   secondary — On my way under Finish while the visit is still planned: a plain button;
+//   primary — the big amber button, what to do now (design-mockups/tech-bill-plain d0, 2026-11-24):
+//             On my way while the visit is still planned, then Finish ('Finish diagnostics',
+//             'Finish the repair'); a helper, who does not close the visit, has On my way only;
+//   secondary — Finish under On my way while the visit is still planned: a plain button (the
+//             owner's decision of 2026-11-11 stays: his technicians tell the office they are on
+//             the way in Telegram, so On my way is optional; the server lets the main technician
+//             finish an open visit of today, #140);
 //   noAccess — the «No access» link under them;
 //   undo — «On my way at 11:08 · 3 min to undo» while the server's undo_until holds;
 //   closed — the green box of a closed visit once its undo is over: «Finished at 10:52 · undo
@@ -124,10 +125,11 @@ export function barOf(visit, nowMs) {
   const omw = { action: 'omw', label: 'On my way', icon: 'car' };
   let primary = null;
   let secondary = null;
-  if (actions.includes('finish')) {
-    primary = { action: 'finish', label: 'Finish', icon: 'check' };
-    if (actions.includes('omw')) secondary = omw;
-  } else if (actions.includes('omw')) primary = omw;
+  const finish = { action: 'finish', label: finishLabel(visit), icon: 'check' };
+  if (actions.includes('omw')) {
+    primary = omw;
+    if (actions.includes('finish')) secondary = finish;
+  } else if (actions.includes('finish')) primary = finish;
   const noAccess = actions.includes('no_access');
 
   let undo = null;

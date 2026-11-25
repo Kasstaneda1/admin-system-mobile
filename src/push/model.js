@@ -94,6 +94,18 @@ export function registerOutcome(status) {
   return 'bad';
 }
 
+// On every return to the app (PN-APP п. 2): this phone goes to the server again unless the last
+// try did it (or was refused for good) less than WAKE_AGAIN_MS ago. Not registered yet — no
+// permission, no token, no network, no answer — it tries at every return: the permission may
+// have come since in iOS Settings, the token or the network may be there now. last: { outcome,
+// at } of the last try in this run of the app (outcome of register in push.js), or null.
+export const WAKE_AGAIN_MS = 6 * 60 * 60 * 1000;
+const SETTLED = ['ok', 'quiet', 'bad'];
+export function wakeRegisterDue(last, nowMs) {
+  if (!last || !SETTLED.includes(last.outcome)) return true;
+  return !(nowMs - last.at < WAKE_AGAIN_MS);
+}
+
 // The visit a tapped push opens: data.visit_id, a whole number above 0 (or its digits); only
 // the tap on the push itself, not one of its buttons
 const DEFAULT_ACTION = 'expo.modules.notifications.actions.DEFAULT';

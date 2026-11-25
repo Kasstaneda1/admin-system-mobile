@@ -10,7 +10,7 @@ import { outbox } from './src/estimate/outboxStore';
 import { approvals } from './src/approve/store';
 import { acks } from './src/ack/store';
 import { refreshUnread, setUnread } from './src/estimate/unread';
-import { listenTaps, registerDevice, showWhileOpen } from './src/push/push';
+import { listenTaps, registerDevice, registerOnWake, showWhileOpen } from './src/push/push';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -100,11 +100,15 @@ function Screens() {
     return () => sub.remove();
   }, [userId, fullName]);
 
-  // Push (src/push): this phone to the server at every start and after every sign in; a tap on a
-  // push opens its visit — once the screens are there (a tap that started the app waits for them)
+  // Push (src/push): this phone to the server at every start and after every sign in, and again at
+  // a return to the app while it is not there yet (PN-APP п. 2); a tap on a push opens its visit —
+  // once the screens are there (a tap that started the app waits for them)
   const [ready, setReady] = React.useState(false);
   useEffect(() => {
-    if (userId !== null && userId !== undefined) registerDevice();
+    if (userId === null || userId === undefined) return undefined;
+    registerDevice();
+    const sub = AppState.addEventListener('change', (state) => { if (state === 'active') registerOnWake(); });
+    return () => sub.remove();
   }, [userId]);
   useEffect(() => {
     if (userId === null || userId === undefined || !ready) return undefined;

@@ -33,12 +33,16 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
     const server = !isStep || !!b.server;
     return { ...b, action, off: server ? off : waiting || !!failure, press: isStep ? () => onStep(b.key) : () => onPress(b.action) };
   };
-  const primary = main ? buttonOf(main, true) : bar.primary ? buttonOf(bar.primary, false) : null;
-  const plains = [
+  // d0 (design-mockups/tech-bill-plain): one lit button, what to do now — On my way while the
+  // visit is planned (Finish plain under it), then the steps' own (Finish, later the bill's)
+  const omwFirst = !!(bar.primary && bar.primary.action === 'omw');
+  const primary = omwFirst ? buttonOf(bar.primary, false)
+    : main ? buttonOf(main, true) : bar.primary ? buttonOf(bar.primary, false) : null;
+  const plains = (omwFirst ? [bar.secondary ? buttonOf(bar.secondary, false) : null] : [
     main && steps.second ? buttonOf(steps.second, true) : null,
     bar.secondary ? buttonOf(bar.secondary, false) : null,
-  ].filter(Boolean);
-  const isNext = !!main && main.tone === 'brand';
+  ]).filter(Boolean);
+  const isNext = !omwFirst && !!main && main.tone === 'brand';
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(bottom, 10) }]}>
       {failure ? (

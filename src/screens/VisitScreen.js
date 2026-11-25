@@ -771,7 +771,8 @@ export default function VisitScreen({ route, navigation }) {
               })}
             </View>
 
-            {steps && steps.strip.length > 1 ? <StepStrip strip={steps.strip} label={stripLabel(steps.strip)} /> : null}
+            {/* before Finish nothing competes with the one lit button (d0): the strip comes after it */}
+            {steps && steps.strip.length > 1 && card.state === 'closed' ? <StepStrip strip={steps.strip} label={stripLabel(steps.strip)} /> : null}
             {approveShown ? (
               <TouchableOpacity style={[styles.billTile, !approveDone && styles.approveTodo]} onPress={openApprove} accessibilityRole="button"
                 accessibilityLabel={`${approveShown.title}, ${approveShown.line}${approveShown.warn ? `, ${approveShown.warn}` : ''}`}>

@@ -23,7 +23,7 @@ function usePushState() {
   const last = useRef(null);
   const read = useCallback(async () => {
     const now = await pushState();
-    if (now === 'on' && last.current === 'off') registerDevice();
+    if (now === 'on' && last.current === 'off') registerDevice({ fresh: true });
     last.current = now;
     setState(now);
   }, []);

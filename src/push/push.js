@@ -13,7 +13,7 @@ import appConfig from '../../app.json';
 import { pushAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import { nativeVersion } from '../utils/nativeVersion';
-import { deviceBody, permissionStep, projectIdOf, registerOutcome, responseKey, visitOfResponse } from './model';
+import { deviceBody, permissionStep, projectIdOf, registerOutcome, responseKey, visitOfResponse, wakeRegisterDue } from './model';
 
 let lib;
 function notifications() {
@@ -63,16 +63,30 @@ async function register() {
   return outcome;
 }
 
-// After every sign in and at every start of the app while signed in; one at a time; never throws
-export function registerDevice() {
-  if (!running) {
-    running = register().catch((error) => {
-      // no network for Expo, a simulator without a token: the next start tries again
-      logError('Push registration failed:', error);
-      return 'later';
-    }).finally(() => { running = null; });
-  }
+// The last try of this run of the app: { outcome, at } (model wakeRegisterDue)
+let last = null;
+
+// After every sign in and at every start of the app while signed in; one at a time; never throws.
+// fresh: the permission has just changed (the system window, Settings) — a try already running
+// read the permission before that, so one more goes after it (it would answer 'ask' for good)
+export function registerDevice({ fresh = false } = {}) {
+  if (running) return fresh ? running.then(() => registerDevice()) : running;
+  running = register().catch((error) => {
+    // no network for Expo, a simulator without a token: the next return to the app tries again
+    logError('Push registration failed:', error);
+    return 'later';
+  }).then((outcome) => {
+    last = { outcome, at: Date.now() };
+    return outcome;
+  }).finally(() => { running = null; });
   return running;
+}
+
+// Every return of the app to the screen (App.js): the phone to the server again when the last
+// try did not get there (PN-APP п. 2: the owner allowed push and got none until he restarted
+// the app)
+export function registerOnWake() {
+  if (wakeRegisterDue(last, Date.now())) registerDevice();
 }
 
 // Sign out: the token off the server before the session goes, so this phone stops getting the
@@ -83,6 +97,7 @@ export async function forgetDevice() {
   try {
     const token = known || await tokenOf(N, 3000);
     known = null;
+    last = null; // the next person signed in on this phone registers at every return until it is there
     if (!token) return;
     await within(pushAPI.forget(token).catch(() => null), 5000);
   } catch (error) {
@@ -99,9 +114,13 @@ export async function askPush() {
   } catch (error) {
     logError('Push permission failed:', error);
   }
-  await registerDevice();
+  // right after Allow: a token may be slow on the very first grant, so one more try a little
+  // later while the technician is still in the app (and at every return to it after that)
+  const outcome = await registerDevice({ fresh: true });
+  if (outcome === 'later') setTimeout(() => registerDevice(), RETRY_AFTER_ALLOW_MS);
   return pushState();
 }
+const RETRY_AFTER_ALLOW_MS = 30000;
 
 // The sheet before the system window shows once on this phone
 const PROMPTED = 'push.prompted.v1';

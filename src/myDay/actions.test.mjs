@@ -90,10 +90,14 @@ test('No access: two steps in words', () => {
   assert.equal(noAccessWords(visit({ client_name: null, phone: null })).call.button, 'Call the customer');
 });
 
-test('the bar, planned: Finish first, On my way under it (optional), No access', () => {
+test('the bar, planned: On my way lit, Finish under it (plain, On my way stays optional), No access (d0)', () => {
   const bar = barOf(visit({ actions: ['omw', 'finish', 'no_access'] }), NOW);
-  assert.deepEqual(bar, { primary: { action: 'finish', label: 'Finish', icon: 'check' }, secondary: { action: 'omw', label: 'On my way', icon: 'car' },
+  assert.deepEqual(bar, { primary: { action: 'omw', label: 'On my way', icon: 'car' }, secondary: { action: 'finish', label: 'Finish the repair', icon: 'check' },
     noAccess: true, undo: null, closed: null, line: null, empty: false });
+  // Finish says the kind: diagnostics, the repair; other kinds plain «Finish»
+  assert.equal(barOf(visit({ visit_kind: 'diagnostics', actions: ['finish'] }), NOW).primary.label, 'Finish diagnostics');
+  assert.equal(barOf(visit({ visit_kind: 'installation', actions: ['finish'] }), NOW).primary.label, 'Finish');
+  assert.equal(barOf(visit({ visit_kind: 'recall', actions: ['finish'] }), NOW).primary.label, 'Finish');
   // a past day still open: the server allows no On my way, Finish alone
   const past = barOf(visit({ actions: ['finish', 'no_access'] }), NOW);
   assert.deepEqual([past.primary.action, past.secondary, past.noAccess], ['finish', null, true]);
@@ -106,7 +110,7 @@ test('the bar, planned: Finish first, On my way under it (optional), No access',
 test('the bar, on the way: Finish, No access and the undo while the server allows it', () => {
   const onway = visit({ status: 'omw', omw_at: '2026-11-10T16:08:00.000Z', actions: ['finish', 'no_access', 'undo_omw'], undo_until: '2026-11-10T16:23:00.000Z' });
   const bar = barOf(onway, NOW);
-  assert.deepEqual(bar.primary, { action: 'finish', label: 'Finish', icon: 'check' });
+  assert.deepEqual(bar.primary, { action: 'finish', label: 'Finish the repair', icon: 'check' });
   assert.equal(bar.secondary, null, 'on the way already: no second On my way');
   assert.equal(bar.noAccess, true);
   assert.deepEqual(bar.undo, { action: 'undo_omw', text: 'On my way at 11:08', left: '12 min to undo' });
