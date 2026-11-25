@@ -310,6 +310,17 @@ export function canBill(visit) {
 // signature go without it, and nothing warns about it. The server sends it with every bill answer;
 // an older server does not — then the stricter rule, as before.
 export const billFirst = (bill) => !(bill && bill.bill_before_payment === false);
+// Give the bill is Required for this company (visit.steps, VS-BE2): the customer's copy goes first,
+// before the signature for the bill (the server's 409 not_delivered on the acknowledgment, whatever
+// the order) — and the Send the bill sheet has no «Show it on this phone». billFirst above (the
+// server's bill_before_payment: Give required AND above Collect) stays for the payment only (d5).
+// A visit without steps (an older server, a visit kept on the phone): bill_before_payment, as before
+export function giveRequired(visit, bill) {
+  const steps = visit && Array.isArray(visit.steps) ? visit.steps : null;
+  const give = steps ? steps.find((s) => s && s.key === 'give') : null;
+  if (give && typeof give.mode === 'string') return give.mode === 'required';
+  return billFirst(bill);
+}
 // The words after the bill is issued (the send screen opens next)
 export const issuedText = (bill) => (billFirst(bill)
   ? 'It is frozen and has its PDF. Give it to the customer before taking the payment.'

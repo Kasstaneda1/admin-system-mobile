@@ -1063,7 +1063,7 @@ export default function VisitScreen({ route, navigation }) {
       {shown ? (
         <>
           {sendOpen && known && known.bill && known.status === 'issued' ? (
-            <SendSheet id={id} bill={known.bill} required={copyRequired(known.bill)} bottom={insets.bottom}
+            <SendSheet id={id} bill={known.bill} required={copyRequired(known.bill, shown.visit)} bottom={insets.bottom}
               onSent={sentBill} onShow={showBill} onClose={() => setSendOpen(false)} />
           ) : null}
           <FinishSheet visible={finishOpen} choices={finishChoicesNow} initial={finishInitial}

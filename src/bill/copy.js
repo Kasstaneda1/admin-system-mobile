@@ -14,13 +14,14 @@
 //     takes it with the customer's consent to electronic documents only (the tick);
 //   - Printed copy handed;
 //   - Show it on this phone — only when the copy is not required: a look, nothing is written.
-// Required = the server's bill_before_payment (Give required and over Collect): the signature for
-// the bill and the payment wait for the copy there (409 not_delivered), «shown» does not count.
+// Required = Give the bill Required in visit.steps (bill/model giveRequired; the Architect on #97):
+// the signature for the bill waits for the copy there (409 not_delivered), «shown» does not count;
+// the payment waits for it only by bill_before_payment (Give required and over Collect, pay/model).
 // The email consent: the bill does not say whether the job holds one, so the tick is under Email
 // always, not ticked — without it the email goes on the consent the job has; none → the server's
 // consent_required → «Tick the agreement or choose another way.». Without React Native
 // (copy.test.mjs runs it on node).
-import { CONSENT_WORDS, billFirst, percentText, usd } from './model.js';
+import { CONSENT_WORDS, giveRequired, percentText, usd } from './model.js';
 import { momentWall } from '../myDay/model.js';
 
 export const EMAIL_CONSENT_WORDS = CONSENT_WORDS; // one phrase everywhere (the Designer on #97)
@@ -52,8 +53,8 @@ export function firstWay(ways, to) {
 }
 
 // The copy is required before the signature and the payment, and not given yet
-export const copyRequired = (bill) => billFirst(bill);
-export const copyMissing = (bill) => !!bill && bill.status === 'issued' && copyRequired(bill) && !bill.delivered_at;
+export const copyRequired = (bill, visit = null) => giveRequired(visit, bill);
+export const copyMissing = (bill, visit = null) => !!bill && bill.status === 'issued' && copyRequired(bill, visit) && !bill.delivered_at;
 
 // The tick under the chosen way: { words, must } — must: without it nothing goes (Share); Email:
 // it goes on the job's consent, if it has one. null — no tick (handed, show).

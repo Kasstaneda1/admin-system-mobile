@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { alreadyGiven, billCardOf, buttonOf, copyCheck, copyFailText, copyMissing, copyWaysOf, emailBody, firstWay, jobEmailOf, signWordsOf, tickOf } from './copy.js';
+import { alreadyGiven, billCardOf, buttonOf, copyCheck, copyFailText, copyMissing, copyRequired, copyWaysOf, emailBody, firstWay, jobEmailOf, signWordsOf, tickOf } from './copy.js';
 
 const bill = (o = {}) => ({ status: 'issued', can_email: true, bill_before_payment: true, delivered_at: null, customer: { email: 'test@example.com' }, ...o });
 const ways = (list) => list.map((w) => w.way).join(' ');
@@ -104,4 +104,16 @@ test('the bill on the customer’s screen: in full and in one row', () => {
   assert.equal(two.tax, null);
   assert.equal(two.one.sub, '1 more');
   assert.equal(billCardOf(null), null);
+});
+
+test('copyMissing / copyRequired: Give the bill Required in visit.steps decides; without steps — bill_before_payment', () => {
+  const visit = (give) => ({ steps: [{ key: 'give', mode: give }, { key: 'collect', mode: 'optional' }] });
+  assert.equal(copyMissing(bill({ bill_before_payment: false }), visit('required')), true);
+  assert.equal(copyMissing(bill({ bill_before_payment: true }), visit('optional')), false);
+  assert.equal(copyMissing(bill({ bill_before_payment: true }), visit('off')), false);
+  assert.equal(copyMissing(bill({ bill_before_payment: true, delivered_at: '2026-11-25T10:00:00Z' }), visit('required')), false);
+  assert.equal(copyMissing(bill({ bill_before_payment: false }), { steps: null }), false);
+  assert.equal(copyRequired(bill({ bill_before_payment: false }), visit('required')), true);
+  assert.equal(copyRequired(bill({ bill_before_payment: true }), visit('optional')), false);
+  assert.equal(copyRequired(bill({ bill_before_payment: true })), true);
 });

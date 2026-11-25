@@ -142,3 +142,20 @@ test('ACK-T: the body carries the PDF the customer was shown; the server refusin
   assert.match(off.text, /^The phone’s clock is off/);
   assert.equal(ackError(err(400, { code: 'signed_at_out_of_bounds' })).clock, null, 'no Date header: not known');
 });
+
+// The Architect on #97: the signature waits for the copy by Give the bill Required in visit.steps
+// (the server's 409 not_delivered, whatever the order); bill_before_payment only without steps
+test('ackStage: the copy before the signature where Give the bill is Required (visit.steps)', () => {
+  const steps = (give) => ({ steps: [{ key: 'issue', mode: 'optional' }, { key: 'collect', mode: 'optional' }, { key: 'give', mode: give }] });
+  const notGiven = { ...BILL, delivered_at: null };
+  // give required below collect: bill_before_payment is false (payment does not wait), the signature still does
+  assert.equal(ackStage({ ...notGiven, bill_before_payment: false }, steps('required')), 'undelivered');
+  assert.equal(ackStage({ ...notGiven, bill_before_payment: true }, steps('optional')), 'open');
+  assert.equal(ackStage({ ...notGiven, bill_before_payment: true }, steps('off')), 'open');
+  // no steps (an older server, a kept visit): bill_before_payment as before
+  assert.equal(ackStage({ ...notGiven, bill_before_payment: false }), 'open');
+  assert.equal(ackStage({ ...notGiven, bill_before_payment: false }, { steps: null }), 'open');
+  assert.equal(ackStage(notGiven, {}), 'undelivered');
+  assert.equal(stageText('draft', { bill_before_payment: true }, steps('optional')), 'Issue the bill first. Then the customer signs for it.');
+  assert.equal(stageText('draft', { bill_before_payment: false }, steps('required')), 'Issue the bill and give it to the customer first. Then they sign that they got it.');
+});

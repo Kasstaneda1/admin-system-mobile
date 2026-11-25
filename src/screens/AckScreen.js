@@ -113,7 +113,7 @@ export default function AckScreen({ route, navigation }) {
     if (first.error) { setSaid(first.error); return; }
     setSaid(null);
     let current = bill;
-    if (copyMissing(bill)) {
+    if (copyMissing(bill, visit)) {
       setSending('copy');
       const gave = await copy.give();
       if (!gave.ok) { setSending(null); if (gave.text) setSaid(gave.text); return; }
@@ -197,12 +197,12 @@ export default function AckScreen({ route, navigation }) {
     );
   }
 
-  const stage = ackStage(bill);
+  const stage = ackStage(bill, visit);
   const card = billCardOf(bill, today);
   const waitingOnPhone = !ack && !!pending && !pending.failed;
   // the customer can sign: an issued bill, given — or not given yet, the copy goes first with «Done»
   const signing = !ack && !waitingOnPhone && (stage === 'open' || stage === 'undelivered');
-  const withCopy = signing && copyMissing(bill);
+  const withCopy = signing && copyMissing(bill, visit);
   const consent = consentOf({ bill, company: companyTerms(terms, (ackTermsLine(terms) || {}).title) });
   const words = signWordsOf(!!consent);
   const choices = partsChoicesOf(bill);
@@ -242,7 +242,7 @@ export default function AckScreen({ route, navigation }) {
             </>
           ) : null}
 
-          {!signed && !signing ? <Box kind="info" icon="info" text={stageText(stage, bill)} /> : null}
+          {!signed && !signing ? <Box kind="info" icon="info" text={stageText(stage, bill, visit)} /> : null}
 
           {signing ? (
             <>
