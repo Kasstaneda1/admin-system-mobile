@@ -16,7 +16,7 @@
 //     counted on the bill, so another phone's record can never be taken for this one;
 //   - a clear refusal (400, 403, 409) before any line was taken lets the screen change the lines;
 //   - attempts live in memory by bill, not in the screen: Back on Card and Next again, or Back to
-//     the method screen, find the same lines. Pay forgets the bill's attempts once it has read
+//     the Pay screen, find the same lines. Pay forgets the bill's attempts once it has read
 //     the bill again (its history and balance show what went through) — all but one without an
 //     answer: its line may still be on its way to the server, and a read that comes first would
 //     not show it; that one lives until a press settles it (the Teamlead's note 1 on #50);
@@ -29,7 +29,7 @@ import { usd } from '../bill/model.js';
 const attempts = new Map(); // `${billId}:${flow}` → attempt
 const keyOf = (billId, flow) => `${billId}:${flow}`;
 
-// The attempt of one flow on a bill ('method': a payment of the method screen, 'card': the card
+// The attempt of one flow on a bill ('method': a payment recorded on the Pay screen, 'card': the card
 // payment with its tip lines, 'tip': a tip after the bill is paid), or null
 export const attemptOf = (billId, flow) => attempts.get(keyOf(billId, flow)) || null;
 

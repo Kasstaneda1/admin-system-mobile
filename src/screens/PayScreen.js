@@ -1,14 +1,17 @@
 // «Pay» of the visit (design-mockups/payments: pay, pay-part, recorded, paid, void, offline,
 // not-given, later). The visit's issued bill and its money come from the server (GET …/bill:
-// paid_cents, balance_cents, payment_status, payments); this screen shows them and asks how
-// much is taken now. How it is paid is the next screen (PayMethodScreen). What it does:
+// paid_cents, balance_cents, payment_status, payments); this screen shows them, how much is taken
+// now and how it is paid — on one screen (USABILITY_2026-11-24 §5, design tech-app usab-u4-pay:
+// a full payment in two taps, Cash → «Record $332.07 cash»; the methods are pay/MethodForm.js).
+// What it does:
 //   - no issued bill: says so and opens the bill;
 //   - issued, not given: the customer gets the bill first (NYC §2-255) — Give the bill opens
 //     BillSendScreen; «Customer gets the bill later…» asks why, and the payment goes with
 //     before_delivery and the reason (the office sends the bill); only for a company with
 //     «Bill before payment» (bill_before_payment, BILLS_MV_DESIGN §3.2а) — without it the
 //     customer pays the issued bill at once, nothing about the delivery is asked;
-//   - the amount: the full balance, or part of it with a reason (the server: note_required);
+//   - the amount: the full balance at once; «Change» opens the amount and «Why only part?» (the
+//     server: note_required);
 //   - after a record: the green line, «Collect $X now» for a second method, or Later;
 //   - one's own record in its first 15 minutes: Void with a reason (the row stays crossed out);
 //   - paid in full: the payments, «Add a cash tip», Done;
@@ -31,6 +34,8 @@ import { usd } from '../bill/model';
 import {
   PART_REASONS, VOID_REASONS, amountOf, chipOf, countWord, dueOf, historyOf, laterOf, laterReasonGiven, moneyText, noBillText, numbersOf, paidAt, payError, stageOf, voidBody,
 } from '../pay/model';
+import { balanceWord, collectSub } from '../pay/method';
+import { MethodFields, useMethodForm } from '../pay/MethodForm';
 import { Chip, Field, History, Numbers, Pills, Section, payStyles } from '../pay/parts';
 import { depositPayRows, historyLabel } from '../deposit/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
@@ -52,7 +57,7 @@ export default function PayScreen({ route, navigation }) {
     try {
       const data = await billAPI.get(id);
       if (n !== seq.current) return;
-      // the bill as it is now shows what went through: the method screens start anew (pay/attempts.js)
+      // the bill as it is now shows what went through: the methods start anew (pay/attempts.js)
       if (data.bill) { forgetBill(data.bill.id); forgetEntry(data.bill.id); }
       setBill(data.bill);
       setProblem(null);
@@ -81,14 +86,22 @@ export default function PayScreen({ route, navigation }) {
   const [reason, setReason] = useState(null);
   const [note, setNote] = useState('');
   const [later, setLater] = useState(null);             // { reason } — the bill is sent later
+  const [changing, setChanging] = useState(false);       // «Change»: the amount field and the part
   const recordKey = recorded ? recorded.key : null;
-  // a new record came back from the method screen: the amount starts over, the choice waits
+  const scroll = useRef(null);
+  const collectY = useRef(0);                            // where «Collect now» starts in the page
+  const toCollect = useRef(false);                       // «Collect $X now»: go there once it is drawn
+  const scrollToCollect = () => { if (scroll.current) scroll.current.scrollTo({ y: Math.max(0, collectY.current - 8), animated: true }); };
+  // a new record (here, or back from the card or tip screens): the amount starts over at the full
+  // balance, the choice waits; the page goes up to the green line
   useEffect(() => {
     if (recordKey) {
       setPick('full');
       setTyped('');
       setReason(null);
       setNote('');
+      setChanging(false);
+      if (scroll.current) scroll.current.scrollTo({ y: 0, animated: false });
     }
   }, [recordKey]);
 
@@ -104,14 +117,28 @@ export default function PayScreen({ route, navigation }) {
     if (key && (!note.trim() || PART_REASONS.includes(note.trim()))) setNote(key);
     if (!key && PART_REASONS.includes(note.trim())) setNote('');
   };
-  const next = () => {
-    if (amount.error) return;
-    // the bill is still not given: every payment says why (the server asks each one); the
-    // reason of the first payment is the office's, the technician's words go again; a company
-    // without «Bill before payment» asks none
-    const sentLater = laterOf(bill, later);
-    navigation.navigate('PayMethod', { id, visit, bill, cents: amount.cents, part: amount.part, note: amount.part ? note.trim() : '', later: sentLater });
+  // «Change»: the amount field opens with the keyboard — the page goes to it, not under the keys
+  const change = () => {
+    setChanging(true);
+    setPick('part');
+    setTyped('');
+    requestAnimationFrame(scrollToCollect);
   };
+  // the bill is still not given: every payment says why (the server asks each one); the
+  // reason of the first payment is the office's, the technician's words go again; a company
+  // without «Bill before payment» asks none
+  const sentLater = bill ? laterOf(bill, later) : null;
+  const form = useMethodForm({
+    id, visit, bill, amount, partNote: note, later: sentLater, navigation,
+    // the record went: the green line and «Collect $X now» or Later; the bill is read again
+    onRecorded: (r) => { navigation.setParams({ recorded: r }); load(); },
+  });
+  // back from the card or tip screens with a record: the next payment starts from no method
+  const resetForm = form.reset;
+  useEffect(() => {
+    if (recordKey) resetForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordKey]);
 
   // «Pay online» (ONL-APP1): the customer pays the same amount on their own phone, by the QR code;
   // only when the server's flag says the bill may be paid online
@@ -195,6 +222,10 @@ export default function PayScreen({ route, navigation }) {
   const collecting = showRecorded && collectingFor === recordKey;
   const askAmount = stage === 'collect' && !offline && (!showRecorded || collecting);
   const choice = stage === 'collect' && !offline && showRecorded && !collecting;
+  // a payment sent without an answer shows what it sent: the amount is not changed
+  const shownCents = form.locked ? form.cents : amount.cents;
+  const shownPart = form.locked ? form.part : amount.part;
+  const open = changing && !form.locked;
   const paid = stage === 'paid' ? paidAt(bill) : null;
 
   return (
@@ -202,7 +233,7 @@ export default function PayScreen({ route, navigation }) {
       <StatusBar style="dark" />
       {back}
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scroll} contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
           <View style={payStyles.top}>
             {stage === 'paid' ? (
               <View style={styles.paidBox} accessible accessibilityLabel={`Paid in full. Bill ${label}, ${usd(bill.total_cents)}`}>
@@ -245,7 +276,8 @@ export default function PayScreen({ route, navigation }) {
             <Box kind="info" icon="info" style={payStyles.gap} title="The bill is sent later" text={`${later.reason}. The office sends ${label} to the customer.`} />
           ) : null}
 
-          {rows.length || stage === 'collect' ? (
+          {/* no payments yet: no empty History over the methods (the Designer on #92) */}
+          {rows.length ? (
             <History rows={rows} label={historyLabel(rows, countWord)} onVoid={offline ? null : openVoid} />
           ) : null}
           {rows.some((r) => r.voidLeft > 0) ? (
@@ -254,24 +286,50 @@ export default function PayScreen({ route, navigation }) {
 
           {askAmount ? (
             <>
-              <Section label="Collect now">
-                <Field big prefix="$" value={pick === 'full' ? moneyText(due) : typed} onChange={(t) => { setPick('part'); setTyped(t); }}
-                  keyboard="decimal-pad" max={12} placeholder="0.00" label={null} a11y="Amount to collect now" />
-                <Pills items={[{ key: 'full', label: `Full balance ${usd(due)}` }, { key: 'part', label: 'Part of it' }]} value={pick} onPick={(k) => k && choosePart(k)} />
-                {pick === 'part' && amount.cents !== null && amount.cents <= due ? (
-                  <View style={styles.leftRow}>
-                    <Text style={styles.leftLabel}>Left after this</Text>
-                    <Text style={styles.leftValue}>{usd(amount.left)}</Text>
-                  </View>
-                ) : pick === 'full' ? <Text style={payStyles.text}>Paying with two methods? Take part now, the rest right after.</Text> : null}
-              </Section>
-              {pick === 'part' && amount.part ? (
+              <View onLayout={(e) => {
+                collectY.current = e.nativeEvent.layout.y;
+                if (toCollect.current) { toCollect.current = false; scrollToCollect(); }
+              }}>
+                <Section label="Collect now">
+                  {open ? (
+                    <>
+                      <Field big prefix="$" value={pick === 'full' ? moneyText(due) : typed} onChange={(t) => { setPick('part'); setTyped(t); }}
+                        keyboard="decimal-pad" max={12} placeholder="0.00" label={null} a11y="Amount to collect now" autoFocus off={form.sending} />
+                      <Pills items={[{ key: 'full', label: `${balanceWord(bill)} ${usd(due)}` }, { key: 'part', label: 'Part of it' }]} value={pick} onPick={(k) => k && choosePart(k)} off={form.sending} />
+                      {pick === 'part' && amount.cents !== null && amount.cents <= due ? (
+                        <View style={styles.leftRow}>
+                          <Text style={styles.leftLabel}>Left after this</Text>
+                          <Text style={styles.leftValue}>{usd(amount.left)}</Text>
+                        </View>
+                      ) : pick === 'full' ? <Text style={payStyles.text}>Paying with two methods? Take part now, the rest right after.</Text> : null}
+                    </>
+                  ) : (
+                    <View style={styles.collect}>
+                      <View style={styles.flex} accessible accessibilityLabel={`Collect now ${usd(shownCents)}, ${collectSub(shownPart, shownCents, due, balanceWord(bill))}`}>
+                        <Text style={styles.collectBig} numberOfLines={1} adjustsFontSizeToFit>{usd(shownCents)}</Text>
+                        <Text style={styles.collectSub}>{collectSub(shownPart, shownCents, due, balanceWord(bill))}</Text>
+                      </View>
+                      {form.locked ? null : (
+                        <TouchableOpacity style={styles.change} onPress={change} disabled={form.sending} accessibilityRole="button" accessibilityLabel="Change the amount">
+                          <Text style={styles.changeText}>Change</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </Section>
+              </View>
+              {(open && pick === 'part' && amount.part) || (form.locked && shownPart) ? (
                 <Section label="Why only part?" need>
-                  <Pills items={PART_REASONS.map((r) => ({ key: r, label: r, toggle: true }))} value={reason} onPick={pickReason} />
-                  <Field label="Note" value={note} onChange={setNote} placeholder="Has $100 cash, rest by check" max={500}
-                    hint={`The office sees it with the payment. ${note.length} of 500`} />
+                  {form.locked ? <Text style={payStyles.text}>{form.shown.note}</Text> : (
+                    <>
+                      <Pills items={PART_REASONS.map((r) => ({ key: r, label: r, toggle: true }))} value={reason} onPick={pickReason} off={form.sending} />
+                      <Field label="Note" value={note} onChange={setNote} placeholder="Has $100 cash, rest by check" max={500} off={form.sending}
+                        hint={`The office sees it with the payment. ${note.length} of 500`} />
+                    </>
+                  )}
                 </Section>
               ) : null}
+              <MethodFields form={form} bill={bill} part={shownPart} />
             </>
           ) : null}
 
@@ -286,9 +344,11 @@ export default function PayScreen({ route, navigation }) {
           ) : null}
         </ScrollView>
 
-        <Foot bottom={insets.bottom}
+        <Foot bottom={insets.bottom} failure={askAmount ? form.failure : null}
           note={offline ? `The visit keeps «${usd(due)} due» until it is recorded.` : choice ? `Later: the visit shows «${usd(due)} left» and the office follows up.`
-            : stage === 'show' ? 'Later needs a reason. The office sees it.' : askAmount && amount.error && (pick === 'part') ? amount.error : null}>
+            : stage === 'show' ? 'Later needs a reason. The office sees it.'
+              : askAmount && !form.locked && amount.error && pick === 'part' ? amount.error
+                : askAmount ? (form.shown.tile === 'card' ? 'Hand the phone to the customer for the tip.' : form.holder) : null}>
           {offline ? (
             <>
               <MainButton text="Record · needs internet" off onPress={() => {}} />
@@ -301,15 +361,20 @@ export default function PayScreen({ route, navigation }) {
             </>
           ) : choice ? (
             <>
-              <MainButton text={`Collect ${usd(due)} now`} icon="chev" onPress={() => setCollectingFor(recordKey)} />
+              <MainButton text={`Collect ${usd(due)} now`} icon="chev" onPress={() => { toCollect.current = true; setCollectingFor(recordKey); }} />
               <PlainButton text={`Later · leave ${usd(due)} due`} onPress={() => navigation.goBack()} />
             </>
           ) : stage === 'none' ? (
             <MainButton text="Open the bill" icon="doc" onPress={() => navigation.navigate('Bill', { id, visit, create: false })} />
           ) : askAmount ? (
             <>
-              <MainButton text="Next · how they pay" icon="chev" off={!!amount.error} onPress={next} />
-              {canPayOnline(bill) ? <PlainButton text="Pay online · show QR code" off={!!amount.error} onPress={payOnline} /> : null}
+              {form.shown.tile === 'card' ? (
+                <MainButton text="Next · add tip" icon="chev" off={!!amount.error} onPress={form.toTip} />
+              ) : (
+                <MainButton text={form.word ? `Record ${usd(shownCents)} ${form.word}` : 'Choose how they pay'} icon={form.word ? 'check' : null}
+                  off={!form.method || form.otherNeed || (!form.locked && !!amount.error)} waiting={form.sending} onPress={form.record} />
+              )}
+              {canPayOnline(bill) && !form.locked ? <PlainButton text="Pay online · show QR code" off={!!amount.error} onPress={payOnline} /> : null}
             </>
           ) : (
             <MainButton text="Done · back to the visit" onPress={() => navigation.goBack()} />
@@ -373,4 +438,10 @@ const styles = StyleSheet.create({
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
   addDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandSoft },
   addText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
+  // «Collect now»: the full balance in the brand box, «Change» on the right (design usab-u4-pay)
+  collect: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, borderWidth: 2, borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  collectBig: { fontSize: 34, lineHeight: 40, fontWeight: '800', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
+  collectSub: { fontSize: 17, lineHeight: 22, fontWeight: '700', color: colors.brandPressed },
+  change: { minHeight: 48, minWidth: 48, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 24, borderWidth: 1.5, borderColor: colors.brand, backgroundColor: colors.bgCard },
+  changeText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
 });

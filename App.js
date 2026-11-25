@@ -27,7 +27,6 @@ import AckScreen from './src/screens/AckScreen';
 import BillPdfScreen from './src/screens/BillPdfScreen';
 import PayScreen from './src/screens/PayScreen';
 import DepositScreen from './src/screens/DepositScreen';
-import PayMethodScreen from './src/screens/PayMethodScreen';
 import PayTipScreen from './src/screens/PayTipScreen';
 import PayCardScreen from './src/screens/PayCardScreen';
 import PayCardEntryScreen from './src/screens/PayCardEntryScreen';
@@ -198,11 +197,6 @@ function Screens() {
               name="Deposit"
               component={DepositScreen}
               options={{ headerShown: false, title: 'Deposit' }}
-            />
-            <Stack.Screen
-              name="PayMethod"
-              component={PayMethodScreen}
-              options={{ headerShown: false, title: 'How they pay' }}
             />
             <Stack.Screen
               name="PayTip"
