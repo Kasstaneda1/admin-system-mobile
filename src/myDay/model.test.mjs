@@ -7,6 +7,7 @@ import {
   clock, clockAmPm, windowText, windowLines, durationText, greeting, firstName, shortName, planOf, visitDay, stateOf, kindText, areaOf, tagOf,
   buildDay, listItems, stripOf, headerLine, weekCounts, nextBusyDay, offerText, emptyText, keepWeek, keptWeek, offlineText, failedText,
   skewOf, nowWall, addressLine, directionsLinks, telLink, MAX_WEEKS_KEPT, DAY_START, DAY_END, isLogged, movedToText, loggedTag,
+  whatOf, moneyOf, dollars, kindVisitText, resultWord,
 } from './model.js';
 
 const TUE = '2026-11-10';
@@ -133,19 +134,25 @@ test('the design day: 5 visits, 2 done, on the way to Patel, next 1:30 PM', () =
   assert.equal(day.isToday, true);
   assert.deepEqual(day.rows.map((r) => r.n), [1, 2, 3, 4, 5]);
   assert.deepEqual(day.rows.map((r) => r.client), ['Rossi A.', 'Kowalski M.', 'Patel S.', 'Nguyen T.', 'Chen W.']);
-  assert.deepEqual(day.summary, { big: '5 visits', small: '2 done · next 1:30 PM' });
+  assert.deepEqual(day.summary, { big: '5 visits', small: '2 done · next at 1:30 PM' });
   assert.equal(day.current.client, 'Patel S.');
   assert.equal(day.next.client, 'Nguyen T.');
   assert.equal(day.rows[2].current, true);
   assert.equal(day.rows.filter((r) => r.next).length, 0, 'NEXT is marked only when nobody is on the way');
-  assert.deepEqual(day.rows.map((r) => r.window), ['8–10', '9–11', '11–2', '1–4', '3–6']);
-  assert.deepEqual(day.rows.map((r) => r.timeText), ['done 9:02', 'done 10:52', 'plan 11:45', 'plan 1:30', 'plan 3:45']);
+  // closed rows keep the short window; a row still ahead says AM/PM (the calm design)
+  assert.deepEqual(day.rows.map((r) => r.window), ['8–10', '9–11', '11–2 PM', '1–4 PM', '3–6 PM']);
+  assert.deepEqual(day.rows.map((r) => r.under), ['Done 9:02', 'Done 10:52', '', '', '']);
+  // the third line: result of a closed one; kind and «since» of the one on the way; town and kind ahead
+  assert.deepEqual(day.rows.map((r) => r.meta.map((m) => m.text).join(' · ')), [
+    'Diagnosed', 'Repaired', 'Repair, visit 2 of 2 · On the way since 11:08',
+    'Rego Park · Installation, visit 2 of 2 · Helping Alex', 'Bayside · Recall, visit 3 of 3',
+  ]);
   assert.deepEqual(day.rows.map((r) => r.tag && r.tag.text), ['Diagnostics', 'Repaired', 'On the way 11:08', 'Helping Alex', null]);
   assert.deepEqual(day.rows.map((r) => r.kind), ['Diagnostics 1/1', 'Repair 1/1', 'Repair 2/2', 'Installation 2/2', 'Recall 3/3']);
   // the duration only for a visit still ahead that is the technician's own
   assert.deepEqual(day.rows.map((r) => r.duration), [null, null, null, null, '1h']);
-  // free time: after Chen (ends 4:45) until 7 PM
-  assert.deepEqual(day.gaps, [{ afterId: 5, from: 16 * 60 + 45, to: DAY_END, text: 'Free 4:45–7:00 PM · 2h 15m' }]);
+  // free time: none — the windows 11–2, 1–4, 3–6 leave no hour, and the end of the day is not shown
+  assert.deepEqual(day.gaps, []);
 });
 
 test('the busy day: 7 visits, on site at Patel, the free time at the end', () => {
@@ -160,10 +167,11 @@ test('the busy day: 7 visits, on site at Patel, the free time at the end', () =>
   ];
   const day = buildDay(vs, TUE, NOW);
   assert.equal(day.count, 7);
-  assert.deepEqual(day.summary, { big: '7 visits', small: '2 done · next 12:15 PM' });
+  assert.deepEqual(day.summary, { big: '7 visits', small: '2 done · next at 12:15 PM' });
   assert.equal(day.current.id, 13);
   assert.equal(day.current.tag.text, 'On site');
-  assert.deepEqual(day.gaps.map((g) => g.text), ['Free 5:20–7:00 PM · 1h 40m']);
+  // the windows cover the day to 7 PM: nothing is free
+  assert.deepEqual(day.gaps, []);
 });
 
 test('tomorrow: no now, the summary is the time span, free time at the end', () => {
@@ -178,7 +186,8 @@ test('tomorrow: no now, the summary is the time span, free time at the end', () 
   assert.equal(day.current, null);
   assert.equal(day.rows.some((r) => r.current || r.next), false);
   assert.deepEqual(day.summary, { big: '3 visits', small: '8:30 AM – 4:00 PM' });
-  assert.deepEqual(day.gaps.map((g) => g.text), ['Free 4:00–7:00 PM · 3h']);
+  // between the windows 10–1 and 2–5 (no free time at the end of the day)
+  assert.deepEqual(day.gaps.map((g) => [g.afterId, g.text]), [[22, 'Free 1–2 PM · 1h']]);
   assert.equal(day.rows[2].tag.text, 'Helping Mark');
   assert.equal(day.rows[2].duration, null);
   assert.equal(headerLine(W, NOW, 'Ivan Petrov'), 'Tomorrow');
@@ -208,9 +217,11 @@ test('nobody on the way: the next visit is marked NEXT, today only', () => {
   assert.equal(day.current, null);
   assert.equal(day.next.id, 32);
   assert.equal(day.rows[1].next, true);
-  assert.deepEqual(day.summary, { big: '3 visits', small: '1 done · next 11:00 AM' });
-  // the late visit still holds its hour (to 12:00); then free until the next at 2 PM; after 3 PM until 7 PM
-  assert.deepEqual(day.gaps.map((g) => g.text), ['Free 12:00–2:00 PM · 2h', 'Free 3:00–7:00 PM · 4h']);
+  assert.deepEqual(day.summary, { big: '3 visits', small: '1 done · next at 11:00 AM' });
+  // the next one says when to arrive (the plan) beside its kind
+  assert.deepEqual(day.rows[1].meta.map((m) => m.text), ['Repair', 'arrive ~11:00']);
+  // the windows 11–2 and 1–4 leave no free time (12–2 was not free: the customer waits till 2)
+  assert.deepEqual(day.gaps, []);
 });
 
 test('free time between visits from now, today', () => {
@@ -219,7 +230,13 @@ test('free time between visits from now, today', () => {
     visit({ id: 42, w0: '13:00', w1: '16:00', p: '14:00', dur: 60 }),
   ];
   const day = buildDay(vs, TUE, NOW);
-  assert.deepEqual(day.gaps.map((g) => [g.afterId, g.text]), [[41, 'Free 11:20–2:00 PM · 2h 40m'], [42, 'Free 3:00–7:00 PM · 4h']]);
+  // from now until the window of the next customer opens (1 PM), not until its plan (2 PM)
+  assert.deepEqual(day.gaps.map((g) => [g.afterId, g.text]), [[41, 'Free 11:20 AM–1 PM · 1h 40m']]);
+  // less than an hour: not shown
+  assert.deepEqual(buildDay(vs, TUE, { date: TUE, minutes: 12 * 60 + 5 }).gaps, []);
+  // on the way to it: not free until its window opens (the simulator 2026-11-25)
+  const going = [vs[0], { ...vs[1], status: 'omw', omw_at: '2026-11-10T16:15:00Z' }];
+  assert.deepEqual(buildDay(going, TUE, NOW).gaps, []);
   // late in the evening: nothing free any more
   assert.deepEqual(buildDay(vs, TUE, { date: TUE, minutes: 18 * 60 + 30 }).gaps, []);
 });
@@ -231,11 +248,10 @@ test('the list in order: free time sits after the visit it follows', () => {
   ];
   const items = listItems(buildDay(vs, TUE, NOW));
   assert.deepEqual(items.map((i) => (i.type === 'row' ? `row ${i.row.id}` : `gap ${i.gap.text}`)),
-    ['row 41', 'gap Free 11:20–2:00 PM · 2h 40m', 'row 42', 'gap Free 3:00–7:00 PM · 4h']);
-  // a free gap ahead of the first visit (nothing before it today) comes first
+    ['row 41', 'gap Free 11:20 AM–1 PM · 1h 40m', 'row 42']);
+  // only between the visits: nothing above the first row, nothing after the last
   const later = listItems(buildDay([visit({ id: 43, w0: '14:00', w1: '17:00', p: '15:00' })], TUE, NOW));
-  assert.deepEqual(later.map((i) => i.type), ['gap', 'row', 'gap']);
-  assert.equal(later[0].gap.text, 'Free 11:20–3:00 PM · 3h 40m');
+  assert.deepEqual(later.map((i) => i.type), ['row']);
 });
 
 test('the list leaves out cancelled visits and those of other days; old tasks and helpers', () => {
@@ -267,10 +283,11 @@ test('old tasks with the old statuses: after the work closed, rescheduled moved 
   const day = buildDay(vs, TUE, NOW);
   assert.deepEqual(day.rows.map((r) => [r.id, r.n]), [[81, 1], [82, null], [83, 2], [84, 3]]);
   assert.deepEqual(day.rows.map((r) => r.tag && r.tag.text), ['Paid', 'Rescheduled', null, 'Invoiced']);
-  assert.equal(day.rows[1].timeText, 'moved');
-  assert.deepEqual(day.summary, { big: '3 visits', small: '2 done · next 12:00 PM' });
+  assert.equal(day.rows[1].under, 'Moved');
+  assert.deepEqual(day.rows.map((r) => r.meta.map((m) => m.text).join(' · ')), ['Paid', 'Old task · Rescheduled', 'Repair · arrive ~12:00', 'Invoiced']);
+  assert.deepEqual(day.summary, { big: '3 visits', small: '2 done · next at 12:00 PM' });
   assert.deepEqual(day.live.map((r) => r.id), [81, 83, 84]);
-  assert.deepEqual(stripOf(day, NOW).items.map((i) => i.n), [1, 2, 3]);
+  assert.deepEqual(stripOf(day, NOW).items.map((i) => [i.id, i.kind]), [[81, 'done'], [83, 'here'], [84, 'done']]);
   assert.equal(weekCounts(vs, weekOf(TUE), NOW)[TUE], 3);
   // the moved row stays in the list, in its place
   assert.deepEqual(listItems(day).filter((i) => i.type === 'row').map((i) => i.row.id), [81, 82, 83, 84]);
@@ -292,7 +309,7 @@ test('a plan on another day outside the customer window goes by the window (the 
   assert.equal(visitDay(off), TUE);
   assert.deepEqual(planOf(off).start, { date: TUE, minutes: 22 * 60 });
   const day = buildDay([off], TUE, NOW);
-  assert.deepEqual(day.rows.map((r) => [r.id, r.window, r.timeText, r.start]), [[63, '10 PM–12 AM', 'plan 10:00', 22 * 60]]);
+  assert.deepEqual(day.rows.map((r) => [r.id, r.window, r.under, r.start]), [[63, '10 PM–12 AM', '', 22 * 60]]);
   assert.deepEqual(buildDay([off], '2026-11-11', NOW).rows, []);
   // inside the window across midnight: on the plan's day, as before
   const inside = { ...visit({ id: 64, w0: '22:00', w1: '01:00', w1date: '2026-11-11' }), planned_start: '2026-11-11 00:30:00' };
@@ -305,16 +322,30 @@ test('a plan on another day outside the customer window goes by the window (the 
   assert.equal(visitDay(early), TUE);
 });
 
-test('free time from before the working day says AM (the owner read «Free 1:00–7:00 PM · 18h»)', () => {
-  const night = { ...visit({ id: 67, date: '2026-11-11', w0: '00:00', w1: '01:00' }), duration_minutes: 60 };
-  const gaps = buildDay([night], '2026-11-11', NOW).gaps;
-  assert.deepEqual(gaps.map((g) => g.text), ['Free 1:00 AM–7:00 PM · 18h']);
+test('free time says AM and PM: on one side once, across noon on both (the owner read «Free 1:00–7:00 PM · 18h»)', () => {
+  const W = '2026-11-11';
+  const night = { ...visit({ id: 67, date: W, w0: '00:00', w1: '01:00' }), duration_minutes: 60 };
+  const morning = visit({ id: 68, date: W, w0: '09:00', w1: '12:00', p: '09:00' });
+  const noon = visit({ id: 69, date: W, w0: '13:30', w1: '15:00', p: '13:30' });
+  assert.deepEqual(buildDay([night, morning, noon], W, NOW).gaps.map((g) => g.text), ['Free 1–9 AM · 8h', 'Free 12–1:30 PM · 1h 30m']);
+  // across noon
+  const late = visit({ id: 70, date: W, w0: '14:00', w1: '16:00', p: '14:00' });
+  assert.deepEqual(buildDay([morning, late].map((v) => ({ ...v, scheduled_end: v.id === 68 ? `${W} 11:00:00` : v.scheduled_end })), W, NOW).gaps.map((g) => g.text), ['Free 11 AM–2 PM · 3h']);
+  // a plan outside its window holds its hour
+  const outside = visit({ id: 71, date: W, w0: '09:00', w1: '10:00', p: '10:30', dur: 60 });
+  assert.deepEqual(buildDay([outside, late], W, NOW).gaps.map((g) => g.text), ['Free 11:30 AM–2 PM · 2h 30m']);
+  // a closed visit holds nothing: its window still open is free time (today, from now)
+  const closedEarly = visit({ id: 72, w0: '09:00', w1: '13:00', p: '09:00', status: 'completed', outcome: 'done' });
+  const after = visit({ id: 73, w0: '14:00', w1: '17:00', p: '14:00' });
+  assert.deepEqual(buildDay([closedEarly, after], TUE, NOW).gaps.map((g) => [g.afterId, g.text]), [[72, 'Free 11:20 AM–2 PM · 2h 40m']]);
 });
 
 test('windowLines: AM/PM windows break after the dash, short ones stay in one line', () => {
   assert.deepEqual(windowLines('10 PM–12 AM'), ['10 PM–', '12 AM']);
   assert.deepEqual(windowLines('9:30 AM–10 PM'), ['9:30 AM–', '10 PM']);
   assert.deepEqual(windowLines('11–2'), ['11–2']);
+  // one AM/PM at the end stays in one line
+  assert.deepEqual(windowLines('12–3 PM'), ['12–3 PM']);
   assert.deepEqual(windowLines('9:30–12'), ['9:30–12']);
   assert.deepEqual(windowLines(''), ['']);
   assert.deepEqual(windowLines(null), ['']);
@@ -327,18 +358,18 @@ test('a past day: closed visits, no free time', () => {
   assert.equal(day.isPast, true);
   assert.deepEqual(day.summary, { big: '1 visit', small: '1 done' });
   assert.deepEqual(day.gaps, []);
-  assert.equal(day.rows[0].timeText, 'done 10:00');
+  assert.equal(day.rows[0].under, 'Done 10:00');
   assert.equal(headerLine(MON, NOW), 'Yesterday');
 });
 
 test('the close time: closed_at; updated_at only when the server has no such field', () => {
   // closed at 9:41, changed later at 11:30: the list says when it was closed
   const closed = (o) => visit({ w0: '08:00', w1: '10:00', p: '08:30', status: 'completed', outcome: 'done', updated_at: '2026-11-10T16:30:00Z', ...o });
-  assert.equal(buildDay([closed({ id: 81, closed_at: '2026-11-10T14:41:00Z' })], TUE, NOW).rows[0].timeText, 'done 9:41');
+  assert.equal(buildDay([closed({ id: 81, closed_at: '2026-11-10T14:41:00Z' })], TUE, NOW).rows[0].under, 'Done 9:41');
   // the server has the field but does not know the moment: no time rather than the last change
-  assert.equal(buildDay([closed({ id: 82, closed_at: null })], TUE, NOW).rows[0].timeText, 'done');
+  assert.equal(buildDay([closed({ id: 82, closed_at: null })], TUE, NOW).rows[0].under, 'Done');
   // a server before backend #138 (or a week kept on the phone from it): the last change
-  assert.equal(buildDay([closed({ id: 83 })], TUE, NOW).rows[0].timeText, 'done 11:30');
+  assert.equal(buildDay([closed({ id: 83 })], TUE, NOW).rows[0].under, 'Done 11:30');
 });
 
 test('the customer in the list: the surname and the first initial, as in the design', () => {
@@ -386,18 +417,19 @@ test('the day log: a visit the office moved stays a grey row in its place, not c
   const row = day.rows[1];
   assert.equal(row.key, '92@2026-11-10 09:00:00');
   assert.equal(row.window, '9–12');                 // the window it had on this day
-  assert.equal(row.timeText, 'was today');
+  assert.equal(row.under, 'Was today');
+  assert.deepEqual(row.meta.map((m) => m.text), ['Diagnostics', 'Moved · Thu 9–12']);
   assert.deepEqual(row.tag, { kind: 'logged', icon: 'moved', text: 'Moved · Thu 9–12' });
   assert.equal(row.duration, null);
-  assert.equal(row.label, 'Lina Haddad, Diagnostics 1/1, 9–12 was today, Moved to Thu, Nov 12 · 9–12');
+  assert.equal(row.label, 'Lina Haddad, Diagnostics, 9–12 Was today, Moved to Thu, Nov 12 · 9–12');
   assert.equal(day.rows[0].label, null);
   // not counted, not done, not next, not in the strip, no free time of its own
   assert.equal(day.count, 2);
   assert.equal(day.done, 1);
-  assert.deepEqual(day.summary, { big: '2 visits', small: '1 done · next 1:30 PM' });
+  assert.deepEqual(day.summary, { big: '2 visits', small: '1 done · next at 1:30 PM' });
   assert.equal(day.next.id, 93);
   assert.deepEqual(day.live.map((r) => r.id), [91, 93]);
-  assert.deepEqual(stripOf(day, NOW).items.map((i) => [i.id, i.n]), [[91, 1], [93, 2]]);
+  assert.deepEqual(stripOf(day, NOW).items.map((i) => [i.id, i.kind]), [[91, 'done'], [93, 'here']]);
   assert.equal(weekCounts(vs, weekOf(TUE), NOW)[TUE], 2);
   assert.deepEqual(listItems(day).filter((i) => i.type === 'row').map((i) => i.row.id), [91, 92, 93]);
 });
@@ -432,12 +464,12 @@ test('the day log: grey whatever the status now; reassigned, cancelled, customer
   // the row's words are short (who did it is on the card); VoiceOver says it all
   assert.deepEqual(['reassigned', 'cancelled', 'client_rescheduled', 'something_new'].map((k) => loggedTag(change(k), TUE, { long: true }).text),
     ['Reassigned by the office', 'Cancelled by the office', 'Customer rescheduled', 'Changed by the office']);
-  assert.deepEqual(day.rows.map((r) => r.timeText), ['was today', 'was today', 'was today', 'was today', 'was today', 'was today', 'plan 4:00']);
+  assert.deepEqual(day.rows.map((r) => r.under), ['Was today', 'Was today', 'Was today', 'Was today', 'Was today', 'Was today', '']);
   assert.equal(day.current, null);
   assert.equal(day.next.id, 107);
   assert.equal(day.rows[1].current, false);
   assert.deepEqual([day.count, day.done], [1, 0]);
-  assert.deepEqual(day.summary, { big: '1 visit', small: 'next 4:00 PM' });
+  assert.deepEqual(day.summary, { big: '1 visit', small: 'next at 4:00 PM' });
 });
 
 test('the day log on a past day, and the same visit twice in a week', () => {
@@ -451,7 +483,7 @@ test('the day log on a past day, and the same visit twice in a week', () => {
   ];
   const mon = buildDay(vs, MON, NOW);
   assert.equal(mon.isPast, true);
-  assert.deepEqual(mon.rows.map((r) => [r.id, r.state, r.timeText]), [[111, 'moved', 'was Mon'], [112, 'closed', 'done 2:00']]);
+  assert.deepEqual(mon.rows.map((r) => [r.id, r.state, r.under]), [[111, 'moved', 'Was Mon'], [112, 'closed', 'Done 2:00']]);
   assert.equal(mon.rows[0].tag.text, 'Moved · Thu 9–12');
   assert.deepEqual(mon.summary, { big: '1 visit', small: '1 done' });
   const thu = buildDay(vs, THU, NOW);
@@ -497,20 +529,26 @@ test('where a moved visit is now, in words', () => {
   assert.equal(isLogged(visit({ w0: '09:00', w1: '12:00' })), false);
 });
 
-test('the strip: windows on two tracks, plans, now, ticks', () => {
+test('the strip: plain blocks at the plans, the scale to the last window, now, labels every 2 hours', () => {
   const day = buildDay(DAY5(), TUE, NOW);
   const strip = stripOf(day, NOW);
-  const span = DAY_END - DAY_START;
-  assert.equal(strip.items.length, 5);
-  assert.deepEqual(strip.items.map((i) => i.track), [0, 1, 0, 1, 0]);
-  assert.equal(strip.items[2].current, true);
+  // 8 AM to the end of the last window (Chen 3–6): 6 PM
+  const span = (18 - 8) * 60;
+  assert.deepEqual(strip.items.map((i) => i.kind), ['done', 'done', 'here', 'later', 'later']);
+  assert.equal(strip.items.some((i) => 'n' in i || 'winFrom' in i), false, 'no numbers, no window lines');
   assert.equal(strip.items[0].from, (8 * 60 + 15 - DAY_START) / span);
   assert.equal(strip.now, (11 * 60 + 20 - DAY_START) / span);
-  assert.deepEqual(strip.ticks.map((t) => t.text), ['8a', '10a', 'noon', '2p', '4p', '6p']);
-  // outside the strip: clamped, not drawn past the ends
+  assert.deepEqual(strip.ticks.map((t) => [t.text, t.align]), [['8 AM', 'left'], ['10', 'center'], ['12', 'center'], ['2', 'center'], ['4', 'center'], ['6 PM', 'right']]);
+  assert.equal(strip.label, 'Day at a glance, 8 AM to 6 PM');
+  // a 4–7 window: the scale ends at 7 PM and no label crowds it (no 6)
+  const owner = buildDay([visit({ id: 131, w0: '09:00', w1: '12:00', p: '09:00' }), visit({ id: 132, w0: '16:00', w1: '19:00', p: '16:00' })], TUE, NOW);
+  assert.deepEqual(stripOf(owner, NOW).ticks.map((t) => t.text), ['8 AM', '10', '12', '2', '4', '7 PM']);
+  // a window before 8 AM moves the start
   const early = buildDay([visit({ w0: '06:00', w1: '07:00' })], TUE, NOW);
   assert.equal(stripOf(early, NOW).items[0].from, 0);
-  assert.equal(stripOf(buildDay([], '2026-11-11', NOW), NOW).now, null);
+  assert.deepEqual(stripOf(early, NOW).ticks.map((t) => t.text), ['6 AM', '8 AM']);
+  assert.equal(stripOf(early, NOW).now, null, 'now past the scale is not drawn');
+  assert.equal(stripOf(buildDay([visit({ date: '2026-11-11', w0: '09:00', w1: '12:00' })], '2026-11-11', NOW), NOW).now, null);
 });
 
 test('the header line', () => {
@@ -572,4 +610,73 @@ test('address, directions and the phone link', () => {
   assert.equal(telLink('+1 718 555 0142'), 'tel:+17185550142');
   assert.equal(telLink('n/a'), null);
   assert.equal(telLink(null), null);
+});
+
+test('the calm row: where, what is broken, the money (design-mockups/app-calm p1, the owner 2026-11-25)', () => {
+  const WED = '2026-11-25';
+  const now = { date: WED, minutes: 12 * 60 + 28 };
+  const app = (type) => ({ appliance_type: type, brand: null, model: null, serial_number: null });
+  const vs = [
+    { ...visit({ id: 141, date: WED, client: 'Maria Gonzalez', city: 'Astoria', kind: 'diagnostics', w0: '09:00', w1: '12:00', p: '09:00', status: 'completed', outcome: 'diagnostics_only', closed_at: '2026-11-25T14:52:00Z' }),
+      appliances: [app('Dryer')], description: 'not heating', bill_money: { label: 'NY-1040', total_cents: 9500, balance_cents: 0, payment_status: 'paid' } },
+    { ...visit({ id: 142, date: WED, client: 'David Cohen', city: 'Long Island City', kind: 'diagnostics', w0: '10:00', w1: '13:00', p: '10:30', status: 'completed', outcome: 'estimate_needed', closed_at: '2026-11-25T16:40:00Z' }),
+      appliances: [app('Refrigerator')], description: 'not cooling\nice maker too', bill_money: { label: 'NY-1041', total_cents: 9500, balance_cents: 9500, payment_status: 'unpaid' } },
+    { ...visit({ id: 143, date: WED, client: 'Priya Raman', kind: 'diagnostics', w0: '12:00', w1: '15:00', p: '13:00', street: '41-22 Bell Blvd', unit: '3C' }),
+      appliances: [app('Washer')], description: 'stops mid-cycle, code 4C', service_call_fee_quoted_cents: 9500 },
+    { ...visit({ id: 144, date: WED, client: 'Kevin O’Brien', city: 'Forest Hills', w0: '16:00', w1: '19:00', p: '16:00', n: 2, of: 2 }),
+      appliances: [app('Dishwasher'), app('Range')], description: '  \n not draining', service_call_fee_quoted_cents: 12550 },
+  ];
+  const day = buildDay(vs, WED, now);
+  assert.deepEqual(day.summary, { big: '4 visits', small: '2 done · next at 1:00 PM' });
+  assert.deepEqual(day.rows.map((r) => [r.clientFull, r.window, r.under]), [
+    ['Maria Gonzalez', '9–12', 'Done 9:52'], ['David Cohen', '10–1', 'Done 11:40'], ['Priya Raman', '12–3 PM', ''], ['Kevin O’Brien', '4–7 PM', ''],
+  ]);
+  assert.equal(day.rows[2].next, true);
+  assert.deepEqual(day.rows.map((r) => r.what), ['Dryer · not heating', 'Refrigerator · not cooling', 'Washer · stops mid-cycle, code 4C', 'Dishwasher +1 · not draining']);
+  assert.deepEqual(day.rows.map((r) => r.meta), [
+    [{ text: 'Diagnosed' }, { text: 'Paid $95.00' }],
+    [{ text: 'Estimate needed' }, { text: '$95.00 due', due: true }],
+    [{ text: 'Diagnostics' }, { text: 'arrive ~1:00' }, { text: '$95 fee' }],
+    [{ text: 'Forest Hills' }, { text: 'Repair, visit 2 of 2' }],
+  ]);
+  // the free hour between the windows 12–3 and 4–7; 5–7 is not free (the 4–7 customer waits)
+  assert.deepEqual(day.gaps.map((g) => [g.afterId, g.text]), [[143, 'Free 3–4 PM · 1h']]);
+  // the strip: 8 AM – 7 PM, blocks done, done, here, later
+  const strip = stripOf(day, now);
+  assert.deepEqual(strip.items.map((i) => i.kind), ['done', 'done', 'here', 'later']);
+  assert.deepEqual(strip.ticks.map((t) => t.text), ['8 AM', '10', '12', '2', '4', '7 PM']);
+});
+
+test('the calm row: money, fee, what — what the server may leave out', () => {
+  assert.equal(moneyOf({ bill_money: null }), null);
+  assert.equal(moneyOf({}), null);
+  assert.deepEqual(moneyOf({ bill_money: { total_cents: 125050, balance_cents: 50, payment_status: 'partial' } }), { text: '$0.50 due', due: true });
+  assert.deepEqual(moneyOf({ bill_money: { total_cents: 125050, balance_cents: 0, payment_status: 'paid' } }), { text: 'Paid $1,250.50' });
+  // a bill of nothing, or one the server cannot say about: nothing
+  assert.equal(moneyOf({ bill_money: { total_cents: 0, balance_cents: 0, payment_status: 'paid' } }), null);
+  assert.equal(moneyOf({ bill_money: { total_cents: 9500, balance_cents: null, payment_status: 'unpaid' } }), null);
+  assert.equal(dollars(9500), '$95.00');
+  assert.equal(dollars(null), null);
+  assert.equal(whatOf({}), '');
+  assert.equal(whatOf({ appliances: [{ appliance_type: '' }], description: null }), 'Appliance');
+  assert.equal(whatOf({ appliances: [], description: 'Leaking under the door' }), 'Leaking under the door');
+  // the last full stop goes, an ellipsis stays
+  assert.equal(whatOf({ appliances: [{ appliance_type: 'Freezer' }], description: 'Freezer does not freeze.' }), 'Freezer · Freezer does not freeze');
+  assert.equal(whatOf({ description: 'Clicks, then stops...' }), 'Clicks, then stops...');
+  assert.equal(kindVisitText({ visit_kind: 'repair', visit_number: 1, visit_count: 1 }), 'Repair');
+  assert.equal(kindVisitText({ visit_kind: 'mystery', visit_number: 3, visit_count: 3 }), 'Visit 3 of 3');
+  assert.equal(kindVisitText({ visit_kind: 'mystery', visit_number: 1, visit_count: 1 }), 'Visit');
+  assert.equal(kindVisitText({ legacy: true }), 'Old task');
+  assert.deepEqual(['done', 'diagnostics_only', 'estimate_needed', 'no_access', 'x'].map((o) => resultWord({ status: 'completed', outcome: o })),
+    ['Repaired', 'Diagnosed', 'Estimate needed', 'No access', 'Closed']);
+  // the next visit: a recall has no fee, a helper says whom he helps, an odd fee keeps its cents
+  const WED = '2026-11-25';
+  const now = { date: WED, minutes: 9 * 60 };
+  const next = (o) => buildDay([{ ...visit({ id: 151, date: WED, w0: '10:00', w1: '12:00', p: '10:15', ...o }), service_call_fee_quoted_cents: o.fee ?? null }], WED, now).rows[0].meta.map((m) => m.text);
+  assert.deepEqual(next({ kind: 'recall', fee: 9500 }), ['Recall', 'arrive ~10:15']);
+  assert.deepEqual(next({ role: 'helper', main: 'Alex Kim', fee: 9500 }), ['Repair', 'arrive ~10:15', 'Helping Alex']);
+  assert.deepEqual(next({ fee: 12550 }), ['Repair', 'arrive ~10:15', '$125.50 fee']);
+  assert.deepEqual(next({ fee: null }), ['Repair', 'arrive ~10:15']);
+  // on site: the state in place of «arrive»
+  assert.deepEqual(next({ status: 'in_progress' }), ['Repair', 'On site']);
 });

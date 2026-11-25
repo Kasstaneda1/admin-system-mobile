@@ -28,9 +28,6 @@ export function TodayPill({ onPress }) {
 export function DateBar({ selected, today, onStep, onPick, onToday }) {
   return (
     <View style={styles.bar}>
-      <TouchableOpacity style={styles.step} onPress={() => onStep(-1)} accessibilityRole="button" accessibilityLabel="Previous day">
-        <Icon name="back" size={22} color={colors.brandPressed} />
-      </TouchableOpacity>
       <TouchableOpacity style={styles.pick} onPress={onPick} accessibilityRole="button"
         accessibilityLabel={`${dateButtonText(selected, today)}. Pick a day`}>
         <Icon name="cal" size={18} color={colors.brandPressed} />
@@ -38,6 +35,9 @@ export function DateBar({ selected, today, onStep, onPick, onToday }) {
         <Icon name="chevd" size={16} color={colors.fgMutedField} />
       </TouchableOpacity>
       {selected !== today ? <TodayPill onPress={onToday} /> : null}
+      <TouchableOpacity style={styles.step} onPress={() => onStep(-1)} accessibilityRole="button" accessibilityLabel="Previous day">
+        <Icon name="back" size={22} color={colors.brandPressed} />
+      </TouchableOpacity>
       <TouchableOpacity style={styles.step} onPress={() => onStep(1)} accessibilityRole="button" accessibilityLabel="Next day">
         <Icon name="chev" size={22} color={colors.brandPressed} />
       </TouchableOpacity>
@@ -109,17 +109,18 @@ export function DaySheet({ visible, selected, today, counts, bottom, onPick, onC
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  step: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  // the room between the arrows (and Today): the arrows keep their places whatever the day's width
-  pick: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.borderDefault, borderRadius: 12, backgroundColor: colors.bgCard },
-  pickText: { flexShrink: 1, fontSize: 17, fontWeight: '700', color: colors.fgDefault },
-  today: { minHeight: 44, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.brand, borderRadius: 22, backgroundColor: colors.brandSoft },
-  todayText: { fontSize: 16, fontWeight: '700', color: colors.brandSoftFg },
+  // the calm look: the day as plain words on the left (no frame), Today and the arrows on the right
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 6, marginRight: -8 },
+  step: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+  // the room left of Today and the arrows: the arrows keep their places whatever the day's width
+  pick: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44 },
+  pickText: { flexShrink: 1, fontSize: 17, fontWeight: '600', color: colors.fgDefault },
+  today: { minHeight: 36, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderControl, borderRadius: 10, backgroundColor: colors.bgCard },
+  todayText: { fontSize: 15, fontWeight: '600', color: colors.brandPressed },
 
   sheetBody: { gap: 10 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
-  title: { fontSize: 20, fontWeight: '800', color: colors.fgDefault },
+  title: { fontSize: 20, fontWeight: '700', color: colors.fgDefault },
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   monthText: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
   grid: { gap: 2 },
@@ -127,11 +128,11 @@ const styles = StyleSheet.create({
   cell: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 24 },
   letter: { fontSize: 13, fontWeight: '700', color: colors.fgMutedField },
   day: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  dayToday: { borderWidth: 1.5, borderColor: colors.brand },
-  dayOn: { backgroundColor: colors.brandPressed, borderWidth: 0 },
+  dayToday: { borderWidth: 1, borderColor: colors.brand },
+  dayOn: { backgroundColor: colors.brand, borderWidth: 0 },
   dayText: { fontSize: 16, color: colors.fgDefault },
-  dayTextToday: { color: colors.brandPressed, fontWeight: '800' },
-  dayTextOn: { color: colors.fgOnFill, fontWeight: '800' },
+  dayTextToday: { color: colors.brandPressed, fontWeight: '700' },
+  dayTextOn: { color: colors.fgOnFill, fontWeight: '700' },
   dot: { position: 'absolute', bottom: 5, width: 5, height: 5, borderRadius: 3, backgroundColor: colors.brand },
   dotOn: { backgroundColor: colors.fgOnFill },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 2 },
