@@ -34,13 +34,13 @@ test('awayOf: unread T1, T2, T4, T5 newer than the last opening, not deeper than
   ];
   const a = awayOf(items, { since, nowMs: NOW, today: TODAY });
   assert.equal(a.line, '2 new visits · 1 moved · 1 cancelled · 2 office notes');
-  assert.deepEqual(a.rows.map((r) => [r.key, r.mark]), [[1, 'new'], [2, 'new'], [3, 'moved'], [4, 'note'], [5, 'note'], [6, 'cancelled']]);
+  assert.deepEqual(a.rows.map((r) => [r.key, r.mark]), [[1, 'new'], [2, 'new'], [3, 'moved'], [6, 'cancelled'], [4, 'note'], [5, 'note']]);
   assert.deepEqual(a.rows[0], { key: 1, mark: 'new', title: 'Brooks K. · today 3–6 PM', sub: 'New visit · Repair', visitId: 41 });
   assert.equal(a.rows[2].title, 'Haddad L. · tomorrow 9–12 PM');
   assert.equal(a.rows[2].sub, 'Moved · was today 5–8 PM');
-  assert.equal(a.rows[3].sub, '“The gate code is 7788 now.”');
-  assert.equal(a.rows[5].sub, 'Cancelled by the office');
-  assert.equal(a.rows[5].visitId, null, 'not their visit any more: nothing to open');
+  assert.equal(a.rows[4].sub, '“The gate code is 7788 now.”');
+  assert.equal(a.rows[3].sub, 'Cancelled by the office');
+  assert.equal(a.rows[3].visitId, null, 'not their visit any more: nothing to open');
 });
 
 test('awayOf: one of a kind in the singular; nothing new — no panel; 14 days at most', () => {

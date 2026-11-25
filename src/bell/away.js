@@ -60,6 +60,9 @@ export function awayOf(items, { since, nowMs, today }) {
     count.T4 ? `${count.T4} cancelled` : null,
     count.T5 ? plural(count.T5, 'office note', 'office notes') : null,
   ].filter(Boolean);
-  return { line: parts.join(' · '), rows };
+  // the rows in the line's order — new, moved, cancelled, notes — the feed's order inside each (the Designer on #104)
+  const ORDER = ['new', 'moved', 'cancelled', 'note'];
+  const sorted = ORDER.flatMap((mark) => rows.filter((r) => r.mark === mark));
+  return { line: parts.join(' · '), rows: sorted };
 }
 
