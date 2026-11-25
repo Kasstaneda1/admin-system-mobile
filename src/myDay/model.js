@@ -277,7 +277,10 @@ export function resultWord(visit) {
 export function kindVisitText(visit) {
   if (visit.legacy) return 'Old task';
   const kind = kindWord(visit);
-  return visit.visit_count > 1 && visit.visit_number ? `${kind}, visit ${visit.visit_number} of ${visit.visit_count}` : kind;
+  if (!(visit.visit_count > 1 && visit.visit_number)) return kind;
+  const nth = `${visit.visit_number} of ${visit.visit_count}`;
+  // a kind the app does not know: 'Visit 3 of 3', not 'Visit, visit 3 of 3' (the Designer on #111)
+  return KINDS[visit.visit_kind] ? `${kind}, visit ${nth}` : `Visit ${nth}`;
 }
 // What is broken: 'Washer · stops mid-cycle, code 4C' (the first appliance, '+1' for more; the
 // problem's first line); '' when the office wrote neither

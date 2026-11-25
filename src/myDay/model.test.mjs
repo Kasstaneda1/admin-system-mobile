@@ -664,7 +664,8 @@ test('the calm row: money, fee, what — what the server may leave out', () => {
   assert.equal(whatOf({ appliances: [{ appliance_type: 'Freezer' }], description: 'Freezer does not freeze.' }), 'Freezer · Freezer does not freeze');
   assert.equal(whatOf({ description: 'Clicks, then stops...' }), 'Clicks, then stops...');
   assert.equal(kindVisitText({ visit_kind: 'repair', visit_number: 1, visit_count: 1 }), 'Repair');
-  assert.equal(kindVisitText({ visit_kind: 'mystery', visit_number: 3, visit_count: 3 }), 'Visit, visit 3 of 3');
+  assert.equal(kindVisitText({ visit_kind: 'mystery', visit_number: 3, visit_count: 3 }), 'Visit 3 of 3');
+  assert.equal(kindVisitText({ visit_kind: 'mystery', visit_number: 1, visit_count: 1 }), 'Visit');
   assert.equal(kindVisitText({ legacy: true }), 'Old task');
   assert.deepEqual(['done', 'diagnostics_only', 'estimate_needed', 'no_access', 'x'].map((o) => resultWord({ status: 'completed', outcome: o })),
     ['Repaired', 'Diagnosed', 'Estimate needed', 'No access', 'Closed']);
