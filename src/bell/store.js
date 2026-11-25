@@ -2,7 +2,9 @@
 // every answer of the server (feed, read, unread); the other tabs ask the server for it, at most
 // once a minute (the feed's first item only: unread_count comes with it). As estimate/unread.js.
 import { useSyncExternalStore } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bellAPI } from '../services/api';
+import { awaySince } from './away';
 import { unreadOf } from './model';
 
 const REFRESH_MS = 60 * 1000;
@@ -45,7 +47,34 @@ export async function readVisit(id) {
 }
 
 // Sign out: the next person starts from nothing
-export function clearBell() { asked = 0; setBellCount(0); }
+export function clearBell() { asked = 0; setBellCount(0); setAway(null); }
 
 const subscribe = (l) => { listeners.add(l); return () => listeners.delete(l); };
 export const useBellCount = () => useSyncExternalStore(subscribe, () => count);
+
+// ---------- «Since you were off» (bell/away.js) ----------
+// The last time this person had the app open, on this phone; at a return after 16 hours or more
+// the unread items are read once and the panel shows on My day until «Got it»
+const LAST_OPEN = (userId) => `bell.lastOpen.${userId}`;
+let away = null;               // { since, items } or null
+const awayListeners = new Set();
+const setAway = (next) => { away = next; awayListeners.forEach((l) => l()); };
+
+export async function checkAway(userId, nowMs = Date.now()) {
+  if (userId === null || userId === undefined) return;
+  let last = null;
+  try { last = Number(await AsyncStorage.getItem(LAST_OPEN(userId))); } catch { last = null; }
+  try { await AsyncStorage.setItem(LAST_OPEN(userId), String(nowMs)); } catch { /* the next return compares with an older moment */ }
+  const since = awaySince(last, nowMs);
+  if (since === null) return;
+  try {
+    const page = await bellAPI.feed('unread', null, 100);
+    setBellFrom(page);
+    setAway({ since, items: Array.isArray(page.items) ? page.items : [] });
+  } catch {
+    // no answer: nothing to show this time
+  }
+}
+export function dismissAway() { setAway(null); }
+const subscribeAway = (l) => { awayListeners.add(l); return () => awayListeners.delete(l); };
+export const useAway = () => useSyncExternalStore(subscribeAway, () => away);
