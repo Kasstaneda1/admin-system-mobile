@@ -3,10 +3,11 @@
 // link's words. No signal or a refusal: the sheet stays with a yellow line (no queue: a skip is not
 // the customer's signature, doing it again is easy). Words — steps/skip.js SKIPS.
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from '../myDay/Icon';
 import { Sheet } from '../myDay/visitBar';
+import { keyboardFirst } from '../myDay/keyboardTap';
 import { OTHER_REASON, REASON_MAX, SKIPS, skipReason } from './skip';
 
 // stepKey: the step (omw, signs, collect, give) or null (closed); sending: the reason in flight;
@@ -18,6 +19,10 @@ export default function SkipSheet({ stepKey, sending = null, failure = null, bot
   useEffect(() => { if (stepKey) { setOther(false); setTyped(''); } }, [stepKey]);
   const busy = !!sending;
   const ready = !!skipReason(typed);
+  // «Other…» open, the keyboard up: the first tap on a reason or a button only puts it away — a
+  // stray tap on a reason above the field is not a skip (myDay/keyboardTap.js); Done on the
+  // keyboard still skips with the words written
+  const tap = (fn) => keyboardFirst(Keyboard, fn);
   return (
     <Sheet visible={!!words} onClose={busy ? () => {} : onClose} bottom={bottom} keyboard>
       {words ? (
@@ -30,14 +35,14 @@ export default function SkipSheet({ stepKey, sending = null, failure = null, bot
               const mine = sending === r;
               return (
                 <TouchableOpacity key={r} style={[styles.reason, mine && styles.reasonOn, busy && !mine && styles.off]} disabled={busy}
-                  onPress={() => onSkip(r)} accessibilityRole="button" accessibilityHint={`Skips ${words.hint} with this reason`}>
+                  onPress={tap(() => onSkip(r))} accessibilityRole="button" accessibilityHint={`Skips ${words.hint} with this reason`}>
                   <Text style={styles.reasonText}>{r}</Text>
                   {mine ? <ActivityIndicator color={colors.brandPressed} /> : null}
                 </TouchableOpacity>
               );
             })}
             <TouchableOpacity style={[styles.reason, other && styles.reasonOn, busy && styles.off]} disabled={busy}
-              onPress={() => setOther(true)} accessibilityRole="button" accessibilityState={{ selected: other }}>
+              onPress={tap(() => setOther(true))} accessibilityRole="button" accessibilityState={{ selected: other }}>
               <Text style={styles.reasonText}>{OTHER_REASON}</Text>
               <Text style={styles.write}>Write it</Text>
             </TouchableOpacity>
@@ -48,7 +53,7 @@ export default function SkipSheet({ stepKey, sending = null, failure = null, bot
                 maxLength={REASON_MAX} returnKeyType="done" blurOnSubmit onSubmitEditing={() => { if (ready) onSkip(skipReason(typed)); }}
                 accessibilityLabel="Why, in your words" />
               <Text style={styles.help}>One line, up to 300 characters.</Text>
-              <TouchableOpacity style={[styles.main, !ready && styles.mainOff]} disabled={!ready || busy} onPress={() => onSkip(skipReason(typed))}
+              <TouchableOpacity style={[styles.main, !ready && styles.mainOff]} disabled={!ready || busy} onPress={tap(() => onSkip(skipReason(typed)))}
                 accessibilityRole="button" accessibilityState={{ disabled: !ready || busy, busy }}>
                 {busy && sending === skipReason(typed) ? <ActivityIndicator color={colors.onAccent} />
                   : <Text style={[styles.mainText, !ready && styles.mainTextOff]}>{words.link}</Text>}
@@ -61,7 +66,7 @@ export default function SkipSheet({ stepKey, sending = null, failure = null, bot
               <Text style={styles.failText}>{failure}</Text>
             </View>
           ) : null}
-          <TouchableOpacity style={styles.back} onPress={onClose} disabled={busy} accessibilityRole="button">
+          <TouchableOpacity style={styles.back} onPress={tap(onClose)} disabled={busy} accessibilityRole="button">
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
         </>
