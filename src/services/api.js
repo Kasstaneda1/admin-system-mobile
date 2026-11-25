@@ -148,6 +148,12 @@ export const myDayAPI = {
   },
   // A press on the visit: body { action, outcome?, client_request_id } (actions.js actionBody).
   // 200 { success, changed, visit }; 409/403 { error, visit }; 404 { error }; 400 { error }.
+  // Skip a step (VS-BE3, steps/skip.js): body { reason, client_request_id } → 201 { success,
+  // changed, visit }; 409 step_not_skippable; 403 a helper; 404 not theirs
+  skip: async (id, key, body) => {
+    const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/steps/${encodeURIComponent(key)}/skip`, body, { timeout: 15000 });
+    return response.data;
+  },
   act: async (id, body) => {
     const response = await api.post(`/api/my/visits/${encodeURIComponent(id)}/actions`, body, { timeout: 15000 });
     return response.data;

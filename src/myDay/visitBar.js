@@ -26,7 +26,7 @@ import { ThreeButtons } from '../bill/ThreeParts';
 // only one left of them is «Next: …» once all three are done (threeNext) and «Customer approves»
 // plain beside Finish. threeBusy / threeFailure / onThree: bill/ThreeParts.js ThreeButtons.
 export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null, bill = null, steps = null, onStep = null, billLink = null,
-  three = null, threeNext = null, threeBusy = null, threeFailure = null, onThree = null }) {
+  three = null, threeNext = null, threeBusy = null, threeFailure = null, onThree = null, onSkip = null }) {
   const main = three ? threeNext : steps && steps.main ? steps.main : null;
   if (bar.empty && !failure && !main && !three) return null;
   const waiting = !!pending && !failure;
@@ -119,6 +119,13 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </TouchableOpacity>
       ) : null}
 
+      {/* «Skip On my way» under the lit On my way (VS-APP, design app-skip k1) */}
+      {omwFirst && bar.skip && onSkip ? (
+        <TouchableOpacity style={styles.skip} onPress={() => onSkip(bar.skip.key)} disabled={off} accessibilityRole="button" accessibilityHint="Asks why">
+          <Text style={styles.skipText}>{bar.skip.words}</Text>
+        </TouchableOpacity>
+      ) : null}
+
       {plains.length ? (
         <View style={styles.plains}>
           {plains.map((b) => (
@@ -135,7 +142,7 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </View>
       ) : null}
 
-      {three && !nobill ? <ThreeButtons three={three} busy={threeBusy} failure={threeFailure} onPress={onThree} /> : null}
+      {three && !nobill ? <ThreeButtons three={three} busy={threeBusy} failure={threeFailure} onPress={onThree} onSkip={onSkip} /> : null}
 
       {bar.noAccess ? (
         <TouchableOpacity style={styles.link} disabled={off} onPress={() => onPress('no_access')} accessibilityRole="button" accessibilityState={{ disabled: off }}>
@@ -388,6 +395,9 @@ const styles = StyleSheet.create({
   // all done: «Next: Nguyen T. · 1:30» — the brand's dark button, not the amber one (design usab-u1)
   mainNext: { backgroundColor: colors.brandPressed },
   mainTextNext: { color: colors.fgOnFill },
+  // the quiet link under the lit button (design app-skip .sk)
+  skip: { alignSelf: 'center', minHeight: 44, marginTop: -8, marginBottom: -6, paddingHorizontal: 14, justifyContent: 'center' },
+  skipText: { fontSize: 17, fontWeight: '700', color: colors.fgSecondary, textDecorationLine: 'underline' },
   // «Next: …» under the green «Finished 12:53 · no bill» (finish-choice f5, the Designer on #98): outlined
   nextQuiet: { alignItems: 'center', justifyContent: 'center', height: 52, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
   nextQuietText: { fontSize: 17, fontWeight: '800', color: colors.brandPressed },

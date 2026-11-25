@@ -48,6 +48,7 @@ const ICONS = {
   refresh: require('../../assets/icons/refresh.png'),
   retry: require('../../assets/icons/retry.png'),
   replay: require('../../assets/icons/replay.png'),
+  skipc: require('../../assets/icons/skipc.png'),
   route: require('../../assets/icons/route.png'),
   search: require('../../assets/icons/search.png'),
   send: require('../../assets/icons/send.png'),

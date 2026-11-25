@@ -32,6 +32,7 @@
 import { canBill, usd } from './model.js';
 import { clock, closedMoment, momentWall, stateOf } from '../myDay/model.js';
 import { dueOf } from '../pay/model.js';
+import { SKIPS, canSkip, skippedLabel, skippedLine, skippedOf } from '../steps/skip.js';
 
 export const THREE_KEYS = { sign: 'signs', pay: 'collect', send: 'give' };
 const DEFAULT_ORDER = ['sign', 'pay', 'send'];
@@ -58,11 +59,13 @@ export function orderOf(visit) {
 // The orange one: the first not done in the order. Send the bill: never when give is off; when
 // give is required only once the signature is done or not there (until then the signature's or the
 // payment's screen gives the copy) — the Architect, «SO»
+// A skipped step counts as finished here (VS-APP, design app-skip): not lit, «all done» with it
+const finished = (b) => b.state === 'done' || b.state === 'skipped';
 function litOf(buttons) {
   const sign = buttons.find((b) => b.key === 'sign');
-  const signOpen = !!sign && sign.state !== 'done';
+  const signOpen = !!sign && !finished(sign);
   return buttons.find((b) => {
-    if (b.state === 'done') return false;
+    if (finished(b)) return false;
     if (b.key !== 'send') return true;
     if (b.mode === 'off') return false;
     return !(b.mode === 'required' && signOpen);
@@ -184,17 +187,23 @@ export function threeOf(ctx) {
     const b = s.key === 'sign' ? signButton(ack, issued, now)
       : s.key === 'pay' ? payButton(bill, issued, empty)
         : sendButton(issued, !!give && give.mode === 'required', now);
-    return { key: s.key, icon: ICONS[s.key], mode: s.mode, required: s.mode === 'required', lit: false, ...b };
+    // skipped (visit.steps[].skipped) and not done since: grey, still opens its action — done wins
+    const skipped = b.state !== 'done' && b.state !== 'part' ? skippedOf(visit, THREE_KEYS[s.key]) : null;
+    const shownAs = skipped ? { state: 'skipped', title: SKIPS[THREE_KEYS[s.key]].skipped, line: skippedLine(skipped), skipped } : b;
+    return { key: s.key, icon: skipped ? 'skipc' : ICONS[s.key], mode: s.mode, required: s.mode === 'required', lit: false, ...shownAs };
   });
-  const open = (b) => b.state !== 'done';
+  const open = (b) => !finished(b);
   const litOne = closed && !issueOff ? litOf(buttons) : null;
   if (litOne) litOne.lit = true;
-  for (const b of buttons) b.label = LABELS[b.key](b);
+  for (const b of buttons) b.label = b.state === 'skipped' ? skippedLabel(THREE_KEYS[b.key], b.skipped) : LABELS[b.key](b);
+  // the quiet link under the orange one, when its step may be skipped (only one on the screen)
+  const skipKey = litOne ? THREE_KEYS[litOne.key] : null;
   return {
     kind: 'three',
     row,
     buttons,
     lit: litOne ? litOne.key : null,
+    skip: skipKey && canSkip(visit, skipKey) ? { key: skipKey, words: SKIPS[skipKey].link } : null,
     // done: every one there — Send the bill with give off is a service, not a step
     allDone: buttons.length > 0 && buttons.every((b) => !open(b) || (b.key === 'send' && b.mode === 'off')),
     empty,
