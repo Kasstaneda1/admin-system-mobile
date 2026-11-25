@@ -166,8 +166,8 @@ export function laterOf(bill, later) {
 }
 // The words when there is no issued bill to pay yet (none, a draft)
 export const noBillText = (bill) => (billFirst(bill)
-  ? 'The customer pays a final bill. Open the bill and check it, then the customer gets a copy.'
-  : 'The customer pays a final bill. Open the bill and check it.');
+  ? 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final, then the customer gets a copy.'
+  : 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final first.');
 
 // ---------- the history ----------
 // The bill's payments and tips, oldest first, as rows: { key, payment, title, sub, amount, tip,
@@ -392,12 +392,12 @@ export function payError(error) {
   const code = data.code || null;
   if (!status) return { kind: 'offline', text: 'No connection. A payment needs the internet: try again when you are back online.' };
   if (status === 404) {
-    if (/no bill yet/i.test(said)) return { kind: 'refused', code: 'no_bill', text: 'This visit has no bill yet. Open the bill and check it first.' };
+    if (/no bill yet/i.test(said)) return { kind: 'refused', code: 'no_bill', text: 'This visit has no bill yet. Tap Get paid on the visit: it makes the bill first.' };
     if (/payment not found/i.test(said)) return { kind: 'refused', code: 'not_found', text: 'This payment is no longer on the bill.' };
     return { kind: 'gone', text: 'This visit was changed by the office' };
   }
   switch (code) {
-    case 'not_issued': return { kind: 'refused', code, text: 'The bill is not final yet: the payment goes on a final bill. Open the bill and check it.' };
+    case 'not_issued': return { kind: 'refused', code, text: 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final first.' };
     case 'bill_void': return { kind: 'refused', code, text: 'This bill is void. Take the money on the bill that replaced it.' };
     case 'not_delivered': return { kind: 'refused', code, text: 'Give the bill to the customer first, or say why it is sent later.' };
     case 'over_balance': return { kind: 'refused', code, balance: data.balance_cents, text: data.balance_cents > 0 ? `Only ${usd(data.balance_cents)} is due now. Someone recorded a payment meanwhile: check the amount.` : 'Nothing is due on this bill now.' };
