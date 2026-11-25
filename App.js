@@ -10,6 +10,7 @@ import { outbox } from './src/estimate/outboxStore';
 import { approvals } from './src/approve/store';
 import { acks } from './src/ack/store';
 import { refreshUnread, setUnread } from './src/estimate/unread';
+import { clearBell, refreshBell } from './src/bell/store';
 import { listenTaps, registerDevice, registerOnWake, showWhileOpen } from './src/push/push';
 
 // Screens
@@ -33,6 +34,7 @@ import PayCardEntryScreen from './src/screens/PayCardEntryScreen';
 import PayOnlineScreen from './src/screens/PayOnlineScreen';
 import CashTipScreen from './src/screens/CashTipScreen';
 import MoreScreen from './src/screens/MoreScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 import SalaryScreen from './src/screens/SalaryScreen';
 import SalaryMonthScreen from './src/screens/SalaryMonthScreen';
 import SalaryJobsScreen from './src/screens/SalaryJobsScreen';
@@ -88,12 +90,13 @@ function Screens() {
   const userId = status === 'signedIn' && user ? user.id : null;
   const fullName = status === 'signedIn' && user ? user.fullName || null : null;
   useEffect(() => {
-    if (userId === null || userId === undefined) { setUnread(0); return undefined; }
+    if (userId === null || userId === undefined) { setUnread(0); clearBell(); return undefined; }
     const wake = () => {
       outbox.flushAll(userId).catch(() => {});
       approvals.flushAll(userId).catch(() => {});
       acks.flushAll(userId).catch(() => {});
       refreshUnread(fullName, { force: true });
+      refreshBell({ force: true });
     };
     wake();
     const sub = AppState.addEventListener('change', (state) => { if (state === 'active') wake(); });
@@ -146,6 +149,11 @@ function Screens() {
               name="MyDay"
               component={MyDayScreen}
               options={{ headerShown: false, title: 'My day' }}
+            />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+              options={{ headerShown: false, title: 'Notifications' }}
             />
             <Stack.Screen
               name="Visit"

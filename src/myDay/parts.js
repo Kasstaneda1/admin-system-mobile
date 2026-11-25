@@ -1,13 +1,15 @@
 // The pieces of My day, design A3 (design-mockups/tech-app/final-a3.html, src2/v2.css and
 // src3/add.css: sizes in pt, colours only tokens from src/constants/colors.js). The words come
 // from model.js; nothing here decides what a visit is.
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from './Icon';
 import { dayOfMonth, weekdayLetter, weekdayOf, windowLines } from './model';
 import { FRESH_TEXT, badgeText, markLabel, tabLabel } from './fresh';
 import { useUnread } from '../estimate/unread';
+import { refreshBell, useBellCount } from '../bell/store';
+import { bellTabLabel } from '../bell/model';
 import { accessLine, accessParts } from './access';
 
 // «How to get in» text with its codes in large digits (access.js accessParts): style — the text's,
@@ -263,7 +265,10 @@ export function EmptyDay({ title, offer, onOffer, onCallOffice }) {
 }
 
 // ---------- the tab bar ----------
-const TABS = [['cal', 'My day', 'MyDay'], ['money', 'Salary', 'Salary'], ['box', 'Parts', 'Parts'], ['more', 'More', 'Home']];
+// Notifications second, after My day (APP-1, design-mockups/notifications app-bell-day): its count —
+// the bell's unread — is the one count of what is new; My day keeps its NEW / UPDATED marks on the
+// rows, without a number (the lead's decision, the Architect's «NT»)
+const TABS = [['cal', 'My day', 'MyDay'], ['bell', 'Notifications', 'Notifications'], ['money', 'Salary', 'Salary'], ['box', 'Parts', 'Parts'], ['more', 'More', 'Home']];
 // A tab already in the stack is gone back to (React Navigation 7: navigate no longer goes back
 // by itself); a tab not in it opens on top, as before
 function openTab(navigation, screen) {
@@ -271,20 +276,25 @@ function openTab(navigation, screen) {
   if (state && state.routes.some((r) => r.name === screen)) navigation.popTo(screen);
   else navigation.navigate(screen);
 }
-// fresh: how many visits are NEW or UPDATED (fresh.js): a blue count on the My day icon, «9+»;
-// the same count on Parts: its estimates with messages not read (estimate/unread.js);
+// the blue count («9+»): on Notifications — the bell's unread (bell/store.js), asked at most once a
+// minute when a tab bar shows; on Parts — its estimates with messages not read (estimate/unread.js);
+// fresh (My day's NEW and UPDATED) — only for VoiceOver of My day now, the number is the bell's;
 // current: the tab this screen belongs to (My day, Salary); pressing it goes back to the tab's
 // first screen (Salary from a job), as tabs do on iPhone
 export function TabBar({ navigation, bottom, fresh = 0, current = 'My day' }) {
   const unread = useUnread();
+  const bell = useBellCount();
+  useEffect(() => { refreshBell(); }, []);
   return (
     <View style={[styles.tabbar, { paddingBottom: Math.max(bottom, 8) }]} accessibilityRole="tablist">
       {TABS.map(([icon, label, screen]) => {
         const on = label === current;
-        const count = screen === 'MyDay' && fresh > 0 ? fresh : screen === 'Parts' && unread > 0 ? unread : 0;
+        const count = screen === 'Notifications' && bell > 0 ? bell : screen === 'Parts' && unread > 0 ? unread : 0;
+        const said = screen === 'MyDay' ? tabLabel(fresh) : screen === 'Notifications' ? bellTabLabel(count)
+          : count ? `${label}, ${count} with new messages` : label;
         return (
           <TouchableOpacity key={label} style={styles.tb} onPress={() => openTab(navigation, screen)}
-            accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={screen === 'MyDay' ? tabLabel(count) : count ? `${label}, ${count} with new messages` : label}>
+            accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={said}>
             <View>
               <Icon name={icon} size={24} color={on ? colors.brand : colors.fgMutedField} />
               {count ? <Text style={styles.badge}>{badgeText(count)}</Text> : null}
@@ -380,7 +390,8 @@ const styles = StyleSheet.create({
 
   tabbar: { flexDirection: 'row', paddingTop: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: colors.borderDefault, backgroundColor: colors.bgCard },
   tb: { flex: 1, alignItems: 'center', gap: 2, minHeight: 48 },
-  tbText: { fontSize: 11, fontWeight: '600', color: colors.fgMutedField },
+  // five tabs in 390: «Notifications» fits at 10.5 pt (the Designer, APP-1)
+  tbText: { fontSize: 10.5, fontWeight: '600', color: colors.fgMutedField },
   // the count on the My day icon (design .bdg): blue, white, a 2 pt white ring
   badge: { position: 'absolute', top: -8, left: 13, minWidth: 24, height: 24, paddingHorizontal: 5, borderRadius: 12, borderWidth: 2, borderColor: colors.bgCard, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 12, fontWeight: '800', lineHeight: 20, textAlign: 'center' },
 });

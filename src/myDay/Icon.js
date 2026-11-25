@@ -8,6 +8,7 @@ const ICONS = {
   ban: require('../../assets/icons/ban.png'),
   book: require('../../assets/icons/book.png'),
   box: require('../../assets/icons/box.png'),
+  bell: require('../../assets/icons/bell.png'),
   cal: require('../../assets/icons/cal.png'),
   calok: require('../../assets/icons/calok.png'),
   camera: require('../../assets/icons/camera.png'),

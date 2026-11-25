@@ -333,6 +333,13 @@ export const pushAPI = {
   forget: (token) => answer(api.delete('/api/my/push-devices', { data: { token } })),
 };
 
+// The technician's bell (N2-BE, APP-1): the feed by cursor, read, unread
+export const bellAPI = {
+  feed: (filter = 'all', before = null, limit = 30) => api.get('/api/my/notifications', { params: { filter, limit, ...(before ? { before } : {}) } }).then((r) => r.data),
+  read: (body) => api.post('/api/my/notifications/read', body).then((r) => r.data),
+  unread: (id) => api.post(`/api/my/notifications/${id}/unread`).then((r) => r.data),
+};
+
 export const photoUri = (path) => `${API_URL}${path}`;
 
 export default api;
