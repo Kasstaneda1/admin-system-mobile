@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  newRequestId, finishChoices, defaultOutcome, finishSubtitle, outcomesText, noAccessWords, barOf, actionBody, actionError, keepActed, UNDO_MINUTES,
+  newRequestId, finishChoices, finishTitle, notFixedAt, defaultOutcome, finishSubtitle, outcomesText, noAccessWords, barOf, actionBody, actionError, keepActed, UNDO_MINUTES,
   PART_NAME_MAX, PART_NUMBER_MAX,
 } from './actions.js';
 import { keepWeek, keptWeek } from './model.js';
@@ -32,31 +32,48 @@ test('a request id per press, in the server\'s format', () => {
   assert.equal(newRequestId(0, () => 0), 'app-0-000000000000');
 });
 
-test('Finish: the outcomes the server allows for the kind, in its order, the first marked', () => {
-  // backend #145: finish_outcomes, the default first (the owner's table lives in the server)
+test('Finish: the outcomes the server allows, fixed on top, then NOT FIXED TODAY in a fixed order; the server\'s first marked', () => {
+  // backend #145: finish_outcomes, the default first (the owner's table lives in the server);
+  // variant B (design-mockups/finish-choice): the places are the app's, which is marked is the server's
   const repair = visit({ finish_outcomes: ['done', 'deposit', 'diagnostics_only'] });
   assert.deepEqual(finishChoices(repair).map((c) => c.outcome), ['done', 'deposit', 'diagnostics_only']);
-  assert.deepEqual(finishChoices(repair)[0], { outcome: 'done', title: 'Repaired', hint: 'The problem is fixed', icon: 'checkc', kind: 'done' });
+  assert.deepEqual(finishChoices(repair)[0], { outcome: 'done', title: 'Repaired', hint: 'Fixed and working now', icon: 'checkc', kind: 'done', group: 'done' });
   assert.equal(defaultOutcome(repair), 'done');
+  assert.equal(finishTitle(finishChoices(repair)), 'How did it end?');
+  assert.equal(notFixedAt(finishChoices(repair)), 1);
+  // a diagnostics visit: the same places, Diagnostics only marked (the server's first)
   const diagnostics = visit({ visit_kind: 'diagnostics', finish_outcomes: ['diagnostics_only', 'done', 'deposit'] });
-  assert.deepEqual(finishChoices(diagnostics).map((c) => c.outcome), ['diagnostics_only', 'done', 'deposit']);
+  assert.deepEqual(finishChoices(diagnostics).map((c) => c.outcome), ['done', 'deposit', 'diagnostics_only']);
   assert.equal(defaultOutcome(diagnostics), 'diagnostics_only');
+  // an installation: one outcome — «Finish as Installation done?», no NOT FIXED TODAY
   const installation = visit({ visit_kind: 'installation', finish_outcomes: ['installation'] });
-  assert.deepEqual(finishChoices(installation), [{ outcome: 'installation', title: 'Installation done', hint: 'New unit is in and working', icon: 'install', kind: 'installation' }]);
+  assert.deepEqual(finishChoices(installation), [{ outcome: 'installation', title: 'Installation done', hint: 'New unit is in and working', icon: 'install', kind: 'installation', group: 'done' }]);
   assert.equal(defaultOutcome(installation), 'installation');
+  assert.equal(finishTitle(finishChoices(installation)), 'Finish as Installation done?');
+  assert.equal(notFixedAt(finishChoices(installation)), -1);
+  // a recall: Recall checked first (the visit's own), Repaired, the line, the rest in their order
   const recall = visit({ visit_kind: 'recall', finish_outcomes: ['recall', 'done', 'diagnostics_only', 'deposit'] });
-  assert.deepEqual(finishChoices(recall).map((c) => c.outcome), ['recall', 'done', 'diagnostics_only', 'deposit']);
-  // the server's list decides, not the kind: the app has no rule of its own any more
+  assert.deepEqual(finishChoices(recall).map((c) => c.outcome), ['recall', 'done', 'deposit', 'diagnostics_only']);
+  assert.equal(notFixedAt(finishChoices(recall)), 2);
+  // any one outcome is asked the same way; a list of only fixed ones has no line
   assert.deepEqual(finishChoices(visit({ visit_kind: 'installation', finish_outcomes: ['done'] })).map((c) => c.outcome), ['done']);
+  assert.equal(finishTitle(finishChoices(visit({ finish_outcomes: ['diagnostics_only'] }))), 'Finish as Diagnostics only?');
+  assert.equal(notFixedAt(finishChoices(visit({ finish_outcomes: ['installation', 'done'] }))), -1);
+  assert.equal(finishTitle([]), 'How did it end?');
+  assert.equal(notFixedAt(null), -1);
   // an outcome the app has no words for is left out; a repeat once
-  assert.deepEqual(finishChoices(visit({ finish_outcomes: ['teleport', 'deposit', 'deposit', 'done'] })).map((c) => c.outcome), ['deposit', 'done']);
+  assert.deepEqual(finishChoices(visit({ finish_outcomes: ['teleport', 'deposit', 'deposit', 'done'] })).map((c) => c.outcome), ['done', 'deposit']);
   assert.equal(defaultOutcome(visit({ finish_outcomes: ['teleport', 'deposit'] })), 'deposit');
   // no list (a visit kept before the server had it), empty, or only unknown words: every
   // outcome, the kind's own marked; the server checks the press
   for (const list of [undefined, null, [], ['teleport']]) {
     const v = visit({ visit_kind: 'diagnostics', finish_outcomes: list });
-    assert.deepEqual(finishChoices(v).map((c) => c.outcome), ['done', 'diagnostics_only', 'deposit', 'installation', 'recall']);
+    assert.deepEqual(finishChoices(v).map((c) => c.outcome), ['done', 'installation', 'recall', 'deposit', 'diagnostics_only']);
     assert.equal(defaultOutcome(v), 'diagnostics_only');
+  }
+  // every hint fits one line at 390 pt (≤ 31 characters, the Designer)
+  for (const c of finishChoices(visit({ finish_outcomes: ['done', 'installation', 'recall', 'deposit', 'estimate_needed', 'diagnostics_only'] }))) {
+    assert.ok(c.hint.length <= 31, c.hint);
   }
   assert.deepEqual(['repair', 'diagnostics', 'installation', 'recall', 'other'].map((k) => defaultOutcome(visit({ visit_kind: k }))),
     ['done', 'diagnostics_only', 'installation', 'recall', 'done']);
@@ -201,8 +218,8 @@ test('after an answer the phone keeps the card and the visit in its week', () =>
 // D3 (VISIT_DIAGNOSIS_DESIGN.md §5): Estimate needed and the part it asks for
 test('Estimate needed: offered where the server lists it, in its order; never from the app\'s own list', () => {
   const diagnostics = visit({ visit_kind: 'diagnostics', finish_outcomes: ['diagnostics_only', 'estimate_needed', 'done', 'deposit'] });
-  assert.deepEqual(finishChoices(diagnostics).map((c) => c.outcome), ['diagnostics_only', 'estimate_needed', 'done', 'deposit']);
-  assert.deepEqual(finishChoices(diagnostics)[1], { outcome: 'estimate_needed', title: 'Estimate needed', hint: 'Couldn\'t price it on site — the office will', icon: 'doc', kind: 'estimate' });
+  assert.deepEqual(finishChoices(diagnostics).map((c) => c.outcome), ['done', 'deposit', 'estimate_needed', 'diagnostics_only']);
+  assert.deepEqual(finishChoices(diagnostics)[2], { outcome: 'estimate_needed', title: 'Estimate needed', hint: 'The office will price it', icon: 'doc', kind: 'estimate', group: 'not' });
   assert.equal(defaultOutcome(diagnostics), 'diagnostics_only');
   for (const list of [undefined, [], ['teleport']]) {
     assert.equal(finishChoices(visit({ finish_outcomes: list })).some((c) => c.outcome === 'estimate_needed'), false);
@@ -230,6 +247,9 @@ test('the bill is final before Finish (T3, the Architect): no Deposit taken, no 
   const onsite = visit({ status: 'in_progress', visit_kind: 'repair', actions: ['finish', 'no_access'], finish_outcomes: ['done', 'deposit', 'diagnostics_only'] });
   assert.deepEqual(finishChoices(onsite).map((c) => c.outcome), ['done', 'deposit', 'diagnostics_only']);
   assert.deepEqual(finishChoices(onsite, { billFinal: true }).map((c) => c.outcome), ['done', 'diagnostics_only']);
+  // NOT FIXED TODAY stays while something is left under it (README finish-choice)
+  assert.equal(notFixedAt(finishChoices(onsite, { billFinal: true })), 1);
+  assert.equal(notFixedAt(finishChoices({ ...onsite, finish_outcomes: ['done', 'deposit'] }, { billFinal: true })), -1);
   assert.equal(defaultOutcome({ ...onsite, finish_outcomes: ['deposit', 'done'] }, { billFinal: true }), 'done');
   assert.equal(defaultOutcome({ ...onsite, finish_outcomes: [] }, { billFinal: true }), 'done');
   assert.equal(barOf(onsite, NOW).noAccess, true);

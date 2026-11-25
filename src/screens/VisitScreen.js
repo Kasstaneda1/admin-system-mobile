@@ -61,7 +61,7 @@ import { billError, billTile, canBill, draftedFrom, knownOf, overApproval } from
 import { Box } from '../bill/parts';
 import { approveError, approveTile, approveTileAfterIssue, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
-import { VISIT_HINT, depositRow } from '../deposit/model';
+import { VISIT_HINT, depositRow, noDepositYet } from '../deposit/model';
 import { approvals } from '../approve/store';
 import { acks } from '../ack/store';
 import { diagnosisBlock, diagnosisOf, finishAsksDiagnosis, finishDiagnosisChanged, finishNeedsDiagnosis, finishWaitsForDiagnosis } from '../diagnosis/model';
@@ -462,12 +462,42 @@ export default function VisitScreen({ route, navigation }) {
   // The field of «How did it end?»: the visit's text when the sheet opens; its save's failure
   const [finishText, setFinishText] = useState('');
   const [finishFailure, setFinishFailure] = useState(null);
+  // the outcome marked when the sheet comes back after «Take a deposit» (design finish-choice f3)
+  const [finishPick, setFinishPick] = useState(null);
+  const reopenFinish = useRef(null);
   const openFinish = useCallback(() => {
     setFinishText((diagCurrent && diagCurrent.text) || '');
     setFinishFailure(null);
+    setFinishPick(null);
     diag.startFinish();
     setFinishOpen(true);
   }, [diagCurrent, diag]);
+  // «Take a deposit» under Deposit taken: the sheet goes, the usual Deposit screen opens; back
+  // from it (a deposit taken or not), the sheet opens again with the same choice and the typed
+  // diagnosis — the visit is fresh by then (the focus loads it), so the line is gone once a
+  // deposit is open (iOS shows one sheet at a time: the screen waits for the sheet to go)
+  const takeDepositFromFinish = useCallback((outcome) => {
+    if (!shown) return;
+    reopenFinish.current = outcome;
+    setFinishOpen(false);
+    const visit = shown.visit;
+    const bill = known && known.bill ? known.bill : null;
+    setTimeout(() => navigation.navigate('Deposit', { id, visit, mode: 'take', bill }), Platform.OS === 'ios' ? 500 : 0);
+  }, [shown, known, id, navigation]);
+  const startFinish = useRef(diag.startFinish);
+  startFinish.current = diag.startFinish;
+  useFocusEffect(useCallback(() => {
+    if (!reopenFinish.current) return undefined;
+    const timer = setTimeout(() => {
+      const outcome = reopenFinish.current;
+      reopenFinish.current = null;
+      if (!outcome) return;
+      setFinishPick(outcome);
+      startFinish.current();
+      setFinishOpen(true);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, []));
   // Finish: a changed diagnosis is saved first (the finish carries no text, VISIT_DIAGNOSIS_DESIGN
   // Р-4); no answer — the sheet stays with Try again; their text meanwhile — the sheet goes and
   // the diagnosis sheet shows both texts, Finish again after
@@ -520,6 +550,11 @@ export default function VisitScreen({ route, navigation }) {
   // the bill is final already (one of the three went before Finish): no Deposit taken, no No access,
   // no undo of the Finish (the Architect, T3; the server checks it too once IB-BE is in)
   const billFinal = !!known && known.status === 'issued';
+  // «How did it end?»: the choices in the sheet's order, the server's first marked — or the one
+  // marked before «Take a deposit», while it is still offered
+  const finishChoicesNow = shown ? finishChoices(shown.visit, { billFinal }) : [];
+  const finishInitial = finishPick && finishChoicesNow.some((c) => c.outcome === finishPick) ? finishPick
+    : shown ? defaultOutcome(shown.visit, { billFinal }) : null;
   const bar = useMemo(() => (shown ? barOf(shown.visit, nowMs, { billFinal }) : null), [shown, nowMs, billFinal]);
   const undoShown = !!(bar && bar.undo);
   useEffect(() => {
@@ -1031,8 +1066,10 @@ export default function VisitScreen({ route, navigation }) {
             <SendSheet id={id} bill={known.bill} required={copyRequired(known.bill)} bottom={insets.bottom}
               onSent={sentBill} onShow={showBill} onClose={() => setSendOpen(false)} />
           ) : null}
-          <FinishSheet visible={finishOpen} choices={finishChoices(shown.visit, { billFinal })} initial={defaultOutcome(shown.visit, { billFinal })}
+          <FinishSheet visible={finishOpen} choices={finishChoicesNow} initial={finishInitial}
             subtitle={finishSubtitle(shown.visit, n)} bottom={insets.bottom}
+            noDeposit={(outcome) => noDepositYet(shown.visit, outcome, { offline: problem === 'offline' })}
+            onTakeDeposit={takeDepositFromFinish}
             onClose={() => setFinishOpen(false)}
             onFinish={finishVisit}
             diagnosis={diagCurrent ? {

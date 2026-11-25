@@ -7,7 +7,7 @@ import { colors } from '../constants/colors';
 import Icon from './Icon';
 import { TAG_FAMILIES } from './parts';
 import { FinishDiagnosisField } from '../diagnosis/field';
-import { PART_NAME_MAX, PART_NUMBER_MAX } from './actions';
+import { PART_NAME_MAX, PART_NUMBER_MAX, finishTitle, notFixedAt } from './actions';
 import { ThreeButtons } from '../bill/ThreeParts';
 
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
@@ -56,6 +56,10 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
     bar.secondary ? buttonOf(bar.secondary, false) : null,
   ]).filter(Boolean);
   const isNext = !omwFirst && !!main && main.tone === 'brand';
+  // finished with no bill on this visit (Deposit taken, a recall): the green line first, then
+  // «Next: …» a quiet outlined button under it (design-mockups/finish-choice f5)
+  const nobill = !!three && three.kind === 'nobill';
+  const quietNext = nobill && isNext;
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(bottom, 10) }]}>
       {failure ? (
@@ -96,7 +100,14 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </View>
       ) : null}
 
-      {primary ? (
+      {nobill ? <ThreeButtons three={three} /> : null}
+
+      {primary && quietNext ? (
+        <TouchableOpacity style={[styles.nextQuiet, primary.off && styles.off]} disabled={primary.off} onPress={primary.press} accessibilityRole="button"
+          accessibilityState={{ disabled: primary.off }}>
+          <Text style={styles.nextQuietText} numberOfLines={1} adjustsFontSizeToFit>{primary.label}</Text>
+        </TouchableOpacity>
+      ) : primary ? (
         <TouchableOpacity style={[styles.main, isNext && styles.mainNext, primary.off && styles.off]} disabled={primary.off} onPress={primary.press} accessibilityRole="button"
           accessibilityState={{ disabled: primary.off, busy: spinner(primary.action) }}>
           {spinner(primary.action) ? <ActivityIndicator color={isNext ? colors.fgOnFill : colors.onAccent} /> : (
@@ -124,7 +135,7 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
         </View>
       ) : null}
 
-      {three ? <ThreeButtons three={three} busy={threeBusy} failure={threeFailure} onPress={onThree} /> : null}
+      {three && !nobill ? <ThreeButtons three={three} busy={threeBusy} failure={threeFailure} onPress={onThree} /> : null}
 
       {bar.noAccess ? (
         <TouchableOpacity style={styles.link} disabled={off} onPress={() => onPress('no_access')} accessibilityRole="button" accessibilityState={{ disabled: off }}>
@@ -205,13 +216,35 @@ export function Sheet({ visible, onClose, children, bottom, keyboard = false, on
   );
 }
 
+// An outcome's icon, name and hint (design finish-choice .fc-ic .fc-tx); wrap: the hint may take
+// two lines (the plain line of one outcome), else one line at 390 pt
+function ChoiceBody({ choice, wrap = false }) {
+  const [fg, bg, border] = TAG_FAMILIES[choice.kind] || TAG_FAMILIES.neutral;
+  return (
+    <>
+      <View style={[styles.choiceIcon, { backgroundColor: bg, borderColor: border }]}>
+        <Icon name={choice.icon} size={22} color={fg} />
+      </View>
+      <View style={styles.choiceText}>
+        <Text style={styles.choiceTitle}>{choice.title}</Text>
+        <Text style={styles.choiceHint} numberOfLines={wrap ? 0 : 1}>{choice.hint}</Text>
+      </View>
+    </>
+  );
+}
+
 // «How did it end?»: choices (actions.js finishChoices), one marked, then Finish visit.
 // diagnosis (D1-APP, design visit-diagnosis app-finish): the visit's diagnosis under the choices
 // where the outcome asks for it — { asks(outcome), needs(outcome), text, failure, sending,
 // onChangeText } — or null; «required» where needs (Д-2): empty, Finish waits. The screen saves a
 // changed text before the finish (onFinish waits for it). Estimate needed (D3) adds Part needed
 // and Part #, both optional: onFinish(outcome, field, part)
-export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFinish, onClose, diagnosis = null }) {
+// Variant B (design-mockups/finish-choice): fixed on top, NOT FIXED TODAY over the rest (actions.js
+// finishChoices, notFixedAt); one outcome only — «Finish as Installation done?», the outcome a
+// plain grey line (f4). noDeposit(outcome) → null | { text, take } (deposit/model.js
+// noDepositYet): the yellow line under Deposit taken (f3); its «Take a deposit» calls
+// onTakeDeposit(outcome) — the screen opens the Deposit screen and this sheet again after it
+export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFinish, onClose, diagnosis = null, noDeposit = null, onTakeDeposit = null }) {
   const [chosen, setChosen] = useState(initial);
   const [partName, setPartName] = useState('');
   const [partNumber, setPartNumber] = useState('');
@@ -230,27 +263,47 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
   return (
     <Sheet visible={visible} onClose={saving ? () => {} : onClose} bottom={bottom} keyboard={!!diagnosis}>
       <ScrollView ref={scroll} style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollBody} keyboardShouldPersistTaps="handled">
-      <Text style={styles.title} accessibilityRole="header">How did it end?</Text>
-      <Text style={styles.sub}>{subtitle}</Text>
-      <View style={styles.choices} accessibilityRole="radiogroup">
-        {choices.map((c) => {
-          const on = c.outcome === chosen;
-          const [fg, bg, border] = TAG_FAMILIES[c.kind] || TAG_FAMILIES.neutral;
-          return (
-            <TouchableOpacity key={c.outcome} style={[styles.choice, on && styles.choiceOn]} onPress={() => setChosen(c.outcome)}
-              accessibilityRole="radio" accessibilityState={{ checked: on }}>
-              <View style={[styles.choiceIcon, { backgroundColor: bg, borderColor: border }]}>
-                <Icon name={c.icon} size={22} color={fg} />
-              </View>
-              <View style={styles.choiceText}>
-                <Text style={styles.choiceTitle}>{c.title}</Text>
-                <Text style={styles.choiceHint}>{c.hint}</Text>
-              </View>
-              <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <Text style={styles.finishTitle} accessibilityRole="header">{finishTitle(choices)}</Text>
+      <Text style={styles.finishSub}>{subtitle}</Text>
+      {choices.length === 1 ? (
+        // nothing to choose: the outcome as a plain line, no radio, no press (design f4)
+        <View style={[styles.choice, styles.choiceOne]} accessible accessibilityLabel={`${choices[0].title}. ${choices[0].hint}`}>
+          <ChoiceBody choice={choices[0]} wrap />
+        </View>
+      ) : (
+        <View style={styles.choices} accessibilityRole="radiogroup">
+          {choices.map((c, i) => {
+            const on = c.outcome === chosen;
+            const warn = on && noDeposit ? noDeposit(c.outcome) : null;
+            return (
+              <React.Fragment key={c.outcome}>
+                {i === notFixedAt(choices) ? (
+                  <View style={styles.divider} accessibilityRole="header">
+                    <Text style={styles.dividerText}>NOT FIXED TODAY</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+                ) : null}
+                <TouchableOpacity style={[styles.choice, on && styles.choiceOn]} onPress={() => setChosen(c.outcome)}
+                  accessibilityRole="radio" accessibilityState={{ checked: on }}>
+                  <ChoiceBody choice={c} />
+                  <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
+                </TouchableOpacity>
+                {warn ? (
+                  <View style={styles.noDeposit} accessibilityLiveRegion="polite">
+                    <Icon name="warn" size={18} color={colors.warningFg} />
+                    <Text style={styles.noDepositText} accessibilityRole="alert">{warn.text}</Text>
+                    {warn.take && onTakeDeposit ? (
+                      <TouchableOpacity style={styles.noDepositLink} onPress={() => onTakeDeposit(c.outcome)} disabled={saving} accessibilityRole="button">
+                        <Text style={styles.noDepositLinkText}>Take a deposit</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : null}
+              </React.Fragment>
+            );
+          })}
+        </View>
+      )}
       {field ? <FinishDiagnosisField text={diagnosis.text} failure={diagnosis.failure} sending={saving} required={required} tried={tried} onChangeText={diagnosis.onChangeText} onFocus={toField} /> : null}
       {askPart ? (
         <View style={styles.partRow}>
@@ -335,6 +388,9 @@ const styles = StyleSheet.create({
   // all done: «Next: Nguyen T. · 1:30» — the brand's dark button, not the amber one (design usab-u1)
   mainNext: { backgroundColor: colors.brandPressed },
   mainTextNext: { color: colors.fgOnFill },
+  // «Next: …» under the green «Finished · no bill on this visit» (finish-choice f5): outlined
+  nextQuiet: { alignItems: 'center', justifyContent: 'center', height: 52, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
+  nextQuietText: { fontSize: 17, fontWeight: '800', color: colors.brandPressed },
   // the plain buttons under the big one, the full width; two side by side (Finish · On my way)
   plains: { flexDirection: 'row', gap: 8 },
   secondHalf: { flex: 1 },
@@ -387,13 +443,27 @@ const styles = StyleSheet.create({
   step: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
   title: { fontSize: 24, fontWeight: '800', color: colors.fgDefault },
   sub: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
+  // «How did it end?» (design finish-choice .fc-t .fc-s): 26 pt, the line under it 16 pt
+  finishTitle: { fontSize: 26, fontWeight: '800', color: colors.fgDefault },
+  finishSub: { fontSize: 16, lineHeight: 21, color: colors.fgSecondary, marginTop: -6 },
   choices: { gap: 8 },
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, padding: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
-  choiceOn: { borderWidth: 2, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
-  choiceIcon: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  choiceText: { flex: 1 },
-  choiceTitle: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
-  choiceHint: { fontSize: 14, color: colors.fgSecondary },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  choiceOn: { borderWidth: 2.5, paddingVertical: 7, paddingHorizontal: 11, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
+  // one outcome: a grey line, nothing to press (.fc-one)
+  choiceOne: { paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.borderSubtle, backgroundColor: colors.bgSubtle },
+  choiceIcon: { width: 42, height: 42, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  choiceText: { flex: 1, minWidth: 0 },
+  choiceTitle: { fontSize: 18, fontWeight: '700', color: colors.fgDefault },
+  choiceHint: { fontSize: 15, color: colors.fgSecondary },
+  // NOT FIXED TODAY (.fc-div): 13 pt, 800, spaced, a line to the right
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: -2 },
+  dividerText: { fontSize: 13, fontWeight: '800', letterSpacing: 1, color: colors.fgMutedField },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.borderDefault },
+  // Deposit taken with no deposit (.fc-warn)
+  noDeposit: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
+  noDepositText: { flexShrink: 1, fontSize: 15, fontWeight: '600', color: colors.warningFg, paddingVertical: 8 },
+  noDepositLink: { minHeight: 44, marginLeft: 'auto', justifyContent: 'center' },
+  noDepositLinkText: { fontSize: 15, fontWeight: '700', color: colors.brandPressed, textDecorationLine: 'underline' },
   radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.borderStrong, alignItems: 'center', justifyContent: 'center' },
   radioOn: { borderColor: colors.brandPressed, backgroundColor: colors.brandPressed },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.fgOnFill },

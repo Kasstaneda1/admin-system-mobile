@@ -19,22 +19,30 @@ export function newRequestId(nowMs = Date.now(), random = Math.random) {
 }
 
 // ---------- Finish ----------
+// «How did it end?», variant B (design-mockups/finish-choice, the lead 2026-11-25): «fixed» on top,
+// the rest under NOT FIXED TODAY. group: 'done' (fixed) or 'not' (not fixed today). The hints fit
+// one line at 390 pt (≤ 31 characters). The names stay: they are the statuses on the board, the
+// My day tags and Primary Data
 const CHOICES = {
-  done: { title: 'Repaired', hint: 'The problem is fixed', icon: 'checkc', kind: 'done' },
-  diagnostics_only: { title: 'Diagnostics only', hint: 'Found the cause, no repair today', icon: 'search', kind: 'diagnostics' },
-  deposit: { title: 'Deposit taken', hint: 'Parts on order, deposit received', icon: 'money', kind: 'deposit' },
-  installation: { title: 'Installation done', hint: 'New unit is in and working', icon: 'install', kind: 'installation' },
-  recall: { title: 'Recall checked', hint: 'The earlier work was checked', icon: 'replay', kind: 'recall' },
+  done: { title: 'Repaired', hint: 'Fixed and working now', icon: 'checkc', kind: 'done', group: 'done' },
+  diagnostics_only: { title: 'Diagnostics only', hint: 'Cause found · no repair planned', icon: 'search', kind: 'diagnostics', group: 'not' },
+  deposit: { title: 'Deposit taken', hint: 'Part ordered · deposit paid', icon: 'money', kind: 'deposit', group: 'not' },
+  installation: { title: 'Installation done', hint: 'New unit is in and working', icon: 'install', kind: 'installation', group: 'done' },
+  recall: { title: 'Recall checked', hint: 'The earlier work was checked', icon: 'replay', kind: 'recall', group: 'done' },
   // D3 (VISIT_DIAGNOSIS_DESIGN.md §5): the technician could not price it on site, the office
   // will — the finish makes or finds the job's estimate (the server's), with the part if named
-  estimate_needed: { title: 'Estimate needed', hint: 'Couldn\'t price it on site — the office will', icon: 'doc', kind: 'estimate' },
+  estimate_needed: { title: 'Estimate needed', hint: 'The office will price it', icon: 'doc', kind: 'estimate', group: 'not' },
 };
-// «How did it end?»: the outcomes the server allows for this kind of visit, in its order, the
-// first one marked (backend #145: visit.finish_outcomes; the owner's table is in the server's
-// visitActions.js, not here). An outcome the app has no words for is left out. A visit without
-// the list (kept on the phone before the server had it) offers every outcome, the kind's own
-// marked, and the server checks the press: a refused outcome comes back with the list
-// (actionError kind 'outcome') and the sheet opens again with it.
+// The places on the sheet (variant B): fixed — Repaired, Installation done, Recall checked, the
+// visit's own kind first (a recall: Recall checked, Repaired); not fixed today — always Deposit
+// taken, Estimate needed, Diagnostics only. Only what the server allows (backend #145:
+// visit.finish_outcomes); which one is marked stays the server's first (defaultOutcome).
+const DONE_ORDER = ['done', 'installation', 'recall'];
+const NOT_ORDER = ['deposit', 'estimate_needed', 'diagnostics_only'];
+// An outcome the app has no words for is left out. A visit without the list (kept on the phone
+// before the server had it) offers every outcome, the kind's own marked, and the server checks the
+// press: a refused outcome comes back with the list (actionError kind 'outcome') and the sheet
+// opens again with it.
 // Estimate needed is not among them: it comes only when the server lists it (D3-BE), so the app
 // does not offer it to a server that does not know it yet
 const ALL_OUTCOMES = ['done', 'diagnostics_only', 'deposit', 'installation', 'recall'];
@@ -51,8 +59,24 @@ function outcomesOf(visit, billFinal) {
   const list = allowed.length ? allowed : ALL_OUTCOMES;
   return billFinal ? list.filter((o) => !NO_BILL_OUTCOMES.includes(o)) : list;
 }
+// → [{ outcome, title, hint, icon, kind, group }] in the sheet's order
 export function finishChoices(visit, { billFinal = false } = {}) {
-  return outcomesOf(visit, billFinal).map((outcome) => ({ outcome, ...CHOICES[outcome] }));
+  const list = outcomesOf(visit, billFinal);
+  const own = KIND_OUTCOME[visit.visit_kind];
+  const fixed = DONE_ORDER.filter((o) => list.includes(o));
+  const done = [...fixed.filter((o) => o === own), ...fixed.filter((o) => o !== own)];
+  const not = NOT_ORDER.filter((o) => list.includes(o));
+  return [...done, ...not].map((outcome) => ({ outcome, ...CHOICES[outcome] }));
+}
+// The sheet's question: «How did it end?»; one outcome only (an installation) — nothing to choose:
+// «Finish as Installation done?», the outcome a plain line without a radio (design f4)
+export function finishTitle(choices) {
+  return Array.isArray(choices) && choices.length === 1 ? `Finish as ${choices[0].title}?` : 'How did it end?';
+}
+// NOT FIXED TODAY over the first «not fixed» outcome, only when something is under it
+export function notFixedAt(choices) {
+  if (!Array.isArray(choices) || choices.length < 2) return -1;
+  return choices.findIndex((c) => c.group === 'not');
 }
 // The choice marked when the sheet opens: the server's first, else what the visit was booked for
 export function defaultOutcome(visit, { billFinal = false } = {}) {
