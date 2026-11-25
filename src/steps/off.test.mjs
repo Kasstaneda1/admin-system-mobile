@@ -83,3 +83,11 @@ test('Optional made visible (design app-dock m5, m6): the now line before the dr
   assert.deepEqual(tileOf({ key: 'sign', state: 'todo', lit: true, mode: 'optional' }), { word: 'Signature', line: 'next · optional' });
   assert.deepEqual(tileOf({ key: 'send', state: 'todo', lit: true, mode: 'required' }), { word: 'Send bill', line: 'next' });
 });
+
+test('Issue Off (the office makes the bill final): no «Make the bill final» step for the technician', async () => {
+  const { VISIT_STEPS } = await import('../myDay/steps.js');
+  const bill = VISIT_STEPS.find((s) => s.key === 'bill');
+  assert.equal(bill.on({ visit: visit({ steps: steps({ issue: 'off' }) }) }), false);
+  assert.equal(bill.on({ visit: visit() }), true);
+  assert.equal(bill.on({ visit: visit({ steps: undefined }) }), true);
+});

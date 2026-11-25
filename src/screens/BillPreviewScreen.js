@@ -9,6 +9,7 @@
 // company details) keeps the button off and says why. No internet: the number comes from the
 // server, so the issue waits for it.
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { stepOff } from '../steps/skip';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +25,7 @@ import { Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts
 
 export default function BillPreviewScreen({ route, navigation }) {
   const { id, visit = null } = route.params || {};
+  const issueOff = !!visit && stepOff(visit, 'issue');
   const insets = useSafeAreaInsets();
   const [bill, setBill] = useState(null);
   const [problem, setProblem] = useState(null);
@@ -220,8 +222,11 @@ export default function BillPreviewScreen({ route, navigation }) {
                 onAgain: !visit || canApprove(visit) ? () => navigation.navigate('Approve', { id, visit, again: true, back: 'Preview' }) : null,
               } : null}
               note={blockers.length ? blockers.map((b) => b.text).join(' ') : 'Making it final gives the number, freezes the bill and makes the PDF. To change it later, the office voids it.'}>
-              <MainButton text={stopped ? 'Make final · the office has to fix it' : 'Make the bill final'} icon="doc"
-                off={stopped} waiting={issuing} onPress={askIssue} />
+              {/* Issue Off for the company: the office makes it final (the server: 403 issue_off) */}
+              {issueOff ? <MainButton text="The office makes this bill final" icon="doc" off onPress={() => {}} /> : (
+                <MainButton text={stopped ? 'Make final · the office has to fix it' : 'Make the bill final'} icon="doc"
+                  off={stopped} waiting={issuing} onPress={askIssue} />
+              )}
               {retryTax(blockers) ? (
                 <TouchableOpacity style={styles.retryTax} onPress={askIssue} disabled={issuing} accessibilityRole="button">
                   <Text style={styles.retryTaxText}>The office set the tax? Try again</Text>
