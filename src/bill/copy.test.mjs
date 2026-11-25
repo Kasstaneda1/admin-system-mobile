@@ -145,7 +145,10 @@ test('the tick goes only with the way it was ticked for (the Architect on #110)'
 
 test('the address typed for Email: a tick put under Share is not kept (QA on #110)', async () => {
   const { tickAfterAddress } = await import('./copy.js');
+  // the path of QA and the Architect: Share ticked → Email without an address → OK: no tick, so
+  // nothing goes as the customer's consent to emails until they tick it under Email
   assert.equal(tickAfterAddress('share', true), false);
+  assert.equal(tickFor('email', 'email', tickAfterAddress('share', true)), false);
   assert.equal(tickAfterAddress(null, true), false);
   assert.equal(tickAfterAddress('email', true), true);
   assert.equal(tickAfterAddress('email', false), false);

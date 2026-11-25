@@ -129,7 +129,8 @@ export function CopyChoice({ copy, label = null, off = false, onChange = null, o
 export const CHOOSE_SUB_SIGN = 'The customer keeps a copy of this bill. Tap one to finish signing.';
 export function CopyChooseSheet({ visible, copy, bottom, onChosen, onClose, sub = CHOOSE_SUB_SIGN }) {
   const share = visible && copy.way === 'share';
-  // Email chosen by typing its address here (no tap on the row after it): its own button
+  // Email chosen by typing its address here: a new address has no consent yet (the server: 409
+  // consent_required) — the button waits for the tick under Email, as Share does (the Architect on #110)
   const email = visible && copy.way === 'email';
   return (
     <Sheet visible={visible} onClose={onClose} bottom={bottom}>
@@ -143,7 +144,7 @@ export function CopyChooseSheet({ visible, copy, bottom, onChosen, onClose, sub 
       ) : null}
       {email ? (
         <View style={styles.sheetButton}>
-          <MainButton text="Email the copy · signed" icon="mail" onPress={() => onChosen('email')} />
+          <MainButton text="Email the copy · signed" icon="mail" onPress={() => onChosen('email')} off={!copy.ticked} />
         </View>
       ) : null}
     </Sheet>
