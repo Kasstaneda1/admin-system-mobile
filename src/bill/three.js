@@ -4,11 +4,12 @@
 // screen); until then the lines change by «Change» on the bill's row. Without React Native
 // (three.test.mjs runs it on node).
 //
-// The modes come with the visit (visit.steps, VS-BE2: [{ key, mode }], mode required | optional |
-// off): signs → Get signature, collect → Get paid, give → Send the bill; no steps (an older
-// server) — all optional. The order is the Designer's default for now — signature, payment,
-// sending — whatever the steps' order: the server's default list has give → collect → signs (the
-// old flow), and the company's own order of the three is SG-APP / VS-APP, next.
+// The order and the modes come with the visit (visit.steps, VS-BE2: [{ key, mode }], mode required
+// | optional | off): signs → Get signature, collect → Get paid, give → Send the bill — always the
+// company's order (the Architect, QUEUE «SO»; the server's default becomes issue → give → signs →
+// collect). Give required stands last: the signature's and the payment's screens give the copy
+// first (d2-ny, d5). Signs or collect off — no button; give off — Send the bill stays, calm. No
+// steps (an older server) — signature, payment, sending, all optional.
 // Issue off (the office makes the bill final): the three are not there until the office has
 // issued it, then only Get paid, plain (the Architect, QUEUE «T3-СЕРВЕР» п. 4).
 //
@@ -19,8 +20,8 @@
 //     row: the bill's row { title, line, change } (change: «Change» opens the lines) or null;
 //     buttons: [{ key: 'sign' | 'pay' | 'send', title, line, state: 'todo' | 'done' | 'part' |
 //                 'wait' | 'unknown', lit, icon, required, label (VoiceOver) }] in the company's order;
-//     lit: the key of the orange one — after Finish the first not done, before Finish none (the
-//          orange button then is On my way / Finish);
+//     lit: the key of the orange one — after Finish litOf(), before Finish none (the orange
+//          button then is On my way / Finish);
 //     allDone: every button there is done (the visit's foot offers the next visit);
 //     empty: a draft with nothing to charge for — every press opens «Change».
 //
@@ -42,9 +43,30 @@ export function orderOf(visit) {
   const steps = visit && Array.isArray(visit.steps) ? visit.steps : null;
   if (!steps) return { list: DEFAULT_ORDER.map((key) => ({ key, mode: 'optional' })), issue: 'optional' };
   const modeOf = (k) => { const s = steps.find((x) => x && x.key === k); return s && s.mode ? s.mode : 'optional'; };
+  const at = (key) => {
+    const i = steps.findIndex((x) => x && x.key === THREE_KEYS[key]);
+    // give required last, whatever its place (its copy goes with the signature or the payment)
+    if (key === 'send' && modeOf('give') === 'required') return 1000;
+    return i < 0 ? 100 + DEFAULT_ORDER.indexOf(key) : i;
+  };
   const list = DEFAULT_ORDER.map((key) => ({ key, mode: modeOf(THREE_KEYS[key]) }))
-    .filter((s) => s.mode !== 'off');
+    .filter((s) => s.key === 'send' || s.mode !== 'off')
+    .sort((a, b) => at(a.key) - at(b.key));
   return { list, issue: modeOf('issue') };
+}
+
+// The orange one: the first not done in the order. Send the bill: never when give is off; when
+// give is required only once the signature is done or not there (until then the signature's or the
+// payment's screen gives the copy) — the Architect, «SO»
+function litOf(buttons) {
+  const sign = buttons.find((b) => b.key === 'sign');
+  const signOpen = !!sign && sign.state !== 'done';
+  return buttons.find((b) => {
+    if (b.state === 'done') return false;
+    if (b.key !== 'send') return true;
+    if (b.mode === 'off') return false;
+    return !(b.mode === 'required' && signOpen);
+  }) || null;
 }
 
 const whenOf = (value, now) => {
@@ -157,10 +179,10 @@ export function threeOf(ctx) {
     const b = s.key === 'sign' ? signButton(ack, issued, now)
       : s.key === 'pay' ? payButton(bill, issued, empty)
         : sendButton(issued, !!give && give.mode === 'required', now);
-    return { key: s.key, icon: ICONS[s.key], required: s.mode === 'required', lit: false, ...b };
+    return { key: s.key, icon: ICONS[s.key], mode: s.mode, required: s.mode === 'required', lit: false, ...b };
   });
   const open = (b) => b.state !== 'done';
-  const litOne = closed && !issueOff ? buttons.find(open) : null;
+  const litOne = closed && !issueOff ? litOf(buttons) : null;
   if (litOne) litOne.lit = true;
   for (const b of buttons) b.label = LABELS[b.key](b);
   return {
@@ -168,7 +190,8 @@ export function threeOf(ctx) {
     row,
     buttons,
     lit: litOne ? litOne.key : null,
-    allDone: buttons.length > 0 && buttons.every((b) => !open(b)),
+    // done: every one there — Send the bill with give off is a service, not a step
+    allDone: buttons.length > 0 && buttons.every((b) => !open(b) || (b.key === 'send' && b.mode === 'off')),
     empty,
     issueOff,
     kindWord: KIND[kind] || 'Visit',

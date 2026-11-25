@@ -76,7 +76,7 @@ test('a press: a draft is made final first; issued opens; done opens what was do
   assert.equal(pressOf(threeOf(ctx({ known: paid })), 'pay', paid), 'open');
 });
 
-test('the modes of visit.steps: off is not there, required kept; the order stays signature, payment, sending', () => {
+test('the modes of visit.steps: signs/collect off are not there, required kept', () => {
   const steps = [{ key: 'omw', mode: 'optional' }, { key: 'finish', mode: 'required' }, { key: 'issue', mode: 'required' },
     { key: 'give', mode: 'required' }, { key: 'collect', mode: 'required' }, { key: 'signs', mode: 'off' }];
   assert.deepEqual(orderOf(visit({ steps })), { list: [{ key: 'pay', mode: 'required' }, { key: 'send', mode: 'required' }], issue: 'required' });
@@ -119,4 +119,36 @@ test('a signature waiting on this phone; the bill row while loading or offline',
 test('the words when making the bill final did not go through', () => {
   assert.equal(issueFailText({ kind: 'offline' }), 'No signal: the bill can’t be made final now. Try again when you have signal.');
   assert.equal(issueFailText({ kind: 'refused', text: 'Write the diagnosis first: it is printed on the bill.' }), 'The bill can’t be made final: Write the diagnosis first: it is printed on the bill.');
+});
+
+test('the order is the company\'s (visit.steps); give required always last (the Architect, SO)', () => {
+  const step = (key, mode) => ({ key, mode });
+  // today's server default: give → collect → signs, all optional — the company's order as it is
+  const old = [step('issue', 'optional'), step('give', 'optional'), step('collect', 'optional'), step('signs', 'optional')];
+  assert.equal(keys(threeOf(ctx({ visit: closed({ steps: old }) }))), 'send:todo* pay:todo sign:todo');
+  // the new default (SO-BE): give required, then signs, collect — give goes last: d1
+  const ny = [step('issue', 'required'), step('give', 'required'), step('signs', 'optional'), step('collect', 'required')];
+  const v = closed({ steps: ny });
+  assert.equal(keys(threeOf(ctx({ visit: v }))), 'sign:todo* pay:todo send:todo');
+  const signed = { status: 'ok', signed: true, name: 'X', at: '2026-11-24T15:27:00Z' };
+  assert.equal(keys(threeOf(ctx({ visit: v, known: knownOf(issued()), ack: signed }))), 'sign:done pay:todo* send:todo');
+  // paid before the copy («Take payment now, send the copy later»), not signed: the signature is lit
+  const paid = issued({ payment_status: 'paid', balance_cents: 0, payments: [{ kind: 'payment', method: 'card', amount_cents: 13609, received_at: '2026-11-24T15:28:00Z' }] });
+  assert.equal(keys(threeOf(ctx({ visit: v, known: knownOf(paid) }))), 'sign:todo* pay:done send:todo');
+  // signed and paid, no copy yet: now Send the bill is lit
+  assert.equal(keys(threeOf(ctx({ visit: v, known: knownOf(paid), ack: signed }))), 'sign:done pay:done send:todo*');
+  // signs off: give required lights as soon as it is the first not done
+  const noSign = [step('give', 'required'), step('signs', 'off'), step('collect', 'required')];
+  assert.equal(keys(threeOf(ctx({ visit: closed({ steps: noSign }), known: knownOf(paid) }))), 'pay:done send:todo*');
+});
+
+test('give off: Send the bill stays, calm, never orange; the visit is done without it', () => {
+  const steps = [{ key: 'give', mode: 'off' }, { key: 'signs', mode: 'optional' }, { key: 'collect', mode: 'required' }];
+  const t = threeOf(ctx({ visit: closed({ steps }) }));
+  assert.equal(keys(t), 'send:todo sign:todo* pay:todo');
+  const paid = issued({ payment_status: 'paid', balance_cents: 0, payments: [{ kind: 'payment', method: 'cash', amount_cents: 13609, received_at: '2026-11-24T15:28:00Z' }] });
+  const done = threeOf(ctx({ visit: closed({ steps }), known: knownOf(paid), ack: { status: 'ok', signed: true } }));
+  assert.equal(keys(done), 'send:todo sign:done pay:done');
+  assert.equal(done.lit, null);
+  assert.equal(done.allDone, true);
 });
