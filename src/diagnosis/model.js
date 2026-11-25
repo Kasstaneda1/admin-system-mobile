@@ -18,6 +18,7 @@
 import { actionError, newRequestId } from '../myDay/actions.js';
 import { clockAmPm, dayLabel, momentWall, nowWall, parseWall, stateOf } from '../myDay/model.js';
 import { cleanNote } from '../myDay/notesPhotos.js';
+import { diagnosisModeOf } from '../steps/skip.js';
 import { monthDay, techName } from '../myDay/visit.js';
 
 export const DIAGNOSIS_MAX = 2000;
@@ -160,8 +161,9 @@ export function diagnosisBlock(visit, today) {
   // a repair without its own: the diagnostics visit's (§3.7); its own text only before the bill
   const inh = inheritedOf(visit);
   if (inh) return inheritedBlock(inh, writable && !d.locked, today);
-  // a visit where nothing may be written and nothing was: no block (no access, cancelled)
-  if (!writable && !d.text && !d.addenda.length) return null;
+  // a visit where nothing may be written and nothing was: no block (no access, cancelled); the
+  // company's Diagnosis Off and nothing written: no block either (steps/skip.js diagnosisModeOf)
+  if (!d.text && !d.addenda.length && (!writable || diagnosisModeOf(visit) === 'off')) return null;
   let mode = null;
   if (writable) mode = d.locked ? 'add' : d.text ? 'edit' : 'write';
   const button = { write: 'Add diagnosis', edit: 'Edit', add: 'Add to diagnosis' }[mode] || null;
@@ -256,6 +258,8 @@ export function finishAsksDiagnosis(visit, outcome) {
   if (!canWriteDiagnosis(visit)) return false;
   const d = diagnosisOf(visit);
   if (d.locked) return false;
+  // the company's Diagnosis Off for this group (steps/skip.js diagnosisModeOf): no field
+  if (diagnosisModeOf(visit, outcome) === 'off') return false;
   return visit.visit_kind === 'diagnostics' || FINISH_ASKS.includes(outcome);
 }
 
@@ -263,8 +267,13 @@ export function finishAsksDiagnosis(visit, outcome) {
 // closed as Estimate needed, is not finished without the diagnosis — the field says «required»
 // and Finish waits for a text (the server refuses it too: 409 diagnosis_required)
 export const DIAGNOSIS_REQUIRED_HINT = 'Write what you found — it is printed on the bill, and the office prices the estimate from it.';
+// With the company's steps: required only where its mode is Required (the server: visitSteps
+// diagnosisMode); without them (an older server) — as before
 export function finishNeedsDiagnosis(visit, outcome) {
-  return !!visit && (visit.visit_kind === 'diagnostics' || outcome === 'estimate_needed');
+  if (!visit) return false;
+  const mode = diagnosisModeOf(visit, outcome);
+  if (mode) return mode === 'required';
+  return visit.visit_kind === 'diagnostics' || outcome === 'estimate_needed';
 }
 // Finish waits: the outcome needs the diagnosis and the field in the sheet is empty
 export function finishWaitsForDiagnosis(visit, outcome, text) {

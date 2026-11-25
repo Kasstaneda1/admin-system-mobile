@@ -260,5 +260,6 @@ export function tileOf(b, busy = false) {
   }
   if (b.state === 'unknown') return { word: todo, line: 'No signal' };
   if (b.key === 'pay') return { word: todo, line: b.state === 'wait' ? 'Add work' : b.line || null };
-  return { word: todo, line: b.lit ? 'next' : null };
+  // the orange one of an Optional step says so on the tile (design app-dock m6)
+  return { word: todo, line: b.lit ? (b.mode === 'optional' ? 'next · optional' : 'next') : null };
 }

@@ -60,6 +60,30 @@ export function stepOf(visit, key) {
   const steps = stepsOf(visit);
   return steps ? steps.find((s) => s && s.key === key) || null : null;
 }
+// The company's mode of a step on this visit: 'required' | 'optional' | 'off', or null (no steps:
+// an older server — the app as before). Off — not in the technician's chain (design visit-steps:
+// «Off — not in the technician’s chain. The office can still do it on the website.»): no button,
+// no link, no tile, even when the server still offers the action (the lead 25.11, after the owner
+// on build 3: «On my way как обязательное… может, я вообще не хочу пользоваться»)
+export function modeOfStep(visit, key) {
+  const s = stepOf(visit, key);
+  return s && ['required', 'optional', 'off'].includes(s.mode) ? s.mode : null;
+}
+export const stepOff = (visit, key) => modeOfStep(visit, key) === 'off';
+// The diagnosis has two groups (the server's visitSteps.diagnosisMode): diagnostics visits and the
+// outcome Estimate needed — the step's mode_estimate_needed; the other visits — the step's mode
+// (the server gives it for the visit's own kind and outcome). outcome: the one chosen in Finish, or
+// the visit's. null — not known (no steps): the app's old rules.
+const DIAG_GROUP = (visit, outcome) => !!visit && (visit.visit_kind === 'diagnostics' || outcome === 'estimate_needed');
+export function diagnosisModeOf(visit, outcome = visit ? visit.outcome : null) {
+  const s = stepOf(visit, 'diagnosis');
+  if (!s) return null;
+  const ok = (m) => (['required', 'optional', 'off'].includes(m) ? m : null);
+  const visitInGroup = DIAG_GROUP(visit, visit.outcome);
+  if (DIAG_GROUP(visit, outcome)) return ok(s.mode_estimate_needed) || (visitInGroup ? ok(s.mode) : null);
+  return visitInGroup ? null : ok(s.mode);
+}
+
 // The step's last skip { at, reason } or null
 export function skippedOf(visit, key) {
   const s = stepOf(visit, key);
