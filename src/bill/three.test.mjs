@@ -202,3 +202,15 @@ test('skip: the link under the lit one only; skipped grey, the next lit; all fin
   const helper = threeOf(ctx({ visit: closed({ role: 'helper', steps: st() }), known: knownOf(issued()) }));
   assert.ok(helper === null || helper.skip === null);
 });
+
+test('an empty bill (nothing to charge for): the three calm, none lit, no Skip link (the Designer on #102)', () => {
+  const st = ['omw', 'diagnosis', 'approve', 'finish', 'issue', 'give', 'signs', 'collect']
+    .map((key) => ({ key, mode: key === 'finish' ? 'required' : 'optional', skipped: null }));
+  for (const known of [knownOf(draft({ lines: [], total_cents: 0, tax_cents: 0 })), { status: 'none', bill: null }]) {
+    const t = threeOf(ctx({ visit: closed({ steps: st }), known }));
+    assert.equal(t.empty, true);
+    assert.equal(t.lit, null);
+    assert.equal(t.skip, null);
+    assert.ok(t.buttons.every((b) => !b.lit));
+  }
+});

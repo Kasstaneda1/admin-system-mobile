@@ -193,7 +193,9 @@ export function threeOf(ctx) {
     return { key: s.key, icon: skipped ? 'skipc' : ICONS[s.key], mode: s.mode, required: s.mode === 'required', lit: false, ...shownAs };
   });
   const open = (b) => !finished(b);
-  const litOne = closed && !issueOff ? litOf(buttons) : null;
+  // nothing to charge for yet (an empty bill): the three are calm, none lit — so no Skip under one
+  // either; «Change» on the bill's row is what to do (the Designer on #102)
+  const litOne = closed && !issueOff && !empty ? litOf(buttons) : null;
   if (litOne) litOne.lit = true;
   for (const b of buttons) b.label = b.state === 'skipped' ? skippedLabel(THREE_KEYS[b.key], b.skipped) : LABELS[b.key](b);
   // the quiet link under the orange one, when its step may be skipped (only one on the screen)
