@@ -283,3 +283,10 @@ test('the bar: «Skip On my way» under the lit On my way when Optional; skipped
   assert.equal(helper.skip, undefined);
   assert.equal(helper.omwSkipped, undefined);
 });
+
+test('Undo as a link by the tag (design app-dock): «Undo · 15 min», said in full', async () => {
+  const { undoLinkOf } = await import('./actions.js');
+  assert.deepEqual(undoLinkOf({ action: 'undo_omw', text: 'On my way at 11:08', left: '15 min to undo' }), { text: 'Undo · 15 min', label: 'Undo On my way, 15 minutes left' });
+  assert.deepEqual(undoLinkOf({ action: 'undo_finish', text: 'Diagnostics done at 9:38', left: '1 min to undo' }), { text: 'Undo · 1 min', label: 'Undo Diagnostics done, 1 minute left' });
+  assert.equal(undoLinkOf(null), null);
+});
