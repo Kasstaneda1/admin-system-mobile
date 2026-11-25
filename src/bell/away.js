@@ -51,9 +51,13 @@ export function awayOf(items, { since, nowMs, today }) {
     if (i.kind === 'T4') {
       return { key: i.id, mark: 'cancelled', title, sub: data.reason === 'client_rescheduled' ? 'The customer rescheduled' : 'Cancelled by the office', visitId: null };
     }
-    const text = str(data.text, 80);
-    return { key: i.id, mark: 'note', title, sub: text ? `“${text}”` : 'A note from the office', visitId };
-  });
+    if (i.kind === 'T5') {
+      const text = str(data.text, 80);
+      return { key: i.id, mark: 'note', title, sub: text ? `“${text}”` : 'A note from the office', visitId };
+    }
+    // any other kind is not this panel's — never a «note» by default (Тимлид on #104)
+    return null;
+  }).filter(Boolean);
   const parts = [
     count.T1 ? plural(count.T1, 'new visit', 'new visits') : null,
     count.T2 ? `${count.T2} moved` : null,
