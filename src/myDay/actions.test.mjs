@@ -142,9 +142,9 @@ test('the bar, closed: undo for 15 minutes, then the green box of how it ended',
   assert.deepEqual(barOf(closed, at('2026-11-10T15:55:00Z')).undo, { action: 'undo_finish', text: 'Finished at 10:52', left: '12 min to undo' });
   assert.equal(barOf(closed, at('2026-11-10T15:55:00Z')).closed, null, 'while the undo holds, no box');
   assert.deepEqual(barOf({ ...closed, actions: [], undo_until: null }, NOW),
-    { primary: null, secondary: null, noAccess: false, undo: null, closed: { text: 'Finished at 10:52', note: 'undo closed after 15 min' }, line: null, empty: false });
+    { primary: null, secondary: null, noAccess: false, undo: null, closed: { text: 'Finished at 10:52 AM', note: 'undo closed after 15 min' }, line: null, empty: false });
   // the server still lists the undo but its time is over: the box, not a dead button
-  assert.equal(barOf(closed, at('2026-11-10T16:07:00Z')).closed.text, 'Finished at 10:52');
+  assert.equal(barOf(closed, at('2026-11-10T16:07:00Z')).closed.text, 'Finished at 10:52 AM');
   // right after the press the phone's clock may be a moment before the server's: never more
   // than the window (it read «16 min to undo»); then down by the minute as before
   for (const early of ['2026-11-10T15:51:59.950Z', '2026-11-10T15:51:00Z', '2026-11-10T15:52:00Z']) {
@@ -154,7 +154,7 @@ test('the bar, closed: undo for 15 minutes, then the green box of how it ended',
   assert.equal(barOf(closed, at('2026-11-10T15:53:00.001Z')).undo.left, '14 min to undo');
   const noAccess = visit({ status: 'completed', outcome: 'no_access', closed_at: '2026-11-10T16:05:00.000Z', actions: ['undo_finish'], undo_until: '2026-11-10T16:20:00.000Z' });
   assert.equal(barOf(noAccess, NOW).undo.text, 'Closed as no access at 11:05');
-  assert.equal(barOf({ ...noAccess, actions: [] }, NOW).closed.text, 'Closed as no access at 11:05');
+  assert.equal(barOf({ ...noAccess, actions: [] }, NOW).closed.text, 'Closed as no access at 11:05 AM');
   assert.equal(barOf(visit({ status: 'completed', outcome: 'done', closed_at: null }), NOW).closed.text, 'Finished');
 });
 
@@ -168,7 +168,7 @@ test('the bar, helper: their own On my way, its undo; the main technician closes
   assert.equal(bar.line, 'Alex finishes the visit');
   // the visit closed by the main technician: nothing to press, the box without the undo note
   const done = barOf({ ...helping, status: 'completed', outcome: 'done', closed_at: '2026-11-10T16:00:00.000Z', actions: [] }, NOW);
-  assert.deepEqual([done.closed, done.line], [{ text: 'Finished at 11:00', note: null }, null]);
+  assert.deepEqual([done.closed, done.line], [{ text: 'Finished at 11:00 AM', note: null }, null]);
 });
 
 test('the bar, an old task and a cancelled visit: no buttons, a line says why', () => {
@@ -257,7 +257,7 @@ test('the bill is final before Finish (T3, the Architect): no Deposit taken, no 
   const closed = visit({ status: 'completed', outcome: 'done', closed_at: '2026-11-10T15:52:00.000Z', actions: ['undo_finish'], undo_until: '2026-11-10T16:07:00.000Z' });
   const bar = barOf(closed, at('2026-11-10T15:55:00Z'), { billFinal: true });
   assert.equal(bar.undo, null);
-  assert.deepEqual(bar.closed, { text: 'Finished at 10:52', note: null });
+  assert.deepEqual(bar.closed, { text: 'Finished at 10:52 AM', note: null });
   // On my way's undo stays: only the Finish's goes
   const onway = visit({ status: 'omw', omw_at: '2026-11-10T16:08:00.000Z', actions: ['finish', 'undo_omw'], undo_until: '2026-11-10T16:23:00.000Z' });
   assert.equal(barOf(onway, NOW, { billFinal: true }).undo.action, 'undo_omw');

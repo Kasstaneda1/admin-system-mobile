@@ -1245,7 +1245,8 @@ const styles = StyleSheet.create({
   chgPill: { paddingHorizontal: 5, height: 19, lineHeight: 17, borderRadius: 4, borderWidth: 1, borderColor: colors.borderStrong, overflow: 'hidden', color: colors.fgDefault, fontSize: 12, fontWeight: '600' },
   chgText: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: colors.fgSecondary },
   // The Bill tile (design app-invoice visit-done): a draft is the filled one
-  billTile: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, marginTop: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
+  // calm (QA on #112): white with a grey 1 pt frame, no teal fill
+  billTile: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, marginTop: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
   billTileFill: { backgroundColor: colors.brandPressed },
   // over the approval: white, as a tile with nothing to do now (the Designer on #90)
   billTileQuiet: { borderColor: colors.borderDefault, backgroundColor: colors.bgCard },

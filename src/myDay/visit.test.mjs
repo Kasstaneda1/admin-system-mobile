@@ -258,11 +258,11 @@ test('«Updated by the office»: when, what changed and what it was — only fro
   assert.deepEqual(updatedOf(now({ access_notes: 'Gate code 12.' }), { ...before, access_notes: null }, oldAt).was, { access: 'new' });
   // the window only: the Window tile says what it was (the plan stays 1:30)
   assert.deepEqual(updatedOf(now({ scheduled_start: '2026-11-10 14:00:00', scheduled_end: '2026-11-10 17:00:00' }), before, oldAt),
-    { title: 'Updated by the office · 11:02 AM', line: 'The time changed. Check it before you go.', was: { window: 'was 1–4' } });
+    { title: 'Updated by the office · 11:02 AM', line: 'The time changed. Check it before you go.', was: { window: 'was 1–4 PM' } });
   // without a plan the plan follows the window: both tiles
   const noPlan = { ...before, planned_start: null };
   assert.deepEqual(updatedOf({ ...noPlan, content_changed_at: changedAt, scheduled_start: '2026-11-10 09:00:00', scheduled_end: '2026-11-10 12:00:00' }, noPlan, oldAt).was,
-    { window: 'was 1–4', plan: 'was 1:00' });
+    { window: 'was 1–4 PM', plan: 'was 1:00' });
   // a window where there was none: new
   assert.deepEqual(updatedOf(now({}), { ...before, scheduled_start: null, scheduled_end: null }, oldAt).was.window, 'new');
   // no copy, a copy from after the change, or nothing the app compares changed: check it all
