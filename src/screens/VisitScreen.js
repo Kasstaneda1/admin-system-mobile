@@ -46,7 +46,7 @@ import { myDayMark, readMyDay, updateMyDay } from '../myDay/storage';
 import { callCustomer, openDirections } from '../myDay/phoneLinks';
 import { callOffice } from '../myDay/officeStore';
 import { visitView } from '../perms/model';
-import { AccessText, NoticeBar, Tag } from '../myDay/parts';
+import { AccessText, NoticeBar } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import SkipSheet from '../steps/SkipSheet';
 import { requestIdFor, skipBody, skipError } from '../steps/skip';
@@ -808,16 +808,63 @@ export default function VisitScreen({ route, navigation }) {
     session.authHeader().then((h) => { if (h) setPhotoHeader(sameHeader(h)); }).catch(() => {});
   };
 
-  // «How to get in»: under the address while on the way, on site, inside the window or NEXT today (card.accessUp,
-  // myDay/access.js, usability п. 2), else under the tiles as before; the codes in large digits
-  const accessBox = card && card.access ? (
-    <View style={[styles.access, card.accessUp && styles.accessUp]}>
-      <Icon name="key" size={18} color={colors.warningFg} />
-      <View style={styles.accessBody}>
-        <Text style={styles.accessTitle}>How to get in</Text>
-        <AccessText text={card.access} style={styles.accessText} bigStyle={styles.accessCode} />
-        {updated && updated.was.access ? <ChangedWas text={updated.was.access} /> : null}
+  // The calm look (design-mockups/app-calm p2, p3): the facts as a plain list (Window · Visit ·
+  // Get in) in place of the three tiles and the yellow «How to get in» box — information, not a
+  // warning; the codes stay bold. Under a fact the office changed: what it was (ChangedWas).
+  const factsList = card ? (
+    <View style={styles.facts}>
+      {card.facts.map((f) => {
+        const was = updated ? (f.key === 'window' ? updated.was.window || updated.was.plan : null) : null;
+        return (
+          <View key={f.key} style={styles.fact} accessible accessibilityLabel={`${f.label}: ${f.value}${was ? `. Changed, ${was}` : ''}`}>
+            <Text style={styles.factLabel}>{f.label}</Text>
+            <View style={styles.factBody}>
+              <Text style={[styles.factValue, f.struck && styles.struck]}>{f.value}</Text>
+              {was ? <ChangedWas text={was} /> : null}
+            </View>
+          </View>
+        );
+      })}
+      {card.access ? (
+        <View style={styles.fact} accessible accessibilityLabel={`How to get in: ${card.access}`}>
+          <Text style={styles.factLabel}>Get in</Text>
+          <View style={styles.factBody}>
+            <AccessText text={card.access} style={styles.factValue} bigStyle={styles.accessCode} />
+            {updated && updated.was.access ? <ChangedWas text={updated.was.access} /> : null}
+          </View>
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+  // The problem: the office's words, the appliances in grey under them, who else is on the visit
+  const problemBody = card ? (
+    <>
+      <View style={updated && updated.was.problem ? styles.chg : null}>
+        <Text style={card.problem ? styles.text : styles.quiet}>{card.problem || 'No description'}</Text>
+        {updated && updated.was.problem ? <ChangedWas text={updated.was.problem} /> : null}
       </View>
+      {card.appliances.map((a) => (
+        <Text key={a.key} style={styles.applianceText}>{[a.type, a.model, a.serial].filter(Boolean).join(' · ')}</Text>
+      ))}
+      {card.team.map((line) => (
+        <Text key={line.label} style={styles.teamLine}><Text style={styles.teamLabel}>{line.label}</Text>{`  ${line.value}`}</Text>
+      ))}
+    </>
+  ) : null;
+  const closedNow = !!card && card.state === 'closed';
+  // After Finish the bill says whether it is paid (design p3 «Not paid yet»), from Get paid's state
+  const payOfThree = three && three.kind === 'three' ? three.buttons.find((b) => b.key === 'pay') : null;
+  const notPaid = closedNow && payOfThree ? (payOfThree.state === 'todo' ? 'Not paid yet' : payOfThree.state === 'part' && payOfThree.line ? `Partly paid · ${payOfThree.line}` : null) : null;
+  const billBlock = three && three.kind === 'three' ? (
+    <View style={styles.block}>
+      <BillRow row={three.row} note={notPaid} onChange={openBill} onOpen={known && known.status === 'issued' ? openBill : null} />
+    </View>
+  ) : null;
+  const diagUp = closedNow && diagBlock ? (
+    <View style={styles.block}>
+      <DiagnosisHead />
+      <DiagnosisBody block={diagBlock} blocked={blocked} onPress={() => diag.open(diagBlock.opens)}
+        changed={updated && updated.was.diagnosis ? <ChangedWas text={updated.was.diagnosis} /> : null} />
     </View>
   ) : null;
 
@@ -859,13 +906,13 @@ export default function VisitScreen({ route, navigation }) {
             </View>
           ) : null}
           <View style={styles.head} onLayout={placed('head')}>
-            <View style={styles.tagRow}>
-              <Tag tag={card.tag} big />
+            <View style={styles.stateRow}>
+              <Icon name={card.stateLine.icon} size={16} color={colors.fgDefault} />
+              <Text style={styles.stateText} numberOfLines={2}>{card.stateLine.text}</Text>
               {/* with the three (design app-dock) Undo is a link here, not a band in the foot */}
               {three && bar && bar.undo ? (
                 <UndoLink undo={undoLinkOf(bar.undo)} off={barOff} busy={!!pending && !failure && pending.action === bar.undo.action} onPress={() => press(bar.undo.action)} />
               ) : null}
-              {card.kindLine ? <Text style={styles.kindLine} numberOfLines={1}>{card.kindLine}</Text> : null}
             </View>
             {bar && bar.omwSkipped ? (
               <View style={styles.skLine}>
@@ -875,11 +922,11 @@ export default function VisitScreen({ route, navigation }) {
             ) : null}
             <Text style={styles.name} accessibilityRole="header">{card.name}</Text>
             <View style={updated && updated.was.address ? styles.chg : null}>
-              {card.address.line1 ? <Text style={styles.addr1}>{card.address.line1}</Text> : null}
-              {card.address.line2 ? <Text style={styles.addr2}>{card.address.line2}</Text> : null}
+              {card.address.line1 || card.address.line2 ? (
+                <Text style={styles.addr}>{[card.address.line1, card.address.line2].filter(Boolean).join(', ')}</Text>
+              ) : null}
               {updated && updated.was.address ? <ChangedWas text={updated.was.address} /> : null}
             </View>
-            {card.access && card.accessUp ? accessBox : null}
 
             <View style={styles.buttons}>
               <TouchableOpacity style={[styles.bigBtn, styles.bigFill]} onPress={() => openDirections(shown.visit, userId)} accessibilityRole="button" accessibilityLabel={`Directions to ${card.name}`}>
@@ -900,22 +947,18 @@ export default function VisitScreen({ route, navigation }) {
             </View>
             {perms && perms.contactsLine ? <Text style={styles.permLine}>{perms.contactsLine}</Text> : null}
 
-            <View style={styles.tiles}>
-              {card.tiles.map((t) => {
-                // the office moved the time: the tile says what it was, in place of its second line
-                const wasText = updated && updated.was[t.key];
-                const small = wasText || t.small;
-                return (
-                  <View key={t.key} style={[styles.tile, wasText && styles.tileChanged]} accessible accessibilityLabel={`${t.label} ${t.big} ${small}`}>
-                    <Text style={styles.tileLabel}>{t.label.toUpperCase()}</Text>
-                    <Text style={[styles.tileBig, t.big.length > 6 && styles.tileBigLong, t.struck && styles.struck]} numberOfLines={1} adjustsFontSizeToFit>{t.big}</Text>
-                    {small ? <Text style={[styles.tileSmall, wasText && styles.tileWas]} numberOfLines={1}>{small}</Text> : null}
-                  </View>
-                );
-              })}
-            </View>
-
-            {nowWordsOf(shown.visit) ? <Text style={styles.nowWords}>{nowWordsOf(shown.visit)}</Text> : null}
+            {/* before Finish: the facts, the problem, the bill; after it the diagnosis and the bill come
+                first and the facts go down — the work is done, the bill is what matters now (p3) */}
+            {closedNow ? <>{diagUp}{billBlock}{factsList}</> : (
+              <>
+                {factsList}
+                <View style={styles.block}>
+                  <Text style={styles.blockLabel} accessibilityRole="header">PROBLEM</Text>
+                  {problemBody}
+                </View>
+                {billBlock}
+              </>
+            )}
 
             {/* before Finish nothing competes with the one lit button (d0): the strip comes after it */}
             {steps && !three && steps.strip.length > 1 && card.state === 'closed' ? <StepStrip strip={steps.strip} label={stripLabel(steps.strip)} /> : null}
@@ -932,11 +975,6 @@ export default function VisitScreen({ route, navigation }) {
                 </View>
                 <Icon name="chev" size={20} color={colors.fgSecondary} />
               </TouchableOpacity>
-            ) : null}
-            {three && three.kind === 'three' ? (
-              <View style={styles.threeRow}>
-                <BillRow row={three.row} onChange={openBill} onOpen={known && known.status === 'issued' ? openBill : null} />
-              </View>
             ) : null}
             {billShown && !three ? (
               <TouchableOpacity style={[styles.billTile, billFill && styles.billTileFill, over && styles.billTileQuiet, billShown.off && styles.billTileOff]}
@@ -995,7 +1033,6 @@ export default function VisitScreen({ route, navigation }) {
               </TouchableOpacity>
             ) : null}
 
-            {card.access && !card.accessUp ? accessBox : null}
 
             {card.office ? (
               <View style={styles.office} accessibilityRole="summary" onLayout={placed('office')}>
@@ -1032,25 +1069,7 @@ export default function VisitScreen({ route, navigation }) {
             ) : null}
           </View>
 
-          <Section label="Problem">
-            <View style={updated && updated.was.problem ? styles.chg : null}>
-              <Text style={card.problem ? styles.text : styles.quiet}>{card.problem || 'No description'}</Text>
-              {updated && updated.was.problem ? <ChangedWas text={updated.was.problem} /> : null}
-            </View>
-            {card.appliances.map((a) => (
-              <View key={a.key} style={styles.appliance}>
-                <Icon name="wrench" size={14} color={colors.fgSecondary} />
-                <Text style={styles.applianceText}>
-                  <Text style={styles.applianceType}>{a.type}</Text>
-                  {a.model ? `  ${a.model}` : ''}
-                  {a.serial ? `  ·  ${a.serial}` : ''}
-                </Text>
-              </View>
-            ))}
-            {card.team.map((line) => (
-              <Text key={line.label} style={styles.teamLine}><Text style={styles.teamLabel}>{line.label}</Text>{`  ${line.value}`}</Text>
-            ))}
-          </Section>
+          {closedNow ? <Section label="Problem">{problemBody}</Section> : null}
 
           {card.full && card.history.length ? (
             <Section label={card.historyTitle}>
@@ -1080,7 +1099,7 @@ export default function VisitScreen({ route, navigation }) {
             {extras ? <ExtrasRow blocked={blocked} onNote={() => setNoteOpen(true)} onPhoto={() => setPhotoSheet(true)} /> : null}
           </Section>
 
-          {diagBlock ? (
+          {diagBlock && !closedNow ? (
             <View style={styles.section}>
               <DiagnosisHead />
               <DiagnosisBody block={diagBlock} blocked={blocked} onPress={() => diag.open(diagBlock.opens)}
@@ -1112,7 +1131,7 @@ export default function VisitScreen({ route, navigation }) {
           onNote={extras ? () => setNoteOpen(true) : null}
           bill={billButton} billLink={billLink} steps={steps} onStep={stepPress}
           three={three} threeNext={threeNext} threeBusy={threeBusy} threeFailure={threeFail} onThree={pressThree}
-          onSkip={busy.current || pending ? null : openSkip} />
+          onSkip={busy.current || pending ? null : openSkip} hint={nowWordsOf(shown.visit)} />
       ) : null}
       {shown ? (
         <>
@@ -1183,8 +1202,6 @@ function Section({ label, children }) {
 const ACK_REFUSED_WARN = 'signature not accepted · new signature needed';
 
 const styles = StyleSheet.create({
-  // «what to do now» on the way or on site (steps.js nowWordsOf)
-  nowWords: { marginTop: 12, fontSize: 15, lineHeight: 21, color: colors.fgSecondary },
   screen: { flex: 1, backgroundColor: colors.bgCard },
   topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 44, paddingLeft: 4, paddingRight: 14, borderRadius: 22 },
@@ -1195,22 +1212,25 @@ const styles = StyleSheet.create({
   // «On my way skipped · …» under the tag (design app-skip k2)
   skLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4 },
   skLineText: { flex: 1, fontSize: 15, color: colors.fgSecondary },
-  tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 },
-  kindLine: { fontSize: 14, fontWeight: '600', color: colors.fgSecondary, flexShrink: 1 },
-  name: { fontSize: 26, lineHeight: 31, fontWeight: '800', color: colors.fgDefault },
-  addr1: { fontSize: 17, lineHeight: 22, color: colors.fgDefault, marginTop: 2 },
-  addr2: { fontSize: 17, lineHeight: 22, color: colors.fgSecondary },
-  buttons: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  bigBtn: { flex: 1, height: 56, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  bigFill: { backgroundColor: colors.brandPressed },
-  bigGhost: { backgroundColor: colors.bgCard, borderWidth: 1.5, borderColor: colors.brandPressed },
-  bigText: { fontSize: 17, fontWeight: '700' },
-  tiles: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  tile: { flex: 1, minHeight: 74, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgSubtle },
-  tileLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, color: colors.fgSecondary },
-  tileBig: { fontSize: 26, lineHeight: 32, fontWeight: '800', color: colors.fgDefault },
-  tileBigLong: { fontSize: 18, lineHeight: 32 },
-  tileSmall: { fontSize: 12, fontWeight: '600', color: colors.fgSecondary },
+  // the state as one line (calm): a small icon, the words, the Undo link beside them
+  stateRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', minHeight: 32 },
+  stateText: { flexShrink: 1, fontSize: 15, fontWeight: '600', color: colors.fgDefault },
+  name: { fontSize: 24, lineHeight: 30, fontWeight: '700', color: colors.fgDefault },
+  addr: { fontSize: 16, lineHeight: 22, color: colors.fgSecondary },
+  buttons: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  bigBtn: { flex: 1, height: 48, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bigFill: { flex: 1.4, backgroundColor: colors.brand },
+  bigGhost: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderControl },
+  bigText: { fontSize: 17, fontWeight: '600' },
+  // the facts (calm p2): a label column and the value in normal weight, thin rules between
+  facts: { marginTop: 14, borderTopWidth: 1, borderTopColor: colors.borderSubtle },
+  fact: { flexDirection: 'row', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
+  factLabel: { width: 72, fontSize: 15, lineHeight: 21, color: colors.fgSecondary },
+  factBody: { flex: 1, minWidth: 0 },
+  factValue: { fontSize: 15, lineHeight: 21, color: colors.fgDefault },
+  // a block of the body without a frame (Problem, Bill, Diagnosis): small caps over plain text
+  block: { marginTop: 16, gap: 6 },
+  blockLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
   struck: { textDecorationLine: 'line-through', color: colors.fgSecondary },
   // «Updated by the office» (design .upd) and a field that changed (.chg, .chg-was)
   upd: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1.5, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
@@ -1222,11 +1242,8 @@ const styles = StyleSheet.create({
   chgWas: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   chgPill: { paddingHorizontal: 6, height: 18, lineHeight: 18, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
   chgText: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: colors.infoFg },
-  tileChanged: { borderWidth: 2, borderColor: colors.infoBorder },
-  tileWas: { color: colors.infoFg },
   // The Bill tile (design app-invoice visit-done): a draft is the filled one
-  threeRow: { marginTop: 12 },
-  billTile: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
+  billTile: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, marginTop: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
   billTileFill: { backgroundColor: colors.brandPressed },
   // over the approval: white, as a tile with nothing to do now (the Designer on #90)
   billTileQuiet: { borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
@@ -1236,8 +1253,8 @@ const styles = StyleSheet.create({
   estReq: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.indigoBorder, backgroundColor: colors.indigoBg },
   estReqTitle: { fontSize: 17, fontWeight: '800', color: colors.indigoFg },
   estReqLine: { fontSize: 14, fontWeight: '600', color: colors.indigoFg },
-  billTileTitle: { fontSize: 18, fontWeight: '800', color: colors.fgDefault },
-  billTileLine: { fontSize: 15, fontWeight: '700', color: colors.brandPressed },
+  billTileTitle: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
+  billTileLine: { fontSize: 15, fontWeight: '600', color: colors.brandPressed },
   billTileOnFill: { color: colors.fgOnFill },
   billTileTextOff: { color: colors.fgDisabled },
   billTileWarn: { color: colors.warningFg },
@@ -1252,14 +1269,8 @@ const styles = StyleSheet.create({
   depositHint: { marginTop: 8, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   // a permission the office switched off (src/perms): one quiet line in place of what is hidden
   permLine: { marginTop: 10, fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
-  access: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
-  accessBody: { flex: 1 },
-  accessTitle: { fontSize: 15, fontWeight: '700', color: colors.warningFg },
-  accessText: { fontSize: 15, lineHeight: 22, color: colors.warningFg },
-  // the code in large digits (design usab-u2: «door code 4521»)
-  accessCode: { fontSize: 20, fontWeight: '800', letterSpacing: 1, color: colors.fgDefault },
-  // under the address: a stronger border, the same room above as the buttons have
-  accessUp: { marginTop: 12, borderWidth: 1.5 },
+  // the code bold, not large (calm: «Get in» is information, not a warning)
+  accessCode: { fontWeight: '700', color: colors.fgDefault },
   office: { marginTop: 10, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4, borderRadius: 14, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
   officeTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   officeTitle: { fontSize: 15, fontWeight: '700', color: colors.infoFg },
@@ -1276,7 +1287,7 @@ const styles = StyleSheet.create({
   text: { fontSize: 16, lineHeight: 22, color: colors.fgDefault },
   quiet: { fontSize: 15, lineHeight: 20, color: colors.fgMutedField },
   appliance: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  applianceText: { flex: 1, fontSize: 15, color: colors.fgSecondary },
+  applianceText: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
   applianceType: { fontWeight: '700', color: colors.fgDefault },
   teamLine: { fontSize: 15, color: colors.fgDefault },
   teamLabel: { fontWeight: '600', color: colors.fgSecondary },

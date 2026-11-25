@@ -13,7 +13,7 @@ import { DIAGNOSIS_HINT, DIAGNOSIS_MAX, LOCKED_HINT, diagnosisLength, diagnosisR
 export function PrintedPill() {
   return (
     <View style={s.pill} accessible accessibilityLabel="Printed on the bill">
-      <Icon name="doc" size={13} color={colors.infoFg} />
+      <Icon name="doc" size={14} color={colors.fgSecondary} />
       <Text style={s.pillText}>Printed on the bill</Text>
     </View>
   );
@@ -150,23 +150,26 @@ export function DiagnosisSheet({ visible, mode, text, current, sending, failure,
 const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   label: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 24, paddingHorizontal: 8, borderRadius: 12, backgroundColor: colors.infoBg },
-  pillText: { fontSize: 12, fontWeight: '700', color: colors.infoFg },
+  // calm (design-mockups/app-calm): grey words with a small icon, no blue pill
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 24 },
+  pillText: { fontSize: 13, color: colors.fgSecondary },
   hint: { fontSize: 14, lineHeight: 20, color: colors.fgSecondary },
   text: { fontSize: 16, lineHeight: 23, color: colors.fgDefault },
   by: { marginTop: 4, fontSize: 13, color: colors.fgSecondary },
   // over a text taken from the diagnostics visit (§3.7): where it comes from
-  from: { marginBottom: 4, fontSize: 13, fontWeight: '700', color: colors.infoFg },
+  from: { marginBottom: 4, fontSize: 13, fontWeight: '600', color: colors.fgSecondary },
   quiet: { fontSize: 15, lineHeight: 20, color: colors.fgMutedField },
   chg: { marginHorizontal: -2, paddingVertical: 8, paddingLeft: 12, paddingRight: 10, borderLeftWidth: 4, borderLeftColor: colors.infoBorder, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, borderTopRightRadius: 10, borderBottomRightRadius: 10, backgroundColor: colors.infoBg },
   // an addition after the bill (design .vd-add): yellow, a stripe on the left
-  add: { gap: 2, paddingVertical: 8, paddingRight: 12, paddingLeft: 12, borderRadius: 12, borderLeftWidth: 3, borderLeftColor: colors.warningSolid, backgroundColor: colors.warningBg },
-  addHead: { fontSize: 13, fontWeight: '700', color: colors.warningFg },
+  // an addendum (calm): a thin grey rule on the left, no amber fill
+  add: { gap: 2, paddingVertical: 4, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: colors.borderDefault },
+  addHead: { fontSize: 13, fontWeight: '600', color: colors.fgSecondary },
   addText: { fontSize: 15, lineHeight: 21, color: colors.fgDefault },
-  wide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
-  wideText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
-  small: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, height: 44, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
-  smallText: { fontSize: 16, fontWeight: '700', color: colors.brandPressed },
+  // the block's buttons (calm): white, a grey 1 pt frame, brand words
+  wide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  wideText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed },
+  small: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, height: 44, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  smallText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed },
   off: { opacity: 0.45 },
   blocked: { fontSize: 14, fontWeight: '600', color: colors.fgSecondary },
   // the sheet

@@ -5,8 +5,8 @@
 // without the network, the list's visit or the card kept on the phone.
 // Not here (APP-3): the actions bar, Finish, No access, Undo, adding a note or a photo.
 import {
-  OUTCOMES, clock, clockAmPm, closedMoment, dayLabel, daysBetween, durationText, kindWord,
-  momentWall, parseWall, planOf, stateOf, tagOf, visitDay, windowText,
+  OUTCOMES, clock, clockAmPm, closedMoment, dayLabel, daysBetween, durationText, kindVisitText, kindWord,
+  momentWall, parseWall, planOf, resultWord, stateOf, tagOf, visitDay, windowAmPm, windowText,
 } from './model.js';
 import { accessUp } from './access.js';
 
@@ -115,6 +115,54 @@ export function tilesOf(visit, now, { prices = true } = {}) {
     }
   }
   return tiles;
+}
+
+// ---------- the calm look (design-mockups/app-calm p2, p3, the owner 2026-11-25) ----------
+// The state over the name as one line of text with a small icon, no pill: 'On the way since
+// 12:46', 'Diagnosed at 1:40 PM' (a closed one says its result, not «Closed»), 'Stop 5 · today'.
+// { icon, text }
+export function stateLineOf(visit, { n = null, now }) {
+  if (stateOf(visit) === 'closed') {
+    const at = closedMoment(visit);
+    const date = visitDay(visit);
+    const when = at ? ` at ${at.date === date ? '' : `${monthDay(at.date)}, `}${clockAmPm(at.minutes)}` : '';
+    return { icon: 'check', text: `${resultWord(visit)}${when}` };
+  }
+  const tag = cardTag(visit, { n, now });
+  return { icon: tag.icon, text: tag.text };
+}
+
+// The facts of the visit as a plain list in place of the three tiles (Window · Plan · Fee):
+// [{ key, label, value, struck }]
+//   Window — '12–3 PM · arrive ~1:00, 1h' (the plan beside the window, not a second big number);
+//            another day first ('Tomorrow · …'); a closed one — the window alone (its time is in
+//            the state line)
+//   Visit  — 'Diagnostics · $95 fee, told', 'Repair, visit 2 of 2 · fee not set', a recall
+//            'No charge'; without prices (src/perms) — the kind alone
+// «Get in» (the access notes) is the screen's: its codes are drawn large.
+// struck: the visit was called off, its times no longer hold.
+export function factsOf(visit, now, { prices = true } = {}) {
+  const state = stateOf(visit);
+  const date = visitDay(visit);
+  const plan = planOf(visit);
+  const ws = parseWall(visit.scheduled_start);
+  const we = parseWall(visit.scheduled_end);
+  const struck = state === 'cancelled' || state === 'moved';
+  const day = date && date !== now.date ? dayWord(date, now) : '';
+  const arrive = state !== 'closed' && plan ? `arrive ~${clock(plan.start.minutes)}, ${durationText(plan.duration)}` : '';
+  const window = [day, ws ? windowAmPm(ws, we) : '—', arrive].filter(Boolean).join(' · ');
+  let fee = '';
+  if (!visit.legacy && prices) {
+    if (visit.visit_kind === 'recall') fee = 'No charge';
+    else {
+      const told = money(visit.service_call_fee_quoted_cents);
+      fee = told ? `${told} fee, told` : 'fee not set';
+    }
+  }
+  return [
+    { key: 'window', label: 'Window', value: window, struck },
+    { key: 'visit', label: 'Visit', value: [kindVisitText(visit), fee].filter(Boolean).join(' · '), struck },
+  ];
 }
 
 // The appliances: [{ key, type: 'Washer', model: 'Samsung WF45R6100AW', serial: 'S/N …' }]
@@ -226,6 +274,8 @@ export function visitCard(visit, { n = null, now, officeOpen = false, prices = t
     name: (typeof visit.client_name === 'string' && visit.client_name.trim()) || 'Customer',
     address: addressLines(visit),
     tiles: tilesOf(visit, now, { prices }),
+    stateLine: stateLineOf(visit, { n, now }),
+    facts: factsOf(visit, now, { prices }),
     access: typeof visit.access_notes === 'string' && visit.access_notes.trim() ? visit.access_notes.trim() : null,
     // «How to get in» under the address while on the way, on site, inside the window or NEXT today (access.js)
     accessUp: accessUp(visit, now, { nextToday }),

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   techName, monthDay, dayWord, money, unitText, addressLines, cardTag, kindLine, tilesOf, appliancesOf,
   teamOf, historyOf, notesOf, noteWhen, officeNotesOf, visitCard, keepCard, keptCard, dropCard, MAX_CARDS_KEPT,
-  updatedOf,
+  updatedOf, stateLineOf, factsOf,
 } from './visit.js';
 import { keepWeek, keptWeek } from './model.js';
 
@@ -281,4 +281,33 @@ test('«Updated by the office»: when, what changed and what it was — only fro
   assert.deepEqual(updatedOf(now({ diagnosis: diag('Relay failed.') }), before, oldAt), check);
   assert.deepEqual(updatedOf(now({ diagnosis: diag('Same.') }), { ...before, diagnosis: diag(' Same. ') }, oldAt), check);
   assert.equal(updatedOf({ ...before, address_unit: '5B' }, before, oldAt).line, 'The address changed. Check it before you go.');
+});
+
+test('the calm look: the state as one line, the facts as a list (design-mockups/app-calm p2, p3)', () => {
+  // on the way, today: the window with the plan beside it, the kind with the fee
+  const onway = card({ status: 'omw', omw_at: '2026-11-10T15:46:00Z', kind: 'diagnostics', w0: '12:00', w1: '15:00', p: '13:00', dur: 60 });
+  assert.deepEqual(stateLineOf(onway, { now: NOW }), { icon: 'car', text: 'On the way since 10:46' });
+  assert.deepEqual(factsOf(onway, NOW).map((f) => [f.label, f.value]), [
+    ['Window', '12–3 PM · arrive ~1:00, 1h'], ['Visit', 'Diagnostics · $95 fee, told'],
+  ]);
+  // closed: the result and when, not «Closed»; the window alone (the time is in the state line)
+  const closed = card({ status: 'completed', outcome: 'diagnostics_only', kind: 'diagnostics', w0: '12:00', w1: '15:00', closed_at: '2026-11-10T18:40:00Z' });
+  assert.deepEqual(stateLineOf(closed, { now: NOW }), { icon: 'check', text: 'Diagnosed at 1:40 PM' });
+  assert.equal(factsOf(closed, NOW)[0].value, '12–3 PM');
+  // closed on another day than its own: the date too
+  assert.equal(stateLineOf({ ...closed, closed_at: '2026-11-11T14:05:00Z' }, { now: NOW }).text, 'Diagnosed at Nov 11, 9:05 AM');
+  assert.equal(stateLineOf({ ...closed, closed_at: null }, { now: NOW }).text, 'Diagnosed');
+  // planned, tomorrow; a repair 2 of 2 without a fee told; a recall costs nothing; no prices — the kind alone
+  const later = card({ date: '2026-11-11', n: 2, of: 2, fee: null, w0: '09:00', w1: '12:00', p: '09:30', dur: 90 });
+  assert.deepEqual(factsOf(later, NOW).map((f) => f.value), ['Tomorrow · 9–12 PM · arrive ~9:30, 1h 30m', 'Repair, visit 2 of 2 · fee not set']);
+  assert.equal(stateLineOf(later, { n: 2, now: NOW }).text, 'Stop 2 · tomorrow');
+  assert.equal(factsOf(card({ kind: 'recall' }), NOW)[1].value, 'Recall · No charge');
+  assert.equal(factsOf(card(), NOW, { prices: false })[1].value, 'Repair');
+  // an old task: no fee; a cancelled one: struck
+  assert.equal(factsOf(card({ legacy: true }), NOW)[1].value, 'Old task');
+  assert.equal(factsOf(card({ status: 'cancelled' }), NOW).every((f) => f.struck), true);
+  // the card carries both
+  const c = visitCard(onway, { now: NOW });
+  assert.equal(c.stateLine.text, 'On the way since 10:46');
+  assert.equal(c.facts.length, 2);
 });

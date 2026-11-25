@@ -16,7 +16,7 @@ test('before Finish: the three are there, calm; the bill row with Change (d0)', 
   assert.equal(t.kind, 'three');
   assert.equal(keys(t), 'sign:todo pay:todo send:todo');
   assert.equal(t.lit, null);
-  assert.deepEqual(t.row, { title: 'Bill · $136.09', line: 'Diagnostics $125.00 + tax', change: true });
+  assert.deepEqual(t.row, { title: 'Bill · $136.09', line: 'Diagnostics $125.00 + tax', change: true, head: 'Bill', amount: '$136.09', text: 'Diagnostics $125.00 + tax' });
   assert.equal(t.buttons[1].line, '$136.09');
   assert.equal(t.buttons[2].line, 'Email, share, print or show');
 });
@@ -26,7 +26,7 @@ test('after Finish: the first not done in the company\'s order is orange (d1, d3
   const signed = threeOf(ctx({ visit: closed(), known: knownOf(issued()), ack: { status: 'ok', signed: true, name: 'Test Customer', at: '2026-11-24T15:27:00Z' } }));
   assert.equal(keys(signed), 'sign:done pay:todo* send:todo');
   assert.deepEqual([signed.buttons[0].title, signed.buttons[0].line], ['Signed 10:27', 'Test Customer']);
-  assert.deepEqual(signed.row, { title: 'Bill NY-1053 · $136.09', line: 'Final · the office can correct it', change: false });
+  assert.deepEqual(signed.row, { title: 'Bill NY-1053 · $136.09', line: 'Final · the office can correct it', change: false, head: 'Bill NY-1053', amount: '$136.09', text: 'Final · the office can correct it' });
 });
 
 test('all done: three green, the bill paid, allDone (d7)', () => {
@@ -37,7 +37,7 @@ test('all done: three green, the bill paid, allDone (d7)', () => {
   assert.equal(t.allDone, true);
   assert.deepEqual([t.buttons[1].title, t.buttons[1].line], ['Paid $136.09 cash', '10:28 · with you, turn it in']);
   assert.deepEqual([t.buttons[2].title, t.buttons[2].line], ['Sent to test@example.com', '10:30 · PDF']);
-  assert.deepEqual(t.row, { title: 'Bill NY-1053 · Paid', line: '$136.09 · final', change: false });
+  assert.deepEqual(t.row, { title: 'Bill NY-1053 · Paid', line: '$136.09 · final', change: false, head: 'Bill NY-1053', amount: '$136.09', text: 'Paid · final' });
 });
 
 test('a part paid stays orange: «Paid $50.00 · $86.09 left»', () => {
@@ -93,7 +93,7 @@ test('Issue off: nothing until the office makes it final, then Get paid alone, c
   const steps = [{ key: 'issue', mode: 'off' }, { key: 'give', mode: 'off' }, { key: 'collect', mode: 'optional' }, { key: 'signs', mode: 'off' }];
   const before = threeOf(ctx({ visit: closed({ steps }) }));
   assert.equal(keys(before), '');
-  assert.deepEqual(before.row, { title: 'Bill', line: 'The office makes it final', change: false });
+  assert.deepEqual(before.row, { title: 'Bill', line: 'The office makes it final', change: false, head: 'Bill', amount: null, text: 'The office makes it final' });
   const after = threeOf(ctx({ visit: closed({ steps }), known: knownOf(issued()) }));
   assert.equal(keys(after), 'pay:todo');
 });
@@ -130,8 +130,8 @@ test('not here: a helper, an old task, no money permission, closed without work'
 test('a signature waiting on this phone; the bill row while loading or offline', () => {
   const t = threeOf(ctx({ known: knownOf(issued()), ack: { status: 'ok', signed: true, pending: true } }));
   assert.deepEqual([t.buttons[0].state, t.buttons[0].line, t.buttons[0].warn], ['done', 'Waiting for signal — it sends by itself', true]);
-  assert.deepEqual(billRow({ status: 'loading' }), { title: 'Bill', line: 'Loading…', change: false });
-  assert.deepEqual(billRow({ status: 'unknown' }), { title: 'Bill', line: 'Needs connection', change: false });
+  assert.deepEqual(billRow({ status: 'loading' }), { title: 'Bill', line: 'Loading…', change: false, head: 'Bill', amount: null, text: 'Loading…' });
+  assert.deepEqual(billRow({ status: 'unknown' }), { title: 'Bill', line: 'Needs connection', change: false, head: 'Bill', amount: null, text: 'Needs connection' });
   assert.equal(linesLine(draft({ lines: [{ name: 'Labor', amount_cents: 18000 }, { name: 'Part' }, { name: 'X' }], tax_cents: 0 })), 'Labor $180.00 + 2 more');
 });
 
