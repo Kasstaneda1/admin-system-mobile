@@ -11,6 +11,12 @@ import { PART_NAME_MAX, PART_NUMBER_MAX, finishTitle, notFixedAt } from './actio
 import { SkipButton, ThreeButtons, ThreeTiles } from '../bill/ThreeParts';
 import { keyboardFirst } from './keyboardTap';
 
+// A field of the screen has the focus now (myDay/keyboardTap.js keyboardFirst)
+export const fieldFocused = () => {
+  const state = TextInput.State;
+  return !!(state && typeof state.currentlyFocusedInput === 'function' && state.currentlyFocusedInput());
+};
+
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
 // when it got no answer (Try again sends the same request); blocked: why nothing can be
 // pressed now ('Needs connection'), or null; onNote: «Add a note for the office» under a
@@ -269,7 +275,7 @@ export function Sheet({ visible, onClose, children, bottom, keyboard = false, on
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss} statusBarTranslucent>
       <Wrap style={styles.sheetWrap} {...wrapProps}>
         {/* the keyboard up: a tap on the dim part only puts it away (myDay/keyboardTap.js) */}
-        <Pressable style={styles.scrim} onPress={keyboardFirst(Keyboard, onClose)} accessibilityLabel="Close" />
+        <Pressable style={styles.scrim} onPress={keyboardFirst(Keyboard, onClose, fieldFocused)} accessibilityLabel="Close" />
         <View style={[styles.sheet, { paddingBottom: Math.max(bottom, 16) }]} accessibilityViewIsModal>
           <View style={styles.grab} />
           {children}
@@ -325,7 +331,7 @@ export function FinishSheet({ visible, choices, initial, subtitle, bottom, onFin
   const toField = () => setTimeout(() => scroll.current && scroll.current.scrollToEnd({ animated: true }), 300);
   // the keyboard up (diagnosis, Part needed): the first tap on a choice or a button only puts it
   // away — nothing is chosen and the visit is not finished by a stray tap (myDay/keyboardTap.js)
-  const tap = (fn) => keyboardFirst(Keyboard, fn);
+  const tap = (fn) => keyboardFirst(Keyboard, fn, fieldFocused);
   return (
     <Sheet visible={visible} onClose={saving ? () => {} : onClose} bottom={bottom} keyboard={!!diagnosis}>
       <ScrollView ref={scroll} style={styles.sheetScroll} contentContainerStyle={styles.sheetScrollBody} keyboardShouldPersistTaps="handled">

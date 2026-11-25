@@ -252,3 +252,10 @@ test('a tile of the row (design app-dock): two words, the time when done; skippe
   const signed = threeOf(ctx({ visit: closed(), known: knownOf(issued()), ack: { status: 'ok', signed: true, name: 'X', at: '2026-11-24T15:27:00Z' } }));
   assert.deepEqual(tileOf(signed.buttons.find((b) => b.key === 'sign')), { word: 'Signed', line: '10:27' });
 });
+
+test('a tile: nothing to pay is «No charge», not «Paid» (the Teamlead on #108)', async () => {
+  const { tileOf } = await import('./three.js');
+  assert.deepEqual(tileOf({ key: 'pay', state: 'done', title: 'Nothing to pay', at: '' }), { word: 'No charge', line: null });
+  const free = threeOf(ctx({ visit: closed(), known: knownOf(issued({ payment_status: 'no_charge', total_cents: 0, balance_cents: 0 })) }));
+  assert.deepEqual(tileOf(free.buttons.find((b) => b.key === 'pay')), { word: 'No charge', line: null });
+});
