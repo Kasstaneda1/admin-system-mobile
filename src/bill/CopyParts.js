@@ -16,7 +16,7 @@ import { billAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { downloadBillPdf } from './pdf';
-import { alreadyGiven, tickFor, buttonOf, copyCheck, copyFailText, copyWaysOf, emailBody, firstWay, jobEmailOf, tickOf } from './copy';
+import { alreadyGiven, tickAfterAddress, tickFor, buttonOf, copyCheck, copyFailText, copyWaysOf, emailBody, firstWay, jobEmailOf, tickOf } from './copy';
 
 // The choice and the sending. bill: the issued bill; required: the copy is required (copy.js
 // copyRequired); quiet: start on the way without a tick (copy.js firstWay — the customer's screens). give() → { ok: true, bill (the answer's, or null: read it again), show (Show it
@@ -35,9 +35,9 @@ export function useCopy({ id, bill, required, quiet = false }) {
   const changeTo = useCallback(() => {
     Alert.prompt('The customer’s email', 'The bill goes to this address. The job keeps its own.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'OK', onPress: (value) => { setTo(String(value || '').trim()); setPicked('email'); } },
+      { text: 'OK', onPress: (value) => { setTo(String(value || '').trim()); setTicked((t) => tickAfterAddress(way, t)); setPicked('email'); } },
     ], 'plain-text', to, 'email-address');
-  }, [to]);
+  }, [to, way]);
 
   // chosen: the way picked in the «choose» sheet this moment (the state is not there yet)
   const give = useCallback(async (chosen = null) => {
@@ -129,6 +129,8 @@ export function CopyChoice({ copy, label = null, off = false, onChange = null, o
 export const CHOOSE_SUB_SIGN = 'The customer keeps a copy of this bill. Tap one to finish signing.';
 export function CopyChooseSheet({ visible, copy, bottom, onChosen, onClose, sub = CHOOSE_SUB_SIGN }) {
   const share = visible && copy.way === 'share';
+  // Email chosen by typing its address here (no tap on the row after it): its own button
+  const email = visible && copy.way === 'email';
   return (
     <Sheet visible={visible} onClose={onClose} bottom={bottom}>
       <Text style={styles.sheetTitle} accessibilityRole="header">Choose how the customer gets the copy</Text>
@@ -137,6 +139,11 @@ export function CopyChooseSheet({ visible, copy, bottom, onChosen, onClose, sub 
       {share ? (
         <View style={styles.sheetButton}>
           <MainButton text="Share the PDF · signed" icon="share" onPress={() => onChosen('share')} off={!copy.ticked} />
+        </View>
+      ) : null}
+      {email ? (
+        <View style={styles.sheetButton}>
+          <MainButton text="Email the copy · signed" icon="mail" onPress={() => onChosen('email')} />
         </View>
       ) : null}
     </Sheet>

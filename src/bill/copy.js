@@ -102,6 +102,11 @@ export function copyCheck({ way, to, ticked }) {
 // consent: true for the email)
 export const tickFor = (chosen, wayNow, ticked) => (typeof chosen === 'string' && chosen !== wayNow ? false : !!ticked);
 
+// After the address is typed (Email chosen by it): the tick stays only when Email was the way it
+// was ticked for — a tick put under Share does not become the customer's consent to emails (QA on
+// #110: Share ticked → Email «Add the address» → OK → the email went with consent: true)
+export const tickAfterAddress = (wayBefore, ticked) => (wayBefore === 'email' ? !!ticked : false);
+
 // The body of POST …/bill/email
 export const emailBody = (to, ticked) => (ticked ? { to: String(to).trim(), consent: true } : { to: String(to).trim() });
 
