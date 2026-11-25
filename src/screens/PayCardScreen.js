@@ -1,5 +1,5 @@
 // «Card payment» (design-mockups/payments card-summary): the phone is back with the technician.
-// Bill + Tip = one charge in the card app (Square) on this phone, its own tip screen off. Who the
+// Bill + Tip = one charge in the card app on this phone, its own tip screen off. Who the
 // tip is for (you, split with the helper, the whole team), then «Charged · record $X» writes two
 // lines (or three, split): the payment (method card, the office has the money) and the tip.
 // No card numbers anywhere (the owner's В-М2). Each line has its own client_request_id, kept
@@ -110,7 +110,7 @@ export default function PayCardScreen({ route, navigation }) {
             </View>
           </View>
           <Box kind="info" icon="card" title={`Charge ${usd(total)} in the card app`}
-            text={tipCents > 0 ? 'Square, on this phone: one charge for all of it. Its own tip screen is off, the tip is already in.' : 'Square, on this phone: one charge. Its own tip screen is off.'} />
+            text={tipCents > 0 ? 'One charge for all of it, on this phone. The card app’s own tip screen is off: the tip is already in.' : 'One charge, on this phone. The card app’s own tip screen is off.'} />
         </View>
 
         {tipCents > 0 ? (

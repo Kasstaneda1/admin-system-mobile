@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ESTIMATE_CHOICES, RESIGN_WORDS, agreedOf, approveError, approveTile, authBody, canApprove, copyName, countText, estimatePriceOf, estimatePriceText, estimateText, writtenText,
+  ESTIMATE_CHOICES, RESIGN_WORDS, agreedOf, approveError, approveTile, approveTileAfterIssue, authBody, canApprove, copyName, countText, estimatePriceOf, estimatePriceText, estimateText, writtenText,
   latestOf, needsEstimateChoice, pickEstimate, ruleText, signHead, signedText, keptEstimate, termsLineOf, signedAtOf, withSignedAt, CLOCK_SKEW_MS, CLOCK_QUEUED_WORDS, clockOff, queuedClockText, clockBoxNow,
 } from './model.js';
 
@@ -109,6 +109,27 @@ test('the Approve tile: kept on the phone, signed, not yet, no connection; none 
   assert.deepEqual(approveTile(VISIT, ok([a]), { failed: null }), { title: 'Approve', line: 'Signed on this phone', warn: 'not sent yet', kind: 'pending' });
   assert.equal(approveTile(VISIT, ok([]), { failed: { kind: 'resign' } }).warn, 'not accepted');
   assert.equal(approveTile({ ...VISIT, role: 'helper' }, ok([a]), null), null);
+});
+
+test('the Approve tile after the bill is issued: gone at diagnostics and a recall unless signed', () => {
+  const none = { title: 'Approve', line: 'Not signed yet', warn: null, kind: 'none' };
+  const signed = { title: 'Approve', line: 'Signed 11:31 · $230.00', warn: null, kind: 'signed' };
+  const pending = { title: 'Approve', line: 'Signed on this phone', warn: 'not sent yet', kind: 'pending' };
+  const unknown = { title: 'Approve', line: 'Needs connection', warn: null, kind: 'unknown' };
+  const issued = { status: 'issued', bill: { id: 4, status: 'issued' } };
+  const draft = { status: 'draft', bill: { id: 4, status: 'draft' } };
+  const diag = { ...VISIT, visit_kind: 'diagnostics' };
+  assert.equal(approveTileAfterIssue(none, diag, issued), null);
+  assert.equal(approveTileAfterIssue(unknown, diag, issued), null);
+  assert.equal(approveTileAfterIssue(none, { ...VISIT, visit_kind: 'recall' }, issued), null);
+  assert.equal(approveTileAfterIssue(signed, diag, issued), signed);
+  assert.equal(approveTileAfterIssue(pending, diag, issued), pending);
+  // before the issue it stays (a repair on the spot), and a repair keeps it as it was
+  assert.equal(approveTileAfterIssue(none, diag, draft), none);
+  assert.equal(approveTileAfterIssue(none, diag, null), none);
+  assert.equal(approveTileAfterIssue(none, diag, { status: 'unknown', bill: null }), none);
+  assert.equal(approveTileAfterIssue(none, { ...VISIT, visit_kind: 'repair' }, issued), none);
+  assert.equal(approveTileAfterIssue(null, diag, issued), null);
 });
 
 test('a refusal in words: offline keeps it, amount or terms changed — the customer signs again', () => {

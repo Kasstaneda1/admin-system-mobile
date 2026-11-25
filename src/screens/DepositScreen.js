@@ -272,7 +272,7 @@ export default function DepositScreen({ route, navigation }) {
           ) : null}
           {tile === 'card' ? (
             <Section label="Card">
-              <Box kind="info" icon="info" text="Charge it in the card app (Square) on this phone. Never type a card number into SEMIX." />
+              <Box kind="info" icon="info" text="Charge it in the card app on this phone. Never type a card number into SEMIX." />
             </Section>
           ) : null}
           {tile === 'other' ? (
