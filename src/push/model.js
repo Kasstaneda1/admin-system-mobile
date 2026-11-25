@@ -8,6 +8,9 @@
 //   sign out whatever the answer.
 //   A push carries in data only visit_id and its kind: the visit itself comes from the server.
 
+import { clockAmPm, momentWall } from '../myDay/model.js';
+import { monthDay } from '../myDay/visit.js';
+
 // An Expo push token as getExpoPushTokenAsync gives it
 const TOKEN = /^Expo(nent)?PushToken\[[^\]\s]+\]$/;
 export const isPushToken = (token) => typeof token === 'string' && token.length <= 200 && TOKEN.test(token);
@@ -83,6 +86,52 @@ export const PUSH_ROWS = {
   ask: { title: 'Notifications are not on', text: 'Turn them on to hear about new and moved visits.', button: 'Turn on notifications', action: 'ask' },
 };
 export const pushRowOf = (state) => PUSH_ROWS[state] || null;
+
+// ---------- «Notifications: on» in More (PN-APP п. 1) ----------
+// With notifications allowed on the phone, More says whether a push can reach it: GET
+// /api/my/push-devices/status (PN-BE) → { registered, devices [{ id, active, last_seen_at, … }],
+// last_push { at, kind, status, code } | null, waiting, sender_on }. «This phone» is the device
+// row the POST of this run answered (deviceId); without it, any phone on counts as this one only
+// when it is the only one. The words go through textContent-like Text only; no token anywhere.
+// → null (no row: a build without push, notifications not allowed — the card above says it) or
+//   { tone: 'ok' | 'warn' | 'mute', title, text, retry } — retry: a tap registers this phone again
+const FAILED_PUSH = ['failed', 'no_device', 'inactive'];
+// 'Nov 24, 10:24 PM' on New York's wall clock; null when the moment is unknown
+export function pushWhen(iso) {
+  const at = momentWall(iso);
+  return at ? `${monthDay(at.date)}, ${clockAmPm(at.minutes)}` : null;
+}
+export function thisPhoneOn(status, deviceId) {
+  const devices = status && Array.isArray(status.devices) ? status.devices : [];
+  if (deviceId !== null && deviceId !== undefined) return devices.some((d) => d && d.id === deviceId && d.active !== false);
+  const on = devices.filter((d) => d && d.active !== false);
+  return on.length === 1;
+}
+export function pushStatusRow({ state, status, deviceId = null, failed = false }) {
+  if (state !== 'on') return null;
+  const row = rowOf(state, status, deviceId, failed);
+  // a yellow row says what it is in its title: «on» would argue with «not registered» (the Designer on #99)
+  return row && row.tone === 'warn' ? { ...row, title: 'Notifications: not working' } : row;
+}
+function rowOf(state, status, deviceId, failed) {
+  const title = 'Notifications: on';
+  if (!status) {
+    if (failed) return { tone: 'warn', title, text: 'Couldn’t check this phone — tap to retry', retry: true };
+    return { tone: 'mute', title, text: 'Checking this phone…', retry: false };
+  }
+  if (status.sender_on === false) {
+    return { tone: 'warn', title, text: 'The server is not sending notifications right now', retry: false };
+  }
+  if (!thisPhoneOn(status, deviceId)) {
+    return { tone: 'warn', title, text: 'This phone is not registered — tap to retry', retry: true };
+  }
+  const last = status.last_push && typeof status.last_push === 'object' ? status.last_push : null;
+  const when = last ? pushWhen(last.at) : null;
+  if (last && FAILED_PUSH.includes(last.status)) {
+    return { tone: 'warn', title, text: `This phone registered · last push failed${when ? ` ${when}` : ''}`, retry: false };
+  }
+  return { tone: 'ok', title, text: `This phone registered · ${when ? `last push ${when}` : 'no push yet'}`, retry: false };
+}
 
 // The server's answer to POST: 'ok'; 'quiet' — not for this person now (403) or the session is
 // gone (401): nothing to show; 'later' — no network or the server failed: the next start tries

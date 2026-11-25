@@ -32,6 +32,8 @@ const within = (promise, ms) => Promise.race([promise, new Promise((resolve) => 
 
 // The token this run gave the server (or got from Expo): Sign out takes it off the server
 let known = null;
+// The id of this phone's row on the server, from the answer to the POST of this run (or null)
+let deviceId = null;
 let running = null;
 
 async function tokenOf(N, ms) {
@@ -54,7 +56,11 @@ async function register() {
   if (!body) return 'none';
   let status = 0;
   try {
-    status = (await pushAPI.register(body)).status;
+    const sent = await pushAPI.register(body);
+    status = sent.status;
+    // the server's row of this phone: More finds it in the status (PN-APP)
+    const device = sent.data && sent.data.device;
+    if (status >= 200 && status < 300 && device && Number.isSafeInteger(device.id)) deviceId = device.id;
   } catch (error) {
     status = error && error.response ? error.response.status : 0;
   }
@@ -97,6 +103,7 @@ export async function forgetDevice() {
   try {
     const token = known || await tokenOf(N, 3000);
     known = null;
+    deviceId = null;
     last = null; // the next person signed in on this phone registers at every return until it is there
     if (!token) return;
     await within(pushAPI.forget(token).catch(() => null), 5000);
@@ -142,6 +149,13 @@ export async function pushState() {
   } catch (error) {
     return 'none';
   }
+}
+
+// Whether a push reaches this phone (More, PN-APP): { status, deviceId } — status: the server's
+// answer (model pushStatusRow), or null when it did not come (no network, the server failed)
+export async function pushStatus() {
+  const got = await pushAPI.status();
+  return { status: got.status === 200 && got.data && got.data.status ? got.data.status : null, deviceId };
 }
 
 // The app's page in iOS Settings (Notifications is on it)

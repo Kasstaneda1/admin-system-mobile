@@ -2,7 +2,7 @@
 // who is signed in, the screens with no tab of their own — Warehouse, Payments, Receipts, Unpaid —
 // Sign out (asked once) and the app's version. Words and rows in src/more/model.js.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { useAuth } from '../session/AuthContext';
@@ -11,8 +11,8 @@ import { SalaryFrame, TabTitle } from '../salary/parts';
 import { MORE_SECTIONS, SIGN_OUT, initials, nameLine, roleLine, signedInLine, versionLine } from '../more/model';
 import appConfig from '../../app.json';
 import { nativeVersion } from '../utils/nativeVersion';
-import { askPush, openPushSettings, pushState, registerDevice } from '../push/push';
-import { pushRowOf } from '../push/model';
+import { askPush, openPushSettings, pushState, pushStatus, registerDevice } from '../push/push';
+import { pushRowOf, pushStatusRow } from '../push/model';
 
 const VERSION = versionLine(appConfig, nativeVersion());
 
@@ -41,11 +41,39 @@ function usePushState() {
   return { state, ask };
 }
 
+// With notifications on: whether a push reaches this phone (PN-APP), read with the state; a tap
+// on «not registered» sends this phone to the server again and reads the answer
+function usePushStatus(state) {
+  const [got, setGot] = useState({ status: null, deviceId: null, failed: false });
+  const [busy, setBusy] = useState(false);
+  const seq = useRef(0);
+  const read = useCallback(async () => {
+    const mine = ++seq.current;
+    let answer = { status: null, deviceId: null };
+    try { answer = await pushStatus(); } catch (error) { /* shown as «tap to retry» */ }
+    if (mine === seq.current) setGot({ ...answer, failed: !answer.status });
+  }, []);
+  // on every opening of More, and once the state comes 'on' (the callback changes with it)
+  useFocusEffect(useCallback(() => { if (state === 'on') read(); }, [state, read]));
+  const retry = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await registerDevice({ fresh: true });
+      await read();
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, read]);
+  return { row: pushStatusRow({ state, ...got }), busy, retry };
+}
+
 export default function MoreScreen({ navigation }) {
   const { user, signOut } = useAuth();
   const login = signedInLine(user);
   const push = usePushState();
   const pushOff = pushRowOf(push.state);
+  const pushOn = usePushStatus(push.state);
 
   const askSignOut = () => {
     Alert.alert(SIGN_OUT.title, SIGN_OUT.text, [
@@ -72,6 +100,22 @@ export default function MoreScreen({ navigation }) {
                 <Text style={styles.offButtonText}>{pushOff.button}</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        ) : null}
+        {pushOn.row ? (
+          <View style={styles.pad}>
+            <TouchableOpacity style={[styles.on, pushOn.row.tone === 'warn' && styles.onWarn]} disabled={!pushOn.row.retry || pushOn.busy}
+              onPress={pushOn.retry} accessibilityRole={pushOn.row.retry ? 'button' : 'text'}
+              accessibilityLabel={`${pushOn.row.title}. ${pushOn.row.text}`} accessibilityState={{ busy: pushOn.busy }}>
+              <Icon name={pushOn.row.tone === 'warn' ? 'warn' : 'checkc'} size={22}
+                color={pushOn.row.tone === 'warn' ? colors.warningFg : pushOn.row.tone === 'ok' ? colors.successFg : colors.fgMutedField} />
+              <View style={styles.offText}>
+                <Text style={[styles.onTitle, pushOn.row.tone === 'warn' && { color: colors.warningFg }]}>{pushOn.row.title}</Text>
+                <Text style={styles.offSub}>{pushOn.busy ? 'Registering this phone…' : pushOn.row.text}</Text>
+              </View>
+              {pushOn.busy ? <ActivityIndicator color={colors.warningFg} />
+                : pushOn.row.retry ? <Icon name="replay" size={20} color={colors.warningFg} /> : null}
+            </TouchableOpacity>
           </View>
         ) : null}
         <View style={styles.pad}>
@@ -132,6 +176,10 @@ const styles = StyleSheet.create({
   offText: { flex: 1, minWidth: 0 },
   offTitle: { fontSize: 17, lineHeight: 22, fontWeight: '700', color: colors.warningFg },
   offSub: { fontSize: 14, lineHeight: 19, color: colors.fgSecondary },
+  // «Notifications: on» (PN-APP): a quiet card; not reaching this phone — the warning colours and a tap to retry
+  on: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  onWarn: { borderWidth: 1.5, borderColor: colors.warningBorder, backgroundColor: colors.warningBg },
+  onTitle: { fontSize: 17, lineHeight: 22, fontWeight: '700', color: colors.fgDefault },
   offButton: { minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.warningBorder, backgroundColor: colors.bgCard },
   offButtonText: { fontSize: 16, fontWeight: '700', color: colors.warningFg },
   section: { marginTop: 14, backgroundColor: colors.bgCard, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.borderSubtle },

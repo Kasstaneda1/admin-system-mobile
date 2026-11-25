@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   PUSH_PROMPT, PUSH_ROWS, appVersionOf, deviceBody, isPushToken, permissionStep, projectIdOf, pushRowOf, registerOutcome, responseKey, visitOfResponse, promptDue,
   WAKE_AGAIN_MS, wakeRegisterDue,
+  pushStatusRow, pushWhen, thisPhoneOn,
 } from './model.js';
 
 const PROJECT = 'fb311ee4-83cd-412b-9432-227f5210af87';
@@ -157,4 +158,52 @@ test('wakeRegisterDue: a return to the app registers until it got there; then ag
   }
   // a broken time: tries
   assert.equal(wakeRegisterDue({ outcome: 'ok', at: NaN }, t), true);
+});
+
+// PN-APP п. 1: «Notifications: on» in More by GET /api/my/push-devices/status (PN-BE)
+const DEV = (id, o = {}) => ({ id, platform: 'ios', app_version: '1.0.0 (3)', last_seen_at: '2026-11-25T03:00:00Z', active: true, disabled_reason: null, ...o });
+const STATUS = (o = {}) => ({ registered: true, devices: [DEV(7)], last_push: { at: '2026-11-25T03:24:00Z', kind: 'visit', status: 'ok', code: null }, waiting: null, sender_on: true, ...o });
+
+test('pushWhen: New York wall clock, «Nov 24, 10:24 PM»; unknown — null', () => {
+  assert.equal(pushWhen('2026-11-25T03:24:00Z'), 'Nov 24, 10:24 PM');
+  assert.equal(pushWhen('2026-07-04T16:05:00Z'), 'Jul 4, 12:05 PM');
+  assert.equal(pushWhen(null), null);
+  assert.equal(pushWhen('soon'), null);
+});
+
+test('thisPhoneOn: the row of this run\'s POST, active; without it only a single phone on counts', () => {
+  assert.equal(thisPhoneOn(STATUS(), 7), true);
+  assert.equal(thisPhoneOn(STATUS(), 8), false, 'another phone of the same person');
+  assert.equal(thisPhoneOn(STATUS({ devices: [DEV(7, { active: false, disabled_reason: 'DeviceNotRegistered' })] }), 7), false);
+  assert.equal(thisPhoneOn(STATUS(), null), true, 'one phone on: it is this one');
+  assert.equal(thisPhoneOn(STATUS({ devices: [DEV(7), DEV(9)] }), null), false, 'two phones and no id: not known which');
+  assert.equal(thisPhoneOn(STATUS({ devices: [] }), null), false);
+  assert.equal(thisPhoneOn(null, 7), false);
+});
+
+test('pushStatusRow: on, registered, last push; not registered — tap to retry; failed; the sender off; no answer', () => {
+  // no row while notifications are not allowed (the card above says it) or there is no push in the build
+  for (const state of [null, 'off', 'ask', 'none']) assert.equal(pushStatusRow({ state, status: STATUS(), deviceId: 7 }), null);
+  assert.deepEqual(pushStatusRow({ state: 'on', status: STATUS(), deviceId: 7 }),
+    { tone: 'ok', title: 'Notifications: on', text: 'This phone registered · last push Nov 24, 10:24 PM', retry: false });
+  assert.equal(pushStatusRow({ state: 'on', status: STATUS({ last_push: null }), deviceId: 7 }).text, 'This phone registered · no push yet');
+  // sent and not yet confirmed, or no receipt in a day: still the time of the last push
+  for (const status of ['sending', 'sent', 'unknown']) {
+    assert.equal(pushStatusRow({ state: 'on', status: STATUS({ last_push: { at: '2026-11-25T03:24:00Z', status } }), deviceId: 7 }).tone, 'ok');
+  }
+  assert.deepEqual(pushStatusRow({ state: 'on', status: STATUS({ registered: false, devices: [] }), deviceId: null }),
+    { tone: 'warn', title: 'Notifications: not working', text: 'This phone is not registered — tap to retry', retry: true });
+  assert.equal(pushStatusRow({ state: 'on', status: STATUS(), deviceId: 8 }).retry, true);
+  for (const status of ['failed', 'no_device', 'inactive']) {
+    assert.deepEqual(pushStatusRow({ state: 'on', status: STATUS({ last_push: { at: '2026-11-25T03:24:00Z', status, code: 'http_400' } }), deviceId: 7 }),
+      { tone: 'warn', title: 'Notifications: not working', text: 'This phone registered · last push failed Nov 24, 10:24 PM', retry: false });
+  }
+  assert.deepEqual(pushStatusRow({ state: 'on', status: STATUS({ sender_on: false }), deviceId: 7 }),
+    { tone: 'warn', title: 'Notifications: not working', text: 'The server is not sending notifications right now', retry: false });
+  // no answer yet; no answer at all (no network, the server failed)
+  assert.deepEqual(pushStatusRow({ state: 'on', status: null }), { tone: 'mute', title: 'Notifications: on', text: 'Checking this phone…', retry: false });
+  assert.deepEqual(pushStatusRow({ state: 'on', status: null, failed: true }),
+    { tone: 'warn', title: 'Notifications: not working', text: 'Couldn’t check this phone — tap to retry', retry: true });
+  // no token in the words, ever
+  assert.equal(JSON.stringify(pushStatusRow({ state: 'on', status: STATUS(), deviceId: 7 })).includes('Token'), false);
 });
