@@ -1,16 +1,21 @@
-// The pieces of My day, design A3 (design-mockups/tech-app/final-a3.html, src2/v2.css and
-// src3/add.css: sizes in pt, colours only tokens from src/constants/colors.js). The words come
-// from model.js; nothing here decides what a visit is.
+// The pieces of My day in the calm look (design-mockups/app-calm p1 and r-rules, the owner
+// 2026-11-25: «несерьёзно» — too many accent colours and decorated shapes). Two colours mean
+// something: brand green — «this is pressed» (Directions, Call, Route, the selected day, the tab);
+// orange — «here, now», one on the screen (the next visit's bar and its block in the strip, the
+// unread dot). Dark amber text — money due, NEXT, the offline line. The rest is black and grey;
+// frames 1 pt; weights 400–700. Sizes in pt, colours only tokens from src/constants/colors.js.
+// The words come from model.js; nothing here decides what a visit is.
 import React, { useEffect, useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from './Icon';
-import { dayOfMonth, weekdayLetter, weekdayOf, windowLines } from './model';
-import { FRESH_TEXT, badgeText, markLabel, tabLabel } from './fresh';
+import { dayOfMonth, weekdayLetter, windowLines } from './model';
+import { FRESH_TEXT, markLabel, tabLabel } from './fresh';
 import { useUnread } from '../estimate/unread';
 import { refreshBell, useBellCount } from '../bell/store';
 import { bellTabLabel } from '../bell/model';
 import { accessLine, accessParts } from './access';
+import { unitText } from './visit';
 
 // «How to get in» text with its codes in large digits (access.js accessParts): style — the text's,
 // bigStyle — the codes'
@@ -22,7 +27,7 @@ export function AccessText({ text, style, bigStyle, numberOfLines }) {
   );
 }
 
-// ---------- tags ----------
+// ---------- tags (other screens still use them; My day says it in words now) ----------
 export const TAG_FAMILIES = {
   done: [colors.successFg, colors.successBg, colors.successBorder],
   diagnostics: [colors.warningFg, colors.warningBg, colors.warningBorder],
@@ -50,73 +55,46 @@ export function Tag({ tag, big = false, fixed = false }) {
   );
 }
 
-export function NowLabel({ text = 'NOW' }) {
-  return <Text style={styles.now} accessibilityLabel={text === 'NOW' ? 'Now' : 'Next'}>{text}</Text>;
-}
-
-// «NEW» or «UPDATED» on a row (fresh.js; design notifications/app.html .mk): the same blue pill
-// as NEW at an office message in the card (#19). It never shrinks: the area gives way first.
-// NOTE (an office message not seen yet) has the message icon in it, as in the design.
+// «New», «Updated», «Note» (fresh.js): the one framed label of the calm look — a black word in
+// a grey 1 pt frame, 4 pt corners; on My day under the time, never beside the name. NOTE (an
+// office message not seen yet) keeps its message icon.
 export function FreshMark({ kind }) {
   const text = FRESH_TEXT[kind];
   if (!text) return null;
   return (
     <View style={styles.mark} accessible accessibilityLabel={markLabel(kind)}>
-      {kind === 'note' ? <Icon name="message" size={12} color={colors.fgOnFill} /> : null}
-      <Text style={styles.markText}>{text.toUpperCase()}</Text>
-    </View>
-  );
-}
-
-// The visit's number in a circle, coloured as its state
-function dotColors(row) {
-  if (row.state === 'moved') return [colors.bgCard, colors.fgSecondary, colors.borderStrong];
-  if (row.current || row.next) return [colors.accent, colors.onAccent, null];
-  if (row.state === 'closed') return [colors.stateDone, colors.stateDoneFg, colors.stateDoneBorder];
-  if (row.helper) return [colors.violetBorder, colors.fgOnFill, null];
-  return [colors.brandPressed, colors.fgOnFill, null];
-}
-export function NumberDot({ row }) {
-  const [bg, fg, border] = dotColors(row);
-  return (
-    <View style={[styles.dot, { backgroundColor: bg }, border && { borderWidth: row.state === 'moved' ? 1.5 : 1, borderColor: border }]}>
-      <Text style={[styles.dotText, { color: fg }]}>{row.n ?? '–'}</Text>
+      {kind === 'note' ? <Icon name="message" size={12} color={colors.fgDefault} /> : null}
+      <Text style={styles.markText}>{text}</Text>
     </View>
   );
 }
 
 // ---------- the strip of the day ----------
-function blockColors(item) {
-  if (item.current) return { backgroundColor: colors.accent, borderColor: colors.infoBorder, borderWidth: 2, color: colors.onAccent };
-  if (item.state === 'closed') return { backgroundColor: colors.stateDone, borderColor: colors.stateDoneBorder, borderWidth: 1, color: colors.stateDoneFg };
-  if (item.helper) return { backgroundColor: colors.violetBorder, color: colors.fgOnFill };
-  return { backgroundColor: colors.brandPressed, color: colors.fgOnFill };
-}
+// Plain blocks at the planned times, no numbers, no window lines; now — a thin black line a little
+// taller than the strip; hour labels under it (model.js stripOf)
+const BLOCK = {
+  done: { backgroundColor: colors.borderDefault },
+  here: { backgroundColor: colors.accent },
+  later: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderControl },
+};
 export function Strip({ strip }) {
   const [width, setWidth] = useState(0);
   const px = (f) => f * width;
   return (
-    <View style={styles.strip} accessible accessibilityLabel="Day at a glance, 8 AM to 7 PM">
+    <View style={styles.strip} accessible accessibilityLabel={strip.label}>
       <View style={styles.track} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
         {width > 0 && strip.items.map((it) => {
-          const winColor = it.state === 'closed' ? colors.borderStrong : it.helper ? colors.violetBorder : colors.brand;
-          const c = blockColors(it);
-          const left = px(it.from);
-          const w = Math.max(16, px(it.to) - left);
-          return (
-            <React.Fragment key={it.key}>
-              <View style={[styles.win, { top: it.track ? 9 : 3, left: px(it.winFrom), width: Math.max(4, px(it.winTo) - px(it.winFrom)), backgroundColor: winColor }]} />
-              <View style={[styles.block, { left: Math.min(left, width - w), width: w, backgroundColor: c.backgroundColor, borderColor: c.borderColor, borderWidth: c.borderWidth || 0, zIndex: it.current ? 4 : 2 }]}>
-                <Text style={[styles.blockText, { color: c.color }]} numberOfLines={1}>{it.n}</Text>
-              </View>
-            </React.Fragment>
-          );
+          const w = Math.max(6, px(it.to) - px(it.from));
+          return <View key={it.key} style={[styles.block, BLOCK[it.kind], { left: Math.min(px(it.from), width - w), width: w, zIndex: it.kind === 'here' ? 2 : 1 }]} />;
         })}
         {width > 0 && strip.now !== null ? <View style={[styles.nowLine, { left: px(strip.now) - 1 }]} /> : null}
       </View>
-      <View style={styles.ticks}>
+      <View style={styles.hours}>
         {width > 0 && strip.ticks.map((t) => (
-          <Text key={t.text} style={[styles.tick, { left: px(t.at) - 20 }]}>{t.text}</Text>
+          <Text key={`${t.text}-${t.at}`} numberOfLines={1}
+            style={[styles.hour, t.align === 'left' ? { left: 0 } : t.align === 'right' ? { right: 0, textAlign: 'right' } : { left: px(t.at) - 20, width: 40, textAlign: 'center' }]}>
+            {t.text}
+          </Text>
         ))}
       </View>
     </View>
@@ -124,87 +102,112 @@ export function Strip({ strip }) {
 }
 
 // ---------- the list ----------
+// A row in three lines of text (model.js): the name on its own line (never cut by labels); the
+// appliance and the problem; the third line — town and kind ahead, result and money after.
+// The visit to go to (NEXT, or NOW on the way / on site) has an orange bar on its left, its full
+// address, «how to get in» as plain text, Directions and Call.
 export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
   const open = row.current || row.next;
-  // NOW, and NEXT open as the card to go to (today only, buildDay): «How to get in» in one line,
-  // the code without opening the visit (usability п. 2; NEXT — the Designer on #86)
+  const closed = row.state === 'closed';
+  const grey = row.state === 'moved';
   const access = open ? accessLine(row.visit.access_notes) : null;
-  const address = [row.visit.address_line, row.visit.address_unit ? `Apt ${row.visit.address_unit}`.replace(/^Apt (apt|unit|#)/i, '$1') : null].filter(Boolean).join(', ');
-  const body = (
-    <>
-      <View style={styles.left}>
-        <NumberDot row={row} />
-        {windowLines(row.window).map((line, i, lines) => (
-          <Text key={i} style={[styles.window, lines.length > 1 && styles.windowLong, row.state === 'closed' && styles.closedText, row.state === 'moved' && styles.movedText]}
-            numberOfLines={lines.length > 1 ? 1 : undefined} adjustsFontSizeToFit={lines.length > 1}>{line}</Text>
-        ))}
-        {/* one line: 'done 10:52', 'plan 10:00' wrapped in the narrow column (the owner, 2026-11-24) */}
-        <Text style={styles.time} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{row.timeText}</Text>
-      </View>
-      <View style={styles.middle}>
-        <View style={styles.line1Row}>
-          <Text style={[styles.line1, styles.line1Text]} numberOfLines={1}>
-            <Text style={[styles.client, (row.state === 'closed' || row.state === 'moved') && styles.closedText]}>{row.client}</Text>
-            {row.area ? <Text style={styles.area}>{` · ${row.area}`}</Text> : null}
-          </Text>
-          {open ? <NowLabel text={row.current ? 'NOW' : 'NEXT'} /> : null}
-          {fresh ? <FreshMark kind={fresh} /> : null}
-        </View>
-        <View style={styles.line2}>
-          <Text style={styles.kind} numberOfLines={1}>{[row.kind, row.duration].filter(Boolean).join(' · ')}</Text>
-          <Tag tag={row.tag} fixed={row.logged} />
-        </View>
-      </View>
-      {onPress && !open ? <Icon name="chev" size={18} color={colors.fgMutedField} style={styles.chev} /> : null}
-    </>
-  );
-  if (!open) {
-    return onPress
-      ? <TouchableOpacity style={styles.row} onPress={onPress} accessibilityRole="button" accessibilityLabel={row.label || undefined}>{body}</TouchableOpacity>
-      : <View style={styles.row} accessible={!!row.label} accessibilityLabel={row.label || undefined}>{body}</View>;
-  }
-  return (
-    <View style={[styles.row, styles.rowOpen, row.current ? styles.rowCurrent : styles.rowNext]}>
-      <Pressable style={styles.openTop} onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined}>{body}</Pressable>
-      {access ? (
-        <View style={styles.access} accessible accessibilityLabel={`How to get in: ${access}`}>
-          <Icon name="key" size={16} color={colors.warningFg} />
-          <AccessText text={access} style={styles.accessText} bigStyle={styles.accessCode} numberOfLines={2} />
-        </View>
-      ) : null}
-      <View style={styles.openActions}>
-        <View style={styles.where}>
-          <Icon name="pin" size={14} color={row.current ? colors.infoFg : colors.brandSoftFg} />
-          <Text style={[styles.whereText, { color: row.current ? colors.infoFg : colors.brandSoftFg }]} numberOfLines={2}>{address || row.area}</Text>
-        </View>
-        <TouchableOpacity style={styles.mini} onPress={onDirections} accessibilityRole="button" accessibilityLabel={`Directions to ${row.clientFull}`}>
-          <Icon name="nav" size={18} color={colors.fgOnFill} />
-          <Text style={styles.miniText}>Directions</Text>
-        </TouchableOpacity>
-        {/* contacts hidden from this technician (src/perms): the office's phone in place of the customer's */}
-        <TouchableOpacity style={[styles.mini, styles.miniGhost]} onPress={onCall} accessibilityRole="button"
-          accessibilityLabel={row.contactsHidden ? 'Call the office' : `Call ${row.clientFull}`}>
-          <Icon name="phone" size={18} color={colors.brandPressed} />
-          <Text style={[styles.miniText, styles.miniGhostText]}>{row.contactsHidden ? 'Office' : 'Call'}</Text>
-        </TouchableOpacity>
-      </View>
+  const unit = unitText(row.visit.address_unit);
+  const address = [row.visit.address_line, unit, row.visit.city].filter(Boolean).join(', ');
+  const left = (
+    <View style={styles.left}>
+      {windowLines(row.window).map((line, i, lines) => (
+        <Text key={i} style={[styles.window, (closed || grey) && styles.quiet, grey && styles.struck]}
+          numberOfLines={1} adjustsFontSizeToFit minimumFontScale={lines.length > 1 ? 0.7 : 0.8}>{line}</Text>
+      ))}
+      {open ? <Text style={styles.nextWord} accessibilityLabel={row.current ? 'Now' : 'Next'}>{row.current ? 'NOW' : 'NEXT'}</Text> : null}
+      {row.under ? <Text style={styles.under} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{row.under}</Text> : null}
+      {fresh ? <FreshMark kind={fresh} /> : null}
     </View>
   );
+  const middle = (
+    <View style={styles.middle}>
+      <Text style={[styles.name, open && styles.nameOpen, (closed || grey) && styles.nameQuiet]} numberOfLines={1}>{row.clientFull}</Text>
+      {row.what ? <Text style={[styles.what, (closed || grey) && styles.quiet]} numberOfLines={open ? 2 : 1}>{row.what}</Text> : null}
+      {row.meta && row.meta.length ? (
+        <Text style={styles.meta} numberOfLines={open ? 2 : 1}>
+          {/* each part whole (no '$95 / fee'): the line breaks only between the parts */}
+          {row.meta.map((m, i) => (
+            <Text key={i} style={m.due ? styles.due : null}>{`${i ? ' · ' : ''}${m.text.replace(/ /g, ' ')}`}</Text>
+          ))}
+        </Text>
+      ) : null}
+      {open ? (
+        <>
+          {address ? (
+            <View style={styles.line}>
+              <Icon name="pin" size={16} color={colors.fgSecondary} />
+              <Text style={styles.lineText} numberOfLines={2}>{address}</Text>
+            </View>
+          ) : null}
+          {access ? (
+            <View style={styles.line} accessible accessibilityLabel={`How to get in: ${access}`}>
+              <Icon name="key" size={16} color={colors.fgSecondary} />
+              <AccessText text={access} style={styles.lineText} bigStyle={styles.code} numberOfLines={2} />
+            </View>
+          ) : null}
+          <View style={styles.acts}>
+            <TouchableOpacity style={styles.dir} onPress={onDirections} accessibilityRole="button" accessibilityLabel={`Directions to ${row.clientFull}`}>
+              <Icon name="nav" size={18} color={colors.fgOnFill} />
+              <Text style={styles.dirText}>Directions</Text>
+            </TouchableOpacity>
+            {/* contacts hidden from this technician (src/perms): the office's phone in place of the customer's */}
+            <TouchableOpacity style={styles.call} onPress={onCall} accessibilityRole="button"
+              accessibilityLabel={row.contactsHidden ? 'Call the office' : `Call ${row.clientFull}`}>
+              <Icon name="phone" size={18} color={colors.brandPressed} />
+              <Text style={styles.callText}>{row.contactsHidden ? 'Office' : 'Call'}</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+  if (open) {
+    return (
+      <Pressable style={[styles.row, styles.rowOpen]} onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined}>
+        <View style={styles.bar} />
+        {left}
+        {middle}
+      </Pressable>
+    );
+  }
+  const body = (
+    <>
+      {left}
+      {middle}
+      {onPress ? <Icon name="chev" size={14} color={colors.fgSecondary} style={styles.chev} /> : null}
+    </>
+  );
+  return onPress
+    ? <TouchableOpacity style={styles.row} onPress={onPress} accessibilityRole="button" accessibilityLabel={row.label || undefined}>{body}</TouchableOpacity>
+    : <View style={styles.row} accessible={!!row.label} accessibilityLabel={row.label || undefined}>{body}</View>;
 }
 
+// Free time: a thin grey line between the rows, dashed rules on both sides, no fill
+// (iOS draws a dashed border only on all four sides: a 1 pt window onto a dashed box)
+function Dashes() {
+  return <View style={styles.dashClip}><View style={styles.dashBox} /></View>;
+}
 export function GapRow({ gap }) {
   return (
-    <View style={styles.gap}>
+    <View style={styles.gap} accessible accessibilityLabel={gap.text}>
+      <Dashes />
       <Text style={styles.gapText}>{gap.text}</Text>
+      <Dashes />
     </View>
   );
 }
 
 // ---------- the week ----------
-// Seven days, Sunday first; under each the number of visits. A swipe sideways goes to the
-// week before or after.
-// marked: { date: n } of the days with a NEW or UPDATED visit (fresh.js freshCounts): a blue
-// dot by the day's number, but not on the day open (its rows show the marks)
+// Seven days, Sunday first; the day's number in a circle (the selected day filled brand green),
+// under it the number of visits (nothing on a day without). A swipe sideways goes to the week
+// before or after.
+// marked: { date: n } of the days with a NEW or UPDATED visit (fresh.js freshCounts): a small
+// orange dot by the day's number, but not on the day open (its rows show the marks)
 export function WeekRow({ week, counts, marked = null, selected, today, onSelect, onWeek }) {
   const pan = useRef(PanResponder.create({
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 18 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
@@ -214,17 +217,18 @@ export function WeekRow({ week, counts, marked = null, selected, today, onSelect
     <View style={styles.week} {...pan.panHandlers} accessibilityRole="tablist">
       {week.map((date) => {
         const on = date === selected;
-        const weekend = weekdayOf(date) === 0 || weekdayOf(date) === 6;
         const count = counts ? counts[date] : undefined;
         const dot = !on && !!(marked && marked[date]);
         return (
-          <TouchableOpacity key={date} style={[styles.wd, on && styles.wdOn]} onPress={() => onSelect(date)}
+          <TouchableOpacity key={date} style={styles.wd} onPress={() => onSelect(date)}
             accessibilityRole="tab" accessibilityState={{ selected: on }}
             accessibilityLabel={`${date}${count !== undefined ? `, ${count} visits` : ''}${marked && marked[date] ? ', new or changed' : ''}`}>
-            {dot ? <View style={styles.wdot} /> : null}
-            <Text style={[styles.wl, on && styles.wOnText]}>{weekdayLetter(date)}</Text>
-            <Text style={[styles.wn, weekend && styles.wWeekend, date === today && styles.wToday, on && styles.wOnText]}>{dayOfMonth(date)}</Text>
-            <Text style={[styles.wc, weekend && styles.wWeekend, !count && styles.wcNone, on && styles.wOnText]}>{count ? String(count) : '–'}</Text>
+            <Text style={styles.wl}>{weekdayLetter(date)}</Text>
+            <View style={[styles.wCircle, on && styles.wCircleOn]}>
+              <Text style={[styles.wn, date === today && styles.wToday, on && styles.wOnText]}>{dayOfMonth(date)}</Text>
+              {dot ? <View style={styles.wdot} /> : null}
+            </View>
+            <Text style={styles.wc}>{count ? String(count) : ''}</Text>
           </TouchableOpacity>
         );
       })}
@@ -233,6 +237,7 @@ export function WeekRow({ week, counts, marked = null, selected, today, onSelect
 }
 
 // ---------- offline / failure line ----------
+// Dark amber text, no fill (the calm rules: amber is text only)
 export function NoticeBar({ text, kind = 'offline' }) {
   return (
     <View style={styles.offbar} accessibilityRole="alert">
@@ -246,7 +251,7 @@ export function NoticeBar({ text, kind = 'offline' }) {
 export function EmptyDay({ title, offer, onOffer, onCallOffice }) {
   return (
     <View style={styles.empty}>
-      <View style={styles.emptyArt}><Icon name="sun" size={52} color={colors.warningFg} /></View>
+      <Icon name="sun" size={44} color={colors.fgMutedField} />
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyText}>Nothing is booked for you. The office may still add a visit; you will see it here.</Text>
       {offer ? (
@@ -265,9 +270,8 @@ export function EmptyDay({ title, offer, onOffer, onCallOffice }) {
 }
 
 // ---------- the tab bar ----------
-// Notifications second, after My day (APP-1, design-mockups/notifications app-bell-day): its count —
-// the bell's unread — is the one count of what is new; My day keeps its NEW / UPDATED marks on the
-// rows, without a number (the lead's decision, the Architect's «NT»)
+// Notifications second, after My day (APP-1, design-mockups/notifications app-bell-day): something
+// unread is an orange dot without a number (the calm look); VoiceOver still says how many
 const TABS = [['cal', 'My day', 'MyDay'], ['bell', 'Notifications', 'Notifications'], ['money', 'Salary', 'Salary'], ['box', 'Parts', 'Parts'], ['more', 'More', 'Home']];
 // A tab already in the stack is gone back to (React Navigation 7: navigate no longer goes back
 // by itself); a tab not in it opens on top, as before
@@ -276,9 +280,9 @@ function openTab(navigation, screen) {
   if (state && state.routes.some((r) => r.name === screen)) navigation.popTo(screen);
   else navigation.navigate(screen);
 }
-// the blue count («9+»): on Notifications — the bell's unread (bell/store.js), asked at most once a
-// minute when a tab bar shows; on Parts — its estimates with messages not read (estimate/unread.js);
-// fresh (My day's NEW and UPDATED) — only for VoiceOver of My day now, the number is the bell's;
+// the dot: on Notifications — the bell's unread (bell/store.js), asked at most once a minute when
+// a tab bar shows; on Parts — its estimates with messages not read (estimate/unread.js);
+// fresh (My day's NEW and UPDATED) — only for VoiceOver of My day;
 // current: the tab this screen belongs to (My day, Salary); pressing it goes back to the tab's
 // first screen (Salary from a job), as tabs do on iPhone
 export function TabBar({ navigation, bottom, fresh = 0, current = 'My day' }) {
@@ -297,7 +301,7 @@ export function TabBar({ navigation, bottom, fresh = 0, current = 'My day' }) {
             accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={said}>
             <View>
               <Icon name={icon} size={24} color={on ? colors.brand : colors.fgMutedField} />
-              {count ? <Text style={styles.badge}>{badgeText(count)}</Text> : null}
+              {count ? <View style={styles.badge} /> : null}
             </View>
             <Text style={[styles.tbText, on && { color: colors.brand }]}>{label}</Text>
           </TouchableOpacity>
@@ -314,84 +318,74 @@ const styles = StyleSheet.create({
   tagFixed: { flexShrink: 0 },
   tagText: { fontSize: 12, fontWeight: '700', flexShrink: 1 },
   tagTextBig: { fontSize: 13 },
-  now: { flexShrink: 0, paddingHorizontal: 6, height: 20, lineHeight: 20, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.accent, color: colors.onAccent, fontSize: 11, fontWeight: '800', letterSpacing: 0.66 },
-  mark: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, height: 18, borderRadius: 6, backgroundColor: colors.infoBorder },
-  markText: { fontSize: 11, lineHeight: 18, fontWeight: '800', letterSpacing: 0.66, color: colors.fgOnFill },
-  dot: { position: 'absolute', left: 0, top: 2, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  dotText: { fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  mark: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4, paddingHorizontal: 5, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 4 },
+  markText: { fontSize: 12, lineHeight: 17, fontWeight: '600', color: colors.fgDefault },
 
-  strip: { marginTop: 6, marginHorizontal: 20, height: 62 },
-  track: { height: 44, borderRadius: 8, backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.borderDefault, overflow: 'hidden' },
-  win: { position: 'absolute', height: 4, borderRadius: 2 },
-  block: { position: 'absolute', top: 15, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  blockText: { fontSize: 12, fontWeight: '800' },
-  nowLine: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: colors.nowLine, zIndex: 3 },
-  ticks: { height: 18 },
-  tick: { position: 'absolute', top: 3, width: 40, textAlign: 'center', fontSize: 11, fontWeight: '600', color: colors.fgMutedField },
+  strip: { marginTop: 12, marginHorizontal: 16 },
+  track: { height: 14, borderRadius: 4, backgroundColor: colors.bgSunken },
+  block: { position: 'absolute', top: 2, height: 10, borderRadius: 3 },
+  nowLine: { position: 'absolute', top: -3, bottom: -3, width: 2, borderRadius: 1, backgroundColor: colors.fgDefault, zIndex: 3 },
+  hours: { height: 16, marginTop: 4, marginBottom: 6 },
+  hour: { position: 'absolute', top: 0, fontSize: 11, color: colors.fgSecondary },
 
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, minHeight: 52, paddingVertical: 6, paddingRight: 4, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
-  rowOpen: { flexDirection: 'column', alignItems: 'stretch', gap: 6, marginVertical: 4, marginHorizontal: -4, paddingTop: 10, paddingBottom: 10, paddingLeft: 4, paddingRight: 8, borderWidth: 2, borderBottomWidth: 2, borderRadius: 14 },
-  rowCurrent: { borderColor: colors.infoBorder, borderBottomColor: colors.infoBorder, backgroundColor: colors.infoBg },
-  rowNext: { borderColor: colors.brand, borderBottomColor: colors.brand, backgroundColor: colors.brandSoft },
-  openTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  openActions: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10 },
-  // «How to get in» on the NOW card (design usab-u2): the warning family, as on the visit
-  access: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginLeft: 10, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: colors.warningBg },
-  accessText: { flex: 1, fontSize: 15, lineHeight: 20, color: colors.warningFg },
-  accessCode: { fontWeight: '800', color: colors.fgDefault },
-  where: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  whereText: { flex: 1, fontSize: 12, fontWeight: '700' },
-  left: { width: 92, paddingLeft: 30 },
-  window: { fontSize: 18, lineHeight: 22, fontWeight: '700', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
-  windowLong: { fontSize: 15, lineHeight: 19 },
-  time: { fontSize: 12, fontWeight: '600', color: colors.fgMutedField },
-  closedText: { color: colors.fgSecondary },
-  movedText: { color: colors.fgMutedField, textDecorationLine: 'line-through' },
-  middle: { flex: 1, minWidth: 0, gap: 3 },
-  line1: { fontSize: 16, lineHeight: 21, color: colors.fgDefault },
-  line1Row: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
-  line1Text: { flexShrink: 1 },
-  client: { fontWeight: '700', color: colors.fgDefault },
-  area: { color: colors.fgSecondary },
-  line2: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
-  kind: { flexShrink: 1, fontSize: 13, color: colors.fgMutedField },
-  chev: { alignSelf: 'center' },
-  mini: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 44, paddingHorizontal: 10, borderRadius: 10, backgroundColor: colors.brandPressed },
-  miniText: { fontSize: 14, fontWeight: '700', color: colors.fgOnFill },
-  miniGhost: { backgroundColor: colors.bgCard, borderWidth: 1.5, borderColor: colors.brandPressed },
-  miniGhostText: { color: colors.brandPressed },
-  gap: { justifyContent: 'center', height: 30, marginVertical: 4, paddingLeft: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.successBorder, borderRadius: 8, backgroundColor: colors.successBg },
-  gapText: { fontSize: 13, fontWeight: '700', color: colors.successFg },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingTop: 12, paddingBottom: 12, paddingLeft: 16, paddingRight: 14, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle, backgroundColor: colors.bgCard },
+  rowOpen: { paddingRight: 16 },
+  bar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.accent },
+  left: { width: 74 },
+  window: { fontSize: 15, lineHeight: 20, fontWeight: '600', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
+  quiet: { color: colors.fgSecondary },
+  struck: { textDecorationLine: 'line-through' },
+  under: { marginTop: 2, fontSize: 13, color: colors.fgSecondary, fontVariant: ['tabular-nums'] },
+  nextWord: { marginTop: 2, fontSize: 12, fontWeight: '700', letterSpacing: 0.5, color: colors.warningFg },
+  middle: { flex: 1, minWidth: 0 },
+  name: { fontSize: 16, lineHeight: 21, fontWeight: '600', color: colors.fgDefault },
+  nameOpen: { fontSize: 18, lineHeight: 23, fontWeight: '700' },
+  nameQuiet: { fontWeight: '500', color: colors.fgSecondary },
+  what: { marginTop: 2, fontSize: 15, lineHeight: 20, color: colors.fgDefault },
+  meta: { marginTop: 3, fontSize: 13, lineHeight: 18, color: colors.fgSecondary },
+  due: { fontWeight: '600', color: colors.warningFg },
+  chev: { marginTop: 4 },
+  line: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8 },
+  lineText: { flex: 1, fontSize: 15, lineHeight: 20, color: colors.fgDefault },
+  code: { fontWeight: '700', color: colors.fgDefault },
+  acts: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  dir: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 10, backgroundColor: colors.brand },
+  dirText: { fontSize: 16, fontWeight: '600', color: colors.fgOnFill },
+  call: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 10, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  callText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed },
 
-  week: { flexDirection: 'row', gap: 2, marginTop: 8 },
-  wd: { flex: 1, alignItems: 'center', height: 58, paddingVertical: 4, borderRadius: 12 },
-  // 8 pt blue with a 2 pt white ring, at the top right of the day's number (design .wdot)
-  wdot: { position: 'absolute', top: 3, left: '50%', marginLeft: 7, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.bgCard, backgroundColor: colors.infoBorder },
-  wdOn: { backgroundColor: colors.brandPressed },
-  wl: { fontSize: 12, fontWeight: '600', color: colors.fgMutedField },
-  wn: { fontSize: 19, lineHeight: 24, fontWeight: '700', color: colors.fgDefault },
-  wc: { fontSize: 12, fontWeight: '700', color: colors.brand },
-  wWeekend: { color: colors.fgMutedField, fontWeight: '500' },
-  wcNone: { color: colors.fgMutedField, fontWeight: '500' }, // a day without visits: a grey dash
-  wToday: { color: colors.brand },
-  wOnText: { color: colors.fgOnFill },
+  gap: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
+  gapText: { fontSize: 13, color: colors.fgSecondary },
+  dashClip: { flex: 1, height: 1, overflow: 'hidden' },
+  dashBox: { height: 2, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.borderDefault },
 
-  offbar: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder },
+  week: { flexDirection: 'row', paddingTop: 8, paddingBottom: 2 },
+  wd: { flex: 1, alignItems: 'center', gap: 2, minHeight: 44 },
+  wl: { fontSize: 12, color: colors.fgSecondary },
+  wCircle: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  wCircleOn: { backgroundColor: colors.brand },
+  wn: { fontSize: 16, fontWeight: '500', color: colors.fgDefault, fontVariant: ['tabular-nums'] },
+  wToday: { fontWeight: '600', color: colors.brandPressed },
+  wOnText: { fontWeight: '600', color: colors.fgOnFill },
+  // a small orange dot with a white ring at the top right of the number
+  wdot: { position: 'absolute', top: 0, right: 0, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors.bgCard, backgroundColor: colors.accent },
+  wc: { height: 13, fontSize: 11, lineHeight: 13, color: colors.fgSecondary },
+
+  offbar: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   offText: { flex: 1, fontSize: 13, color: colors.warningFg },
 
   empty: { alignItems: 'center', gap: 12, paddingTop: 56, paddingHorizontal: 28 },
-  emptyArt: { width: 96, height: 96, borderRadius: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.warningBg },
-  emptyTitle: { fontSize: 26, fontWeight: '700', color: colors.fgDefault, textAlign: 'center' },
-  emptyText: { fontSize: 16, lineHeight: 22, color: colors.fgSecondary, textAlign: 'center', marginBottom: 6 },
-  btnPrimary: { alignSelf: 'stretch', minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, backgroundColor: colors.brandPressed },
-  btnPrimaryText: { fontSize: 17, fontWeight: '700', color: colors.fgOnFill },
-  btnGhost: { alignSelf: 'stretch', flexDirection: 'row', gap: 8, minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderWidth: 2, borderColor: colors.brandPressed, backgroundColor: colors.bgCard },
-  btnGhostText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
+  emptyTitle: { fontSize: 22, fontWeight: '700', color: colors.fgDefault, textAlign: 'center' },
+  emptyText: { fontSize: 15, lineHeight: 21, color: colors.fgSecondary, textAlign: 'center', marginBottom: 6 },
+  btnPrimary: { alignSelf: 'stretch', minHeight: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, backgroundColor: colors.brand },
+  btnPrimaryText: { fontSize: 16, fontWeight: '600', color: colors.fgOnFill },
+  btnGhost: { alignSelf: 'stretch', flexDirection: 'row', gap: 8, minHeight: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  btnGhostText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed },
 
   tabbar: { flexDirection: 'row', paddingTop: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: colors.borderDefault, backgroundColor: colors.bgCard },
   tb: { flex: 1, alignItems: 'center', gap: 2, minHeight: 48 },
   // five tabs in 390: «Notifications» fits at 10.5 pt (the Designer, APP-1)
   tbText: { fontSize: 10.5, fontWeight: '600', color: colors.fgMutedField },
-  // the count on the My day icon (design .bdg): blue, white, a 2 pt white ring
-  badge: { position: 'absolute', top: -8, left: 13, minWidth: 24, height: 24, paddingHorizontal: 5, borderRadius: 12, borderWidth: 2, borderColor: colors.bgCard, overflow: 'hidden', backgroundColor: colors.infoBorder, color: colors.fgOnFill, fontSize: 12, fontWeight: '800', lineHeight: 20, textAlign: 'center' },
+  // something unread: an orange dot with a white ring at the icon's top right (design .c-dot)
+  badge: { position: 'absolute', top: -2, right: -4, width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: colors.bgCard, backgroundColor: colors.accent },
 });

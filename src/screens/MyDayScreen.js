@@ -221,13 +221,13 @@ export default function MyDayScreen({ navigation }) {
             <Text style={styles.hello} numberOfLines={1}>{headerLine(selected, now, user?.fullName)}</Text>
             <Text style={styles.sum} numberOfLines={1}>
               <Text style={styles.sumBig}>{day ? day.summary.big : ' '}</Text>
-              {small ? ` · ${small}` : ''}
+              {small ? ` ${small}` : ''}
             </Text>
           </View>
           {hasStops ? (
             <TouchableOpacity style={styles.routeBtn} accessibilityRole="button" accessibilityLabel={routeDot ? 'Route, a back-and-forth found' : 'Route'}
               onPress={() => navigation.navigate('Route', { date: selected, visits: visits || [], skew: skew.current })}>
-              <Icon name="route" size={18} color={colors.fgOnFill} />
+              <Icon name="route" size={18} color={colors.brandPressed} />
               <Text style={styles.routeText}>Route</Text>
               {routeDot ? <View style={styles.routeDot} /> : null}
             </TouchableOpacity>
@@ -279,22 +279,23 @@ export default function MyDayScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bgCard },
-  top: { paddingTop: 2, paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.borderDefault, backgroundColor: colors.bgCard },
+  top: { paddingTop: 2, paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle, backgroundColor: colors.bgCard },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   greet: { flex: 1, minWidth: 0 },
-  routeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.brandPressed },
-  routeText: { fontSize: 15, fontWeight: '800', color: colors.fgOnFill },
+  // Route: pressed, not «here, now» — a white button with a grey 1 pt frame and brand words (calm)
+  routeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 44, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  routeText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed },
   routeDot: { position: 'absolute', top: -2, right: -2, width: 14, height: 14, borderRadius: 7, backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.bgCard },
-  hello: { fontSize: 14, fontWeight: '600', color: colors.fgMutedField },
-  sum: { fontSize: 16, lineHeight: 26, color: colors.fgSecondary },
-  sumBig: { fontSize: 21, fontWeight: '800', color: colors.fgDefault },
+  hello: { fontSize: 15, color: colors.fgSecondary },
+  sum: { fontSize: 15, lineHeight: 28, color: colors.fgSecondary },
+  sumBig: { fontSize: 22, fontWeight: '700', color: colors.fgDefault },
   body: { flex: 1 },
   bodyContent: { paddingBottom: 16 },
-  list: { paddingTop: 4, paddingHorizontal: 12 },
+  list: { borderTopWidth: 1, borderTopColor: colors.borderSubtle },
   spinner: { marginTop: 48 },
   noData: { alignItems: 'center', gap: 10, paddingTop: 56, paddingHorizontal: 28 },
   noDataTitle: { fontSize: 22, fontWeight: '700', color: colors.fgDefault },
   noDataText: { fontSize: 16, lineHeight: 22, color: colors.fgSecondary, textAlign: 'center' },
-  retry: { alignSelf: 'stretch', minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandPressed },
-  retryText: { fontSize: 17, fontWeight: '700', color: colors.fgOnFill },
+  retry: { alignSelf: 'stretch', minHeight: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brand },
+  retryText: { fontSize: 16, fontWeight: '600', color: colors.fgOnFill },
 });

@@ -13,8 +13,7 @@
 export const DEFAULT_DURATION = 60;   // the server's default when a visit has no duration
 export const DAY_START = 8 * 60;      // the strip and the free time: 8 AM ...
 export const DAY_END = 19 * 60;       // ... to 7 PM
-const GAP_BETWEEN = 75;               // free time between visits shown from this long
-const GAP_END = 60;                   // free time after the last visit shown from this long
+const GAP_MIN = 60;                   // free time shown from this long (an hour)
 export const MAX_WEEKS_KEPT = 2;      // weeks the phone keeps for offline
 
 // ---------- New York time ----------
@@ -93,11 +92,18 @@ export function windowText(start, end) {
   }
   return `${short(start.minutes)}–${short(end.minutes)}`;
 }
+// The window of a row still ahead, as the calm design: '12–3 PM', '9–12 PM' (the end's AM/PM);
+// a window that already says AM/PM stays ('10 PM–12 AM'). Closed rows keep the short '9–12'.
+export function windowAmPm(start, end) {
+  const text = windowText(start, end);
+  if (!text || /[AP]M/.test(text)) return text;
+  return `${text} ${ampm(end.minutes)}`;
+}
 // The window in the list's narrow time column: the short form in one line; one with AM/PM
 // ('10 PM–12 AM') in two, the break after the dash — else it wrapped into three ('10 / PM–12 /
 // AM', the owner 2026-11-24). [line] or [line1, line2]
 export function windowLines(text) {
-  const m = typeof text === 'string' && /[AP]M/.test(text) ? text.match(/^(.+?–)(.+)$/) : null;
+  const m = typeof text === 'string' && (text.match(/[AP]M/g) || []).length > 1 ? text.match(/^(.+?–)(.+)$/) : null;
   return m ? [m[1], m[2]] : [text || ''];
 }
 // '1h', '45m', '1h 15m'
@@ -253,6 +259,83 @@ export function tagOf(visit, { long = false } = {}) {
   return null;
 }
 
+// ---------- the row in calm words (design-mockups/app-calm, the owner 2026-11-25) ----------
+// A row answers where, what is broken and the money in three lines of text: the name; the
+// appliance and the problem; a visit ahead — its town and kind (the next one — its kind, when to
+// arrive and the fee; the full address is under it), a closed one — its result and paid or due.
+
+// The result of a closed visit in plain words (not the kind: one «Diagnostics» on the screen)
+const RESULT_WORDS = {
+  done: 'Repaired', diagnostics_only: 'Diagnosed', deposit: 'Deposit taken', installation: 'Installed',
+  recall: 'Recall checked', estimate_needed: 'Estimate needed', no_access: 'No access', client_rescheduled: 'Moved',
+};
+export function resultWord(visit) {
+  return RESULT_WORDS[visit && visit.outcome] || OLD_CLOSED[visit && visit.status] || 'Closed';
+}
+// 'Repair', 'Repair, visit 2 of 2' — the number only when the job has more than one visit
+// (no «1/1», the owner); an old task: 'Old task'
+export function kindVisitText(visit) {
+  if (visit.legacy) return 'Old task';
+  const kind = kindWord(visit);
+  return visit.visit_count > 1 && visit.visit_number ? `${kind}, visit ${visit.visit_number} of ${visit.visit_count}` : kind;
+}
+// What is broken: 'Washer · stops mid-cycle, code 4C' (the first appliance, '+1' for more; the
+// problem's first line); '' when the office wrote neither
+export function whatOf(visit) {
+  const list = Array.isArray(visit.appliances) ? visit.appliances.filter(Boolean) : [];
+  const first = list.length ? String(list[0].appliance_type || '').trim() || 'Appliance' : '';
+  const type = first ? `${first}${list.length > 1 ? ` +${list.length - 1}` : ''}` : '';
+  const lines = typeof visit.description === 'string' ? visit.description.split('\n') : [];
+  const problem = (lines.find((l) => l.trim()) || '').trim();
+  return [type, problem].filter(Boolean).join(' · ');
+}
+const thousands = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+// Dollars with cents: 9500 → '$95.00', 125050 → '$1,250.50'
+export function dollars(cents) {
+  if (!Number.isFinite(cents)) return null;
+  const abs = Math.abs(Math.round(cents));
+  return `${cents < 0 ? '-' : ''}$${thousands(Math.floor(abs / 100))}.${String(abs % 100).padStart(2, '0')}`;
+}
+// The money of a closed visit (bill_money of the day's answer: the last issued bill, only to the
+// main technician who takes payments; null — nothing): { text: 'Paid $95.00' } or
+// { text: '$95.00 due', due: true }; null when there is nothing to say
+export function moneyOf(visit) {
+  const m = visit && visit.bill_money;
+  if (!m || typeof m !== 'object') return null;
+  if (Number.isFinite(m.balance_cents) && m.balance_cents > 0) return { text: `${dollars(m.balance_cents)} due`, due: true };
+  const settled = m.payment_status === 'paid' || (Number.isFinite(m.balance_cents) && m.balance_cents <= 0);
+  if (settled && Number.isFinite(m.total_cents) && m.total_cents > 0) return { text: `Paid ${dollars(m.total_cents)}` };
+  return null;
+}
+// The quoted fee of a visit ahead: '$95 fee' (the server leaves it null to whoever does not take
+// payments); a recall has none
+function feeText(visit) {
+  const cents = visit.service_call_fee_quoted_cents;
+  if (visit.legacy || visit.visit_kind === 'recall' || !Number.isFinite(cents)) return null;
+  return `${cents % 100 ? dollars(cents) : `$${thousands(cents / 100)}`} fee`;
+}
+// The third line of a row: [{ text, due? }]
+export function metaOf(row, plan) {
+  const v = row.visit;
+  const main = firstName(v.main_technician_name);
+  const helping = v.role === 'helper' ? (main ? `Helping ${main}` : 'Helping') : null;
+  const plain = (t) => (t ? { text: t } : null);
+  let parts;
+  if (row.logged) parts = [plain(kindVisitText(v)), plain(row.tag && row.tag.text)];
+  else if (row.state === 'moved') parts = [plain(kindVisitText(v)), plain('Rescheduled')];
+  else if (row.state === 'closed') parts = [plain(resultWord(v)), moneyOf(v)];
+  else if (row.current || row.next) {
+    let when = null;
+    if (row.state === 'onway') {
+      const at = momentWall(v.omw_at);
+      when = at ? `On the way since ${clock(at.minutes)}` : 'On the way';
+    } else if (row.state === 'onsite') when = 'On site';
+    else if (plan) when = `arrive ~${clock(plan.start.minutes)}`;
+    parts = [plain(kindVisitText(v)), plain(when), plain(helping || feeText(v))];
+  } else parts = [plain(areaOf(v)), plain(kindVisitText(v)), plain(helping)];
+  return parts.filter(Boolean);
+}
+
 // ---------- the day log (backend #139) ----------
 // A visit that was this technician's on a day and that the office then took off that day
 // (moved to another day, gave to another technician, cancelled, or closed as «the customer
@@ -327,16 +410,19 @@ export function buildDay(visits, date, now) {
     const ws = parseWall(v.scheduled_start);
     const we = parseWall(v.scheduled_end);
     const onDay = (w, fallback) => (!w ? fallback : w.date < date ? 0 : w.date > date ? 1440 : w.minutes);
-    let timeText = `plan ${clock(plan.start.minutes)}`;
+    // under the window: 'Done 9:52' on a closed row; NEXT / NOW are the screen's (row.next,
+    // row.current); a row still ahead has nothing there (its plan is «arrive ~1:00» on the next one)
+    let under = '';
     if (state === 'closed') {
       const at = closedMoment(v);
-      timeText = at && at.date === date ? `done ${clock(at.minutes)}` : 'done';
+      under = at && at.date === date ? `Done ${clock(at.minutes)}` : 'Done';
     }
-    // the design's «was today»; another day: 'was Mon'
-    if (logged) timeText = isToday ? 'was today' : `was ${WEEKDAYS[weekdayOf(date)]}`;
-    else if (state === 'moved') timeText = 'moved';
+    // the design's «was today»; another day: 'Was Mon'
+    if (logged) under = isToday ? 'Was today' : `Was ${WEEKDAYS[weekdayOf(date)]}`;
+    else if (state === 'moved') under = 'Moved';
     const tag = logged ? loggedTag(v.office_change, date) : tagOf(v);
-    const window = windowText(ws, we);
+    const ahead = !logged && state !== 'closed' && state !== 'moved';
+    const window = ahead ? windowAmPm(ws, we) : windowText(ws, we);
     const clientFull = (typeof v.client_name === 'string' && v.client_name.trim()) || 'Customer';
     return {
       id: v.id,
@@ -357,10 +443,13 @@ export function buildDay(visits, date, now) {
       kind: kindText(v),
       duration: state === 'sched' && v.role !== 'helper' ? durationText(plan.duration) : null,
       window,
-      timeText,
+      under,
+      what: whatOf(v),
+      meta: null,                       // metaOf, below: it needs current / next
+      plan,
       tag,
       label: logged
-        ? [clientFull, kindText(v), `${window} ${timeText}`.trim(), loggedTag(v.office_change, date, { long: true }).text].filter(Boolean).join(', ')
+        ? [clientFull, kindVisitText(v), `${window} ${under}`.trim(), loggedTag(v.office_change, date, { long: true }).text].filter(Boolean).join(', ')
         : null,
       start: plan.start.minutes,
       end: plan.endMinutes,
@@ -375,6 +464,7 @@ export function buildDay(visits, date, now) {
   const nextRow = rows.find((r) => r.state === 'sched' && r !== current) || null;
   if (current) current.current = true;
   else if (isToday && nextRow) nextRow.next = true;
+  for (const row of all) row.meta = metaOf(row, row.plan);
 
   const done = rows.filter((r) => r.state === 'closed').length;
   const count = rows.length;
@@ -382,7 +472,7 @@ export function buildDay(visits, date, now) {
   let summary;
   if (!count) summary = { big: 'No visits', small: '' };
   else if (isToday) {
-    summary = { big: visitsWord, small: [done ? `${done} done` : null, nextRow ? `next ${clockAmPm(nextRow.start)}` : null].filter(Boolean).join(' · ') };
+    summary = { big: visitsWord, small: [done ? `${done} done` : null, nextRow ? `next at ${clockAmPm(nextRow.start)}` : null].filter(Boolean).join(' · ') };
   } else if (isPast) {
     summary = { big: visitsWord, small: done ? `${done} done` : '' };
   } else {
@@ -394,37 +484,40 @@ export function buildDay(visits, date, now) {
   return { date, isToday, isPast, rows: all, live: rows, current, next: nextRow, summary, gaps: freeTime(rows, { isToday, isPast, now }), count, done };
 }
 
-// Free time on the day: today between the visits still ahead (from now), and after the last
-// visit until 7 PM, on today and days ahead. [{ afterId (row it follows, null = before the
-// first), from, to, text }]
+// Free time on the day (the calm design, the owner 2026-11-25): only time outside EVERY window
+// of a customer still to be seen — a customer whose window is open may still be waiting (5–7 PM
+// was not free while the 4–7 customer waited). A visit's plan outside its window counts as busy
+// too; a closed visit holds nothing. Only between the visits, an hour or more: not at the end of
+// the day, not above the first row; today from now on (a visit on the way or on site holds until
+// now at least). [{ afterId (the row it follows), from, to, text }]
 export function freeTime(rows, { isToday, isPast, now }) {
   if (isPast || !rows.length) return [];
+  const nowMin = isToday ? now.minutes : -Infinity;
+  // a visit on the way or on site holds from now (he is not free on his way to it) until now at least
+  const busy = rows.filter((r) => r.state !== 'closed').map((r) => {
+    const going = isToday && isCurrentState(r.state);
+    return {
+      from: Math.min(r.winStart, r.start, going ? nowMin : Infinity),
+      to: Math.max(r.winEnd, r.end, going ? nowMin : -Infinity),
+    };
+  }).sort((a, b) => a.from - b.from);
   const gaps = [];
-  const nowMin = isToday ? now.minutes : null;
-  let cursor = isToday ? nowMin : -Infinity;
-  let prevId = null;
-  if (isToday) {
-    for (const row of rows) {
-      if (row.state === 'sched') {
-        const from = Math.max(cursor, nowMin);
-        if (row.start - from >= GAP_BETWEEN) gaps.push(gap(prevId, from, row.start));
-      }
-      cursor = Math.max(cursor, row.end);
-      prevId = row.id;
+  let cursor = isToday ? nowMin : null;   // the end of the busy time so far (today: now at least)
+  for (const b of busy) {
+    if (cursor !== null) {
+      const from = Math.max(cursor, nowMin);
+      const before = rows.filter((r) => r.start < b.from);
+      if (b.from - from >= GAP_MIN && before.length) gaps.push(gap(before[before.length - 1].id, from, b.from));
     }
-  } else {
-    cursor = rows.reduce((m, r) => Math.max(m, r.end), 0);
-    prevId = rows[rows.length - 1].id;
+    cursor = cursor === null ? b.to : Math.max(cursor, b.to);
   }
-  const from = Math.max(cursor, isToday ? nowMin : -Infinity);
-  if (DAY_END - from >= GAP_END) gaps.push(gap(prevId, from, DAY_END));
   return gaps;
 }
+// 'Free 3–4 PM · 1h', 'Free 11 AM–1 PM · 2h', 'Free 12:28–2 PM · 1h 32m'
 function gap(afterId, from, to) {
-  // 'Free 11:20–2:00 PM' as designed; a start before the working day says AM: 'Free 1:00 AM–7:00 PM'
-  // (the owner read the old 'Free 1:00–7:00 PM · 18h' as an afternoon of 18 hours)
-  const fromText = from < DAY_START ? clockAmPm(from) : clock(from);
-  return { afterId, from, to, text: `Free ${fromText}–${clockAmPm(to)} · ${durationText(to - from)}` };
+  const sameHalf = ampm(from) === ampm(to) && to - from < 720;
+  const text = `${short(from)}${sameHalf ? '' : ` ${ampm(from)}`}–${short(to)} ${ampm(to)}`;
+  return { afterId, from, to, text: `Free ${text} · ${durationText(to - from)}` };
 }
 
 // The list in order: [{ type: 'row', row } | { type: 'gap', gap }]; a gap follows the row
@@ -438,19 +531,35 @@ export function listItems(day) {
   return items;
 }
 
-// The strip of the day, 8 AM to 7 PM in fractions 0..1: for each row its window (two tracks,
-// so neighbours do not touch) and its planned work; the now line; ticks 8a .. 6p.
-// Known limit: when the plans themselves overlap, their blocks overlap on the strip too.
+// The strip of the day (the calm design): one plain block per visit at its planned time, no
+// numbers, no window lines (they overlapped). kind: 'done' (closed, grey), 'here' (the visit on
+// the way, on site or next — orange), 'later' (white with a grey frame). The scale runs from 8 AM
+// (earlier when a window or plan starts earlier) to the end of the last window or plan, whole
+// hours: a 4–7 window no longer runs into the edge. Labels every 2 hours: the first and the last
+// with AM/PM ('8 AM', '7 PM'), between them the hour alone; none closer than 1½ h to the last.
+// Fractions 0..1. Known limit: plans that overlap give blocks that overlap.
 export function stripOf(day, now) {
-  const span = DAY_END - DAY_START;
-  const x = (m) => Math.min(1, Math.max(0, (m - DAY_START) / span));
+  const live = day.live;
+  const lo = Math.min(DAY_START, ...live.map((r) => Math.min(r.winStart, r.start)));
+  const hi = Math.max(...live.map((r) => Math.max(r.winEnd, r.end)));
+  const startH = Math.max(0, Math.floor(lo / 60));
+  const endH = Math.min(24, Math.max(startH + 2, Math.ceil(hi / 60)));
+  const from = startH * 60;
+  const span = (endH - startH) * 60;
+  const x = (m) => Math.min(1, Math.max(0, (m - from) / span));
+  const hourWord = (h) => `${h % 12 || 12}`;
+  const ticks = [{ at: 0, text: `${hourWord(startH)} ${startH % 24 < 12 ? 'AM' : 'PM'}`, align: 'left' }];
+  for (let h = startH + 2; h * 60 <= endH * 60 - 90; h += 2) ticks.push({ at: x(h * 60), text: hourWord(h), align: 'center' });
+  ticks.push({ at: 1, text: `${hourWord(endH)} ${endH % 24 < 12 ? 'AM' : 'PM'}`, align: 'right' });
   return {
-    items: day.live.map((r, i) => ({
-      id: r.id, key: r.key, n: r.n, state: r.state, helper: r.helper, current: r.current || r.next,
-      track: i % 2, winFrom: x(r.winStart), winTo: x(r.winEnd), from: x(r.start), to: x(r.end),
+    items: live.map((r) => ({
+      id: r.id, key: r.key,
+      kind: r.state === 'closed' ? 'done' : r.current || r.next ? 'here' : 'later',
+      from: x(r.start), to: x(r.end),
     })),
-    now: day.isToday && now.minutes >= DAY_START && now.minutes <= DAY_END ? x(now.minutes) : null,
-    ticks: [8, 10, 12, 14, 16, 18].map((h) => ({ at: x(h * 60), text: h === 12 ? 'noon' : `${h % 12 || 12}${h < 12 ? 'a' : 'p'}` })),
+    now: day.isToday && now.minutes >= from && now.minutes <= endH * 60 ? x(now.minutes) : null,
+    ticks,
+    label: `Day at a glance, ${ticks[0].text} to ${ticks[ticks.length - 1].text}`,
   };
 }
 
