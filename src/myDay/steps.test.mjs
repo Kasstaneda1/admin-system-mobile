@@ -51,9 +51,9 @@ test('a signature kept on this phone counts as signed', () => {
 test('finished: Issue the bill; finished without the signature — Approve is past, not asked again', () => {
   const s = stepsOf(ctx({ visit: done(), known: { status: 'draft', bill: bill({ status: 'draft' }) } }));
   assert.deepEqual(keys(s), ['bill', null]);
-  assert.equal(s.main.label, 'Issue the bill');
+  assert.equal(s.main.label, 'Make the bill final');
   assert.equal(marks(s), 'Approve:todo Bill:now Given:todo Pay:todo Signs:todo');
-  assert.equal(stepsOf(ctx({ visit: done(), known: { status: 'none', bill: null } })).main.label, 'Issue the bill');
+  assert.equal(stepsOf(ctx({ visit: done(), known: { status: 'none', bill: null } })).main.label, 'Make the bill final');
 });
 
 test('the bill not known yet (no connection): Open the bill', () => {
@@ -219,7 +219,7 @@ test('within the rule (needs_new false) or an issued bill: as before', () => {
 
 test('what to do now: on the way or on site, by the kind; none before, after, for a helper', () => {
   const v = (o) => ({ role: 'main', legacy: false, status: 'in_progress', visit_kind: 'diagnostics', ...o });
-  assert.equal(nowWordsOf(v()), 'Find the problem, write the diagnosis, then tap Finish.');
+  assert.equal(nowWordsOf(v()), 'Find the problem, then tap Finish and write what you found.');
   assert.equal(nowWordsOf(v({ status: 'omw', visit_kind: 'repair' })), 'Fix it, add parts to the bill, then tap Finish.');
   assert.equal(nowWordsOf(v({ visit_kind: 'installation' })), 'Install and test the new unit, then tap Finish.');
   assert.equal(nowWordsOf(v({ visit_kind: 'recall' })), 'Check the earlier work, then tap Finish.');

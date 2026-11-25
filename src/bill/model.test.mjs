@@ -132,7 +132,7 @@ test('statusOf: draft with the time it was saved, issued with its number', () =>
   assert.deepEqual(statusOf(BILL, NOW), { chip: { text: 'Draft · no number yet', icon: 'doc', kind: 'neutral' }, saved: 'Saved 12:45' });
   assert.equal(statusOf(BILL, { date: '2026-11-12', minutes: 600 }).saved, 'Saved Nov 11');
   const issued = statusOf({ ...BILL, status: 'issued', label: 'NY-1048', issued_at: '2026-11-11T17:41:00Z' }, NOW);
-  assert.deepEqual(issued, { chip: { text: 'Issued · NY-1048', icon: 'checkc', kind: 'done' }, saved: 'Frozen 12:41' });
+  assert.deepEqual(issued, { chip: { text: 'Final · NY-1048', icon: 'checkc', kind: 'done' }, saved: 'Frozen 12:41' });
 });
 
 test('partiesOf: from, to and the appliance of the visit', () => {
@@ -146,7 +146,7 @@ test('partiesOf: from, to and the appliance of the visit', () => {
 test('blockersOf: what only the office can fix stops the technician\'s issue', () => {
   assert.deepEqual(blockersOf(BILL), []);
   const noTax = { ...BILL, warnings: [{ code: 'tax_missing', message: '…' }, { code: 'credit_not_paid', message: '…' }] };
-  assert.deepEqual(blockersOf(noTax), [{ code: 'tax_missing', text: 'No sales tax set for SEMIX CORP. The office sets it, then you can issue.', hard: true }]);
+  assert.deepEqual(blockersOf(noTax), [{ code: 'tax_missing', text: 'No sales tax set for SEMIX CORP. The office sets it, then try again.', hard: true }]);
   assert.equal(retryTax(blockersOf(noTax)), true);
   assert.equal(retryTax(blockersOf({ ...noTax, lines: [CREDIT] })), false);
   assert.equal(retryTax([]), false);
@@ -159,7 +159,7 @@ test('blockersOf: what only the office can fix stops the technician\'s issue', (
 test('draftedFrom says what the server put in, until someone changes it', () => {
   assert.deepEqual(draftedFrom(BILL), {
     title: 'The bill is drafted for you',
-    text: 'Made from the visit kind Repair: labor, the part from this visit’s parts and the diagnostics credit. Check it with the customer, then issue.',
+    text: 'Made from the visit kind Repair: labor, the part from this visit’s parts and the diagnostics credit. Check it with the customer.',
   });
   assert.equal(draftedFrom({ ...BILL, lines: [{ ...LABOR, changed_by: 2 }, PUMP] }), null);
   assert.equal(draftedFrom({ ...BILL, status: 'issued' }), null);
@@ -246,7 +246,7 @@ test('previewOf: the document as the PDF prints it', () => {
   assert.deepEqual(doc.company.lines, ['123 Example Ave, Suite 4, Queens, NY 11101', '(718) 555-0100 · office@example.com']);
   assert.equal(doc.company.licence, 'NYC DCWP Electronic & Home Appliance Service Dealer · Lic. #0000000-DCA');
   assert.deepEqual(doc.facts.map((f) => [f.label, f.value]), [
-    ['Bill #', 'Given when issued'], ['Job #', '20871'], ['Bill date', 'Nov 11, 2026'], ['Visits', 'Nov 6 · Nov 11'], ['Payment terms', 'Upon completion'],
+    ['Bill #', 'Given when final'], ['Job #', '20871'], ['Bill date', 'Nov 11, 2026'], ['Visits', 'Nov 6 · Nov 11'], ['Payment terms', 'Upon completion'],
   ]);
   assert.equal(doc.facts[0].quiet, true);
   assert.equal(doc.amountDue, '$250.41');
@@ -275,16 +275,16 @@ test('previewOf: the document as the PDF prints it', () => {
 test('billError: the server\'s no in words', () => {
   const err = (status, data) => ({ response: status ? { status, data } : undefined });
   assert.deepEqual(billError(err(0)), { kind: 'offline', text: 'No connection. Try again.' });
-  assert.equal(billError(err(0), { issue: true }).text, 'No connection. The bill is issued only online: the number comes from the server.');
+  assert.equal(billError(err(0), { issue: true }).text, 'No connection. The bill is made final only online: the number comes from the server.');
   assert.equal(billError(err(404, { error: 'This visit has no bill yet: draft it first' })).kind, 'none');
   assert.equal(billError(err(404, { error: 'Visit not found' })).kind, 'gone');
   assert.deepEqual(billError(err(404, { error: 'Line not found' })), { kind: 'refused', text: 'This line is no longer on the bill.' });
   assert.deepEqual(billError(err(409, { code: 'tax_missing', error: 'The company has no default tax: the office sets it or issues the bill' }), { issue: true, company: 'SEMIX CORP' }),
-    { kind: 'refused', text: 'No sales tax set for SEMIX CORP. The office sets it, then you can issue.' });
-  assert.equal(billError(err(409, { code: 'tax_missing' })).text, 'No sales tax set for the company. The office sets it, then you can issue.');
-  assert.equal(billError(err(409, { code: 'profile_missing' })).text, 'The office has not filled in the company details yet. Ask the office, then issue.');
+    { kind: 'refused', text: 'No sales tax set for SEMIX CORP. The office sets it, then try again.' });
+  assert.equal(billError(err(409, { code: 'tax_missing' })).text, 'No sales tax set for the company. The office sets it, then try again.');
+  assert.equal(billError(err(409, { code: 'profile_missing' })).text, 'The office has not filled in the company details yet. Ask the office, then try again.');
   assert.equal(billError(err(409, { code: 'no_lines' })).text, 'The bill has nothing to charge for. Add a service or a part.');
-  assert.deepEqual(billError(err(409, { code: 'total_changed', total_cents: 26041 })), { kind: 'refused', text: 'The total changed to $260.41. Check the bill and issue again.', total: 26041 });
+  assert.deepEqual(billError(err(409, { code: 'total_changed', total_cents: 26041 })), { kind: 'refused', text: 'The total changed to $260.41. Check the bill and try again.', total: 26041 });
   assert.equal(billError(err(400, { error: 'A technician takes a discount as the price book gives it' })).text, 'A technician takes a discount as the price book gives it.');
   assert.equal(billError(err(403, { error: 'Only the main technician of the visit works on its bill' })).kind, 'refused');
   assert.equal(billError(err(409, {})).text, 'The bill could not be changed.');
@@ -338,9 +338,9 @@ test('issue: 409 diagnosis_missing in words; a bill without a diagnosis where it
   const err = { response: { status: 409, data: { error: 'Write the diagnosis first', code: 'diagnosis_missing' } } };
   assert.equal(billError(err, { issue: true }).text, 'Write the diagnosis first: it is printed on the bill. Add it above the lines.');
   assert.equal(billError(err, { issue: true }).kind, 'refused');
-  assert.deepEqual(issueAsk({ warnings: [{ code: 'diagnosis_missing', message: 'No diagnosis on this bill' }] }), { title: 'No diagnosis on this bill. Issue anyway?', text: ISSUE_TEXT });
-  assert.deepEqual(issueAsk({ warnings: [{ code: 'credit_not_paid' }] }), { title: 'Issue the bill?', text: ISSUE_TEXT });
-  assert.deepEqual(issueAsk({}), { title: 'Issue the bill?', text: ISSUE_TEXT });
+  assert.deepEqual(issueAsk({ warnings: [{ code: 'diagnosis_missing', message: 'No diagnosis on this bill' }] }), { title: 'No diagnosis on this bill. Make it final anyway?', text: ISSUE_TEXT });
+  assert.deepEqual(issueAsk({ warnings: [{ code: 'credit_not_paid' }] }), { title: 'Make the bill final?', text: ISSUE_TEXT });
+  assert.deepEqual(issueAsk({}), { title: 'Make the bill final?', text: ISSUE_TEXT });
 });
 
 // USABILITY_2026-11-24 §6: the bill over the customer's approval, by the server's needs_new

@@ -151,7 +151,9 @@ export default function PayScreen({ route, navigation }) {
   };
 
   // ---------- the customer's copy first (d5) ----------
-  const copy = useCopy({ id, bill, required: true });
+  // starts on Printed copy handed (no tick to miss); a stop scrolls to the choice (QA 25.11)
+  const copy = useCopy({ id, bill, required: true, quiet: true });
+  const copyY = useRef(0);
   const [copyBusy, setCopyBusy] = useState(false);
   const [copyFail, setCopyFail] = useState(null);
   const giveCopy = async () => {
@@ -160,7 +162,10 @@ export default function PayScreen({ route, navigation }) {
     setCopyFail(null);
     const r = await copy.give();
     setCopyBusy(false);
-    if (!r.ok) { if (r.text) setCopyFail(r.text); return; }
+    if (!r.ok) {
+      if (r.text) { setCopyFail(r.text); if (scroll.current) scroll.current.scrollTo({ y: Math.max(0, copyY.current - 8), animated: true }); }
+      return;
+    }
     // given: the payment comes next on this screen (the bill read again says delivered)
     if (r.bill) setBill(r.bill); else load();
   };
@@ -214,7 +219,7 @@ export default function PayScreen({ route, navigation }) {
             </>
           ) : (
             <>
-              <Text style={billStyles.noDataTitle}>Issue the bill first</Text>
+              <Text style={billStyles.noDataTitle}>The bill is not final yet</Text>
               <Text style={billStyles.noDataText}>{noBillText(bill)}</Text>
               <View style={styles.stretch}><MainButton text="Open the bill" icon="doc" onPress={() => navigation.navigate('Bill', { id, visit, create: true })} /></View>
             </>
@@ -244,7 +249,7 @@ export default function PayScreen({ route, navigation }) {
       <KeyboardAvoidingView style={billStyles.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView ref={scroll} contentContainerStyle={payStyles.body} keyboardShouldPersistTaps="handled">
           {stage === 'show' && !offline ? (
-            <View style={styles.copyFirst}>
+            <View style={styles.copyFirst} onLayout={(e) => { copyY.current = e.nativeEvent.layout.y; }}>
               <Box kind="warn" icon="doc" title="First, the customer gets a copy of the bill." text="Then you take the payment." />
               <BillCard card={billCardOf(bill, now.date)} compact />
               <CopyChoice copy={copy} label="THE CUSTOMER’S COPY" off={copyBusy} onChange={() => setCopyFail(null)} />
@@ -272,10 +277,10 @@ export default function PayScreen({ route, navigation }) {
           ) : null}
           {stage === 'void' ? (
             <Box kind="warn" icon="warn" style={payStyles.gap} title="This bill is void"
-              text={bill.replaced_by ? `Take the money on the bill that replaced it${bill.replaced_by.label ? ` (${bill.replaced_by.label})` : ''}.` : 'The office reissues it. Take the money on the new bill.'} />
+              text={bill.replaced_by ? `Take the money on the bill that replaced it${bill.replaced_by.label ? ` (${bill.replaced_by.label})` : ''}.` : 'The office makes a new one. Take the money on the new bill.'} />
           ) : null}
           {stage === 'none' ? (
-            <Box kind="info" icon="doc" style={payStyles.gap} title="Issue the bill first"
+            <Box kind="info" icon="doc" style={payStyles.gap} title="The bill is not final yet"
               text={noBillText(bill)} />
           ) : null}
           {stage === 'free' ? <Box kind="plain" icon="info" style={payStyles.gap} title="Nothing to pay" text="This bill is $0.00." /> : null}

@@ -64,7 +64,7 @@ export default function BillPreviewScreen({ route, navigation }) {
       setBill(data.bill);
       const label = data.label || (data.bill && data.bill.label) || '';
       // the next step is giving it (design send): the send screen, back goes to the bill
-      Alert.alert(`Bill ${label} is issued`, issuedText(data.bill),
+      Alert.alert(`Bill ${label} is final`, issuedText(data.bill),
         [{ text: 'OK', onPress: () => navigation.replace('BillSend', { id, visit }) }]);
     } catch (error) {
       const failed = billError(error, { issue: true, company: bill.company && (bill.company.name || bill.company.legal_name) });
@@ -75,14 +75,14 @@ export default function BillPreviewScreen({ route, navigation }) {
       if (failed.kind === 'failed') logError('Error issuing a bill:', error);
       if (failed.reapprove) {
         // the customer approves the new amount on the Approve screen (src/approve)
-        Alert.alert('The bill is not issued', failed.text, [
+        Alert.alert('The bill is not final yet', failed.text, [
           { text: 'Not now', style: 'cancel' },
           { text: 'Approve again', onPress: () => navigation.navigate('Approve', { id, visit, again: true, back: 'Preview' }) },
         ]);
         load();
         return;
       }
-      Alert.alert('The bill is not issued', failed.text);
+      Alert.alert('The bill is not final yet', failed.text);
       if (failed.kind === 'refused') load();
     } finally {
       setIssuing(false);
@@ -93,7 +93,7 @@ export default function BillPreviewScreen({ route, navigation }) {
     const ask = issueAsk(bill);
     Alert.alert(ask.title, ask.text, [
       { text: 'Not yet', style: 'cancel' },
-      { text: 'Issue', onPress: issue },
+      { text: 'Make final', onPress: issue },
     ]);
   };
 
@@ -219,8 +219,8 @@ export default function BillPreviewScreen({ route, navigation }) {
                 text: overApproval(bill).text,
                 onAgain: !visit || canApprove(visit) ? () => navigation.navigate('Approve', { id, visit, again: true, back: 'Preview' }) : null,
               } : null}
-              note={blockers.length ? blockers.map((b) => b.text).join(' ') : 'Issuing gives the number, freezes the bill and makes the PDF. To change it later: Void & reissue.'}>
-              <MainButton text={stopped ? 'Issue · the office has to fix it' : 'Issue the bill'} icon="doc"
+              note={blockers.length ? blockers.map((b) => b.text).join(' ') : 'Making it final gives the number, freezes the bill and makes the PDF. To change it later, the office voids it.'}>
+              <MainButton text={stopped ? 'Make final · the office has to fix it' : 'Make the bill final'} icon="doc"
                 off={stopped} waiting={issuing} onPress={askIssue} />
               {retryTax(blockers) ? (
                 <TouchableOpacity style={styles.retryTax} onPress={askIssue} disabled={issuing} accessibilityRole="button">

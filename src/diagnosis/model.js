@@ -28,7 +28,7 @@ const NO_WORK = ['no_access', 'client_rescheduled'];
 const FINISH_ASKS = ['diagnostics_only', 'deposit', 'estimate_needed'];
 
 export const DIAGNOSIS_HINT = 'What did you find, and what needs to be done? The customer will see this.';
-export const LOCKED_HINT = 'The bill is already issued. Your note is added to the visit and the estimate; the office can reissue the bill if the customer needs it on paper.';
+export const LOCKED_HINT = 'The bill is already final. Your note is added to the visit and the estimate; the office can make a new bill if the customer needs it on paper.';
 
 const words = (value) => (typeof value === 'string' && value.trim() ? value.trim() : null);
 
@@ -235,7 +235,7 @@ export function diagnosisError(error) {
     return { kind: 'conflict', text: 'Someone changed the diagnosis before you', visit: data.visit || null, theirs, diagnosis: raw };
   }
   if (data.code === 'diagnosis_locked') {
-    return { kind: 'locked', text: 'The bill was issued meanwhile. Send your text as an addition to the diagnosis.', visit: data.visit || null, theirs, diagnosis: raw };
+    return { kind: 'locked', text: 'The bill became final meanwhile. Send your text as an addition to the diagnosis.', visit: data.visit || null, theirs, diagnosis: raw };
   }
   const text = failed.text === 'The visit could not be changed' ? 'The diagnosis could not be saved' : failed.text;
   return { kind: 'refused', text, visit: data.visit || null, theirs, diagnosis: raw };

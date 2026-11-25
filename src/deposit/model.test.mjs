@@ -90,7 +90,7 @@ test('rows of the job deposits and the recorded line', () => {
 test('refusals in words', () => {
   assert.equal(depositError(err(409, { code: 'deposits_off' }), { company: 'SEMIX CORP' }).text, 'Deposits are off for SEMIX CORP. An admin turns them on in Company profile.');
   assert.equal(depositError(err(409, { code: 'job_closed' })).text, 'This job is closed or cancelled.');
-  assert.equal(depositError(err(409, { code: 'bill_issued' }), { billLabel: 'NY-1048' }).text, 'Bill NY-1048 is issued. Take the money as a payment on the bill.');
+  assert.equal(depositError(err(409, { code: 'bill_issued' }), { billLabel: 'NY-1048' }).text, 'Bill NY-1048 is final. Take the money as a payment on the bill.');
   assert.equal(depositError(err(409, { code: 'deposit_applied' }), { billLabel: 'NY-1048' }).text, 'Applied to NY-1048. Void the bill to change it.');
   assert.equal(depositError({}).kind, 'offline');
   assert.equal(depositError(err(500, { error: 'x' })).kind, 'failed');
@@ -125,9 +125,9 @@ test('Pay of the bill that took them: History rows and their count', () => {
 
 test('the grey row tapped: this visit\'s issued bill opens Pay; another visit\'s — words only', () => {
   assert.deepEqual(blockedOf(APPLIED, { status: 'issued', label: 'NY-1048' }),
-    { title: 'Bill NY-1048 is issued', text: 'Money for this job now goes to the bill. Take it with Pay: it lowers what is due.', pay: true });
+    { title: 'Bill NY-1048 is final', text: 'Money for this job now goes to the bill. Take it with Pay: it lowers what is due.', pay: true });
   assert.equal(blockedOf(APPLIED, { status: 'draft', label: null }).pay, false);
-  assert.equal(blockedOf(APPLIED, null).title, 'The final bill is issued');
+  assert.equal(blockedOf(APPLIED, null).title, 'The bill is final');
 });
 
 // ---------- the Architect's cases on 2cad7bc (refunds, money with the technician, the head) ----------

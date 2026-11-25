@@ -15,14 +15,14 @@
 // «Already recorded» when it had gone through. The server refusing the photo (photo_*, 413)
 // before anything was recorded drops the attempt: a new photo, a new attempt.
 import React, { useEffect, useReducer, useRef, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { Alert, Text, TextInput, View } from 'react-native';
 import { colors } from '../constants/colors';
 import { payAPI } from '../services/api';
 import { afterPhotoUpload, checkPhotoRefusal } from './checkPhoto';
 import { takeCheckPhoto } from './takeCheckPhoto';
 import { logError } from '../utils/logError';
 import { newRequestId } from '../myDay/actions';
-import { OTHER_CHOICES, alreadyLine, chosenMethod, holderLine, methodWord, payError, paymentBody, paymentInstructionsOf, recordedLine } from './model';
+import { NO_CHECK_NUMBER, OTHER_CHOICES, alreadyLine, askCheckNumber, chosenMethod, holderLine, methodWord, payError, paymentBody, paymentInstructionsOf, recordedLine } from './model';
 import { LOOK_AGAIN, attemptOf, linesLocked, noAnswer, runAttempt, startAttempt } from './attempts';
 import { canEnterCard, entryLocked, entryOf } from './cardEntry';
 import { cardSdkReady } from './stripeSdk';
@@ -121,13 +121,22 @@ export function useMethodForm({ id, visit, bill, amount, partNote, later, naviga
       return { stop: `The photo of the check did not go. ${f.text}` };
     }
   };
-  const record = async () => {
+  // without: true — «Record without a number» was pressed (the press's own argument is an event)
+  const record = async (without) => {
     if (sending || shooting || !built || !bill) return;
     let attempt = attemptOf(bill.id, 'method');
     if (!attempt) {
       // the amount first: a part says why (the server: note_required)
       if (amount.error) { setFailed(amount.error); return; }
       if (built.error) { setFailed(built.error); return; }
+      // a check with no number: asked once, then it goes as it is (pay/model askCheckNumber)
+      if (without !== true && askCheckNumber(shown.tile, numberOf(shown.tile))) {
+        Alert.alert(NO_CHECK_NUMBER.title, NO_CHECK_NUMBER.text, [
+          { text: NO_CHECK_NUMBER.add, style: 'cancel' },
+          { text: NO_CHECK_NUMBER.go, onPress: () => record(true) },
+        ]);
+        return;
+      }
       // the photo first: the attempt's line names its file, the same on every repeat
       setSending(true);
       setFailed(null);
@@ -209,7 +218,7 @@ export function MethodFields({ form, bill, part }) {
       </Section>
       {tile === 'check' ? (
         <Section label="Check">
-          <Field off={locked} label="Check number" value={shown.checkNumber} onChange={form.setCheckNumber} placeholder="1042" max={30} keyboard="number-pad"
+          <Field off={locked} label="Check number" value={shown.checkNumber} onChange={form.setCheckNumber} placeholder="Number on the check" max={30} keyboard="number-pad"
             hint={`Pay to: ${company}. A check made out to you is not accepted.`} />
           <CheckPhotoRow photo={shown.photo} onTake={form.takePhoto} off={sending || shooting || locked} />
         </Section>

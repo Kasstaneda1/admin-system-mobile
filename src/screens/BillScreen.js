@@ -273,7 +273,7 @@ export default function BillScreen({ route, navigation }) {
         <View style={styles.head}>
           {problem ? <Box kind="warn" icon="wifioff" title={problem.kind === 'offline' ? 'No connection' : 'Not refreshed'} text="This is the bill as it was. Pull down to refresh." /> : null}
           {!draft && bill.status === 'issued' ? (
-            <Box kind="done" icon="checkc" title={`Bill ${bill.label || `#${bill.bill_number}`} is issued`}
+            <Box kind="done" icon="checkc" title={`Bill ${bill.label || `#${bill.bill_number}`} is final`}
               text="It is frozen and has its PDF. To change it now, the office voids and reissues it." />
           ) : null}
           {bill.status === 'issued' && deliveryOf(bill, now) ? (

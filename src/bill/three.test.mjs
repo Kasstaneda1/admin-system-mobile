@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { billRow, issueFailText, linesLine, orderOf, pressOf, threeOf } from './three.js';
+import { billRow, issueFailText, linesLine, orderOf, pressOf, threeOf, threeOffersNext } from './three.js';
 import { knownOf } from './model.js';
 
 const NOW = { date: '2026-11-24', minutes: 10 * 60 + 40 };
@@ -61,6 +61,10 @@ test('an empty draft: all calm, «Add the work first», every press opens Change
   assert.equal(t.buttons[1].line, 'Add the work first');
   assert.equal(t.row.line, 'Nothing to charge for yet');
   for (const k of ['sign', 'pay', 'send']) assert.equal(pressOf(t, k, known), 'change');
+  // closed with nothing to charge for: the way on to the next visit is there (QA 25.11, Rita)
+  assert.equal(threeOffersNext(t), true);
+  assert.equal(threeOffersNext(threeOf(ctx({ visit: closed(), known: knownOf(issued()) }))), false);
+  assert.equal(threeOffersNext(null), false);
   // no bill yet: Change too
   const none = threeOf(ctx({ known: knownOf(null) }));
   assert.equal(none.buttons[1].line, 'Add the work first');
@@ -79,7 +83,7 @@ test('a press: a draft is made final first; issued opens; done opens what was do
 test('the modes of visit.steps: signs/collect off are not there, required kept', () => {
   const steps = [{ key: 'omw', mode: 'optional' }, { key: 'finish', mode: 'required' }, { key: 'issue', mode: 'required' },
     { key: 'give', mode: 'required' }, { key: 'collect', mode: 'required' }, { key: 'signs', mode: 'off' }];
-  assert.deepEqual(orderOf(visit({ steps })), { list: [{ key: 'pay', mode: 'required' }, { key: 'send', mode: 'required' }], issue: 'required' });
+  assert.deepEqual(orderOf(visit({ steps })), { list: [{ key: 'pay', mode: 'required' }, { key: 'send', mode: 'required' }], issue: 'required', next: ['pay', 'send'] });
   const t = threeOf(ctx({ visit: closed({ steps }) }));
   assert.equal(keys(t), 'pay:todo* send:todo');
   assert.equal(t.buttons[1].line, 'Email, share or print');
@@ -136,11 +140,12 @@ test('the words when making the bill final did not go through', () => {
   assert.equal(issueFailText({ kind: 'refused', text: 'Write the diagnosis first: it is printed on the bill.' }), 'The bill can’t be made final: Write the diagnosis first: it is printed on the bill.');
 });
 
-test('the order is the company\'s (visit.steps); give required always last (the Architect, SO)', () => {
+test('on the screen always sign · pay · send; the company\'s order picks the orange one; give required last (SO)', () => {
   const step = (key, mode) => ({ key, mode });
-  // today's server default: give → collect → signs, all optional — the company's order as it is
+  // today's server default: give → collect → signs, all optional — the screen keeps sign · pay ·
+  // send (the lead 25.11), Send the bill is orange: first in the company's order
   const old = [step('issue', 'optional'), step('give', 'optional'), step('collect', 'optional'), step('signs', 'optional')];
-  assert.equal(keys(threeOf(ctx({ visit: closed({ steps: old }) }))), 'send:todo* pay:todo sign:todo');
+  assert.equal(keys(threeOf(ctx({ visit: closed({ steps: old }) }))), 'sign:todo pay:todo send:todo*');
   // the new default (SO-BE): give required, then signs, collect — give goes last: d1
   const ny = [step('issue', 'required'), step('give', 'required'), step('signs', 'optional'), step('collect', 'required')];
   const v = closed({ steps: ny });
@@ -160,10 +165,10 @@ test('the order is the company\'s (visit.steps); give required always last (the 
 test('give off: Send the bill stays, calm, never orange; the visit is done without it', () => {
   const steps = [{ key: 'give', mode: 'off' }, { key: 'signs', mode: 'optional' }, { key: 'collect', mode: 'required' }];
   const t = threeOf(ctx({ visit: closed({ steps }) }));
-  assert.equal(keys(t), 'send:todo sign:todo* pay:todo');
+  assert.equal(keys(t), 'sign:todo* pay:todo send:todo');
   const paid = issued({ payment_status: 'paid', balance_cents: 0, payments: [{ kind: 'payment', method: 'cash', amount_cents: 13609, received_at: '2026-11-24T15:28:00Z' }] });
   const done = threeOf(ctx({ visit: closed({ steps }), known: knownOf(paid), ack: { status: 'ok', signed: true } }));
-  assert.equal(keys(done), 'send:todo sign:done pay:done');
+  assert.equal(keys(done), 'sign:done pay:done send:todo');
   assert.equal(done.lit, null);
   assert.equal(done.allDone, true);
 });
@@ -178,7 +183,7 @@ test('skip: the link under the lit one only; skipped grey, the next lit; all fin
   assert.equal(t0.lit, 'send', 'give Optional above signs: Send the bill first in the company\'s order');
   assert.deepEqual(t0.skip, { key: 'give', words: 'Skip sending the bill' });
   const t1 = threeOf(base({ give: { skipped: { at, reason: 'The office sends it' } } }));
-  assert.equal(keys(t1), 'send:skipped sign:todo* pay:todo');
+  assert.equal(keys(t1), 'sign:todo* pay:todo send:skipped');
   const sent = t1.buttons.find((b) => b.key === 'send');
   assert.equal(sent.title, 'Bill not sent');
   assert.equal(sent.line, 'The office sends it · 10:31');

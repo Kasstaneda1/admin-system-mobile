@@ -41,7 +41,7 @@ test('taxSection: the switch and the rate row, as the design draws them', () => 
   // switched off: no rate row, the words for the office (app-tax-off)
   assert.deepEqual(taxSection(OFF), {
     change: true,
-    taxable: { on: false, sub: 'Off: no sales tax on this bill', note: 'The office sees «Tax turned off» on this bill. Turn it on again any time before you issue.' },
+    taxable: { on: false, sub: 'Off: no sales tax on this bill', note: 'The office sees «Tax turned off» on this bill. Turn it on again any time before the bill is final.' },
     rate: null,
   });
   // the company has no default: choose one, or nothing to choose

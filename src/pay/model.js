@@ -115,7 +115,7 @@ export function paidAt(bill) {
 // The chip over the numbers: { text, kind: 'done' | 'warn' | 'neutral' }
 export function chipOf(bill, now) {
   const label = bill.label || `#${bill.bill_number}`;
-  if (bill.status === 'draft') return { text: 'Bill · draft, not issued', kind: 'neutral' };
+  if (bill.status === 'draft') return { text: 'Bill · draft, not final yet', kind: 'neutral' };
   if (bill.status === 'void') return { text: `Bill ${label} · void`, kind: 'neutral' };
   if (bill.delivered_at) {
     const at = momentWall(bill.delivered_at);
@@ -123,8 +123,8 @@ export function chipOf(bill, now) {
   }
   const at = momentWall(bill.issued_at);
   // a company without «Bill before payment»: not given is not a warning there
-  if (!billFirst(bill)) return { text: `Bill ${label} · issued${at ? ` ${whenText(at, now)}` : ''}`, kind: 'neutral' };
-  return { text: `Bill ${label} · issued${at ? ` ${whenText(at, now)}` : ''}, not given`, kind: 'warn' };
+  if (!billFirst(bill)) return { text: `Bill ${label} · final${at ? ` ${whenText(at, now)}` : ''}`, kind: 'neutral' };
+  return { text: `Bill ${label} · final${at ? ` ${whenText(at, now)}` : ''}, not given`, kind: 'warn' };
 }
 function whenText(at, now) {
   return now && at.date === now.date ? clock(at.minutes) : monthDay(at.date);
@@ -166,8 +166,8 @@ export function laterOf(bill, later) {
 }
 // The words when there is no issued bill to pay yet (none, a draft)
 export const noBillText = (bill) => (billFirst(bill)
-  ? 'The customer pays an issued bill. Open the bill, issue it, then give it to the customer.'
-  : 'The customer pays an issued bill. Open the bill and issue it.');
+  ? 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final, then the customer gets a copy.'
+  : 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final first.');
 
 // ---------- the history ----------
 // The bill's payments and tips, oldest first, as rows: { key, payment, title, sub, amount, tip,
@@ -318,6 +318,11 @@ export function tipForLine(forKey, visit, meName) {
 //   kind payment | tip; cents; method (+ name for other); note; checkNumber; later: { reason } —
 //   the bill is sent later (before_delivery); tipFor: { tip_for_user_id? } of tipParts.
 // checkPhotoFileId: the photo of the check uploaded first (POST …/check-photos, pay/checkPhoto.js)
+// A check with no number (QA 25.11: the grey hint «1042» looked like a number typed in, and Record
+// went with none): ask once — not a ban, «Record without a number» goes on
+export const askCheckNumber = (tile, number) => tile === 'check' && !String(number || '').trim();
+export const NO_CHECK_NUMBER = { title: 'No check number', text: 'The office matches the check by its number. Add it, or record the check without one.', add: 'Add the number', go: 'Record without a number' };
+
 export function paymentBody({ kind = 'payment', cents, method, name = null, note = '', checkNumber = '', checkPhotoFileId = null, later = null, tipFor = null, requestId }) {
   if (!(Number.isInteger(cents) && cents > 0)) return { error: 'The amount is more than $0.00.' };
   if (!TITLES[method]) return { error: 'Choose how the customer pays.' };
@@ -387,12 +392,12 @@ export function payError(error) {
   const code = data.code || null;
   if (!status) return { kind: 'offline', text: 'No connection. A payment needs the internet: try again when you are back online.' };
   if (status === 404) {
-    if (/no bill yet/i.test(said)) return { kind: 'refused', code: 'no_bill', text: 'This visit has no bill yet. Issue the bill first.' };
+    if (/no bill yet/i.test(said)) return { kind: 'refused', code: 'no_bill', text: 'This visit has no bill yet. Tap Get paid on the visit: it makes the bill first.' };
     if (/payment not found/i.test(said)) return { kind: 'refused', code: 'not_found', text: 'This payment is no longer on the bill.' };
     return { kind: 'gone', text: 'This visit was changed by the office' };
   }
   switch (code) {
-    case 'not_issued': return { kind: 'refused', code, text: 'Issue the bill first: the payment goes on an issued bill.' };
+    case 'not_issued': return { kind: 'refused', code, text: 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final first.' };
     case 'bill_void': return { kind: 'refused', code, text: 'This bill is void. Take the money on the bill that replaced it.' };
     case 'not_delivered': return { kind: 'refused', code, text: 'Give the bill to the customer first, or say why it is sent later.' };
     case 'over_balance': return { kind: 'refused', code, balance: data.balance_cents, text: data.balance_cents > 0 ? `Only ${usd(data.balance_cents)} is due now. Someone recorded a payment meanwhile: check the amount.` : 'Nothing is due on this bill now.' };

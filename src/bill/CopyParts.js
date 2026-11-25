@@ -19,15 +19,15 @@ import { downloadBillPdf } from './pdf';
 import { alreadyGiven, buttonOf, copyCheck, copyFailText, copyWaysOf, emailBody, firstWay, jobEmailOf, tickOf } from './copy';
 
 // The choice and the sending. bill: the issued bill; required: the copy is required (copy.js
-// copyRequired). give() → { ok: true, bill (the answer's, or null: read it again), show (Show it
+// copyRequired); quiet: start on the way without a tick (copy.js firstWay — the customer's screens). give() → { ok: true, bill (the answer's, or null: read it again), show (Show it
 // on this phone: the screen opens the PDF) } | { ok: false, text (null: the share sheet closed) }
-export function useCopy({ id, bill, required }) {
+export function useCopy({ id, bill, required, quiet = false }) {
   // the job's address until the technician changes it (the bill may come after the screen opens)
   const [typed, setTo] = useState(null);
   const to = typed === null ? jobEmailOf(bill) : typed;
   const ways = useMemo(() => copyWaysOf({ bill, required, to }), [bill, required, to]);
   const [picked, setPicked] = useState(null);
-  const way = picked && ways.some((w) => w.way === picked) ? picked : firstWay(ways, to);
+  const way = picked && ways.some((w) => w.way === picked) ? picked : firstWay(ways, to, quiet);
   const [ticked, setTicked] = useState(false);
   const tick = tickOf(way);
 
@@ -66,7 +66,7 @@ export function useCopy({ id, bill, required }) {
   return { ways, way, setWay: setPicked, to, changeTo, ticked, setTicked, tick, give };
 }
 
-// The rows and the tick. label: «THE CUSTOMER’S COPY» over them, or null; off: while sending
+// The rows and the tick — right under the chosen row, so it is seen with it (QA 25.11). label: «THE CUSTOMER’S COPY» over them, or null; off: while sending
 export function CopyChoice({ copy, label = null, off = false, onChange = null }) {
   const { ways, way, setWay, changeTo, ticked, setTicked, tick } = copy;
   const pick = (w) => {
@@ -84,29 +84,34 @@ export function CopyChoice({ copy, label = null, off = false, onChange = null })
         {ways.map((w) => {
           const on = w.way === way;
           return (
-            <TouchableOpacity key={w.way} style={[styles.row, on && styles.rowOn]} onPress={() => pick(w.way)} disabled={off}
+            <React.Fragment key={w.way}>
+            <TouchableOpacity style={[styles.row, on && styles.rowOn]} onPress={() => pick(w.way)} disabled={off}
               accessibilityRole="radio" accessibilityState={{ checked: on, disabled: off }} accessibilityLabel={w.line ? `${w.title}, ${w.line.replace(' · Change', '')}` : w.title}>
               <Icon name={w.icon} size={24} color={colors.fgDefault} />
               <View style={styles.flex}>
                 <Text style={styles.title}>{w.title}</Text>
                 {w.way === 'email' ? (
-                  <TouchableOpacity onPress={changeTo} disabled={off} accessibilityRole="button" accessibilityLabel="Change the email address" hitSlop={{ top: 6, bottom: 6 }}>
+                  // the address line: Email not chosen yet — the tap chooses it (QA 25.11: it opened
+                  // the address change instead); chosen — «Change» edits the address
+                  <TouchableOpacity onPress={() => (on ? changeTo() : pick('email'))} disabled={off} accessibilityRole="button"
+                    accessibilityLabel={on ? 'Change the email address' : 'Email the PDF'} hitSlop={{ top: 6, bottom: 6 }}>
                     <Text style={styles.line} numberOfLines={1}>{w.line}</Text>
                   </TouchableOpacity>
                 ) : w.line ? <Text style={styles.line} numberOfLines={1}>{w.line}</Text> : null}
               </View>
               <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.dot} /> : null}</View>
             </TouchableOpacity>
+            {on && tick ? (
+              <TouchableOpacity style={styles.tick} onPress={() => { if (!off) { setTicked((t) => !t); if (onChange) onChange(); } }} disabled={off}
+                accessibilityRole="checkbox" accessibilityState={{ checked: ticked, disabled: off }} accessibilityLabel={tick.words}>
+                <View style={[styles.box, ticked && styles.boxOn]}>{ticked ? <Icon name="check" size={18} color={colors.fgOnFill} /> : null}</View>
+                <Text style={styles.tickText}>{tick.words}</Text>
+              </TouchableOpacity>
+            ) : null}
+            </React.Fragment>
           );
         })}
       </View>
-      {tick ? (
-        <TouchableOpacity style={styles.tick} onPress={() => { if (!off) { setTicked((t) => !t); if (onChange) onChange(); } }} disabled={off}
-          accessibilityRole="checkbox" accessibilityState={{ checked: ticked, disabled: off }} accessibilityLabel={tick.words}>
-          <View style={[styles.box, ticked && styles.boxOn]}>{ticked ? <Icon name="check" size={18} color={colors.fgOnFill} /> : null}</View>
-          <Text style={styles.tickText}>{tick.words}</Text>
-        </TouchableOpacity>
-      ) : null}
     </View>
   );
 }

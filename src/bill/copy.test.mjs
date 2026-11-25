@@ -21,6 +21,10 @@ test('chosen at first: Email with an address, else Share', () => {
   assert.equal(firstWay(list, 'x@y.z'), 'email');
   assert.equal(firstWay(list, ''), 'share');
   assert.equal(firstWay(copyWaysOf({ bill: bill({ can_email: false }), required: true }), 'x@y.z'), 'share');
+  // the customer's screens (Get signature, Get paid in NY): the way without a tick first, even
+  // with an address (QA 25.11 — the tick under the fold); the technician still picks Email
+  assert.equal(firstWay(list, 'x@y.z', true), 'handed');
+  assert.equal(firstWay(list, '', true), 'handed');
 });
 
 test('the job’s address: hidden contacts give none', () => {

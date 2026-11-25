@@ -180,9 +180,9 @@ test('the day\'s rows say when the customer\'s contacts are hidden (Office in pl
 
 test('the drafted bill\'s note: the office issues it, the office adds the lines', () => {
   const draft = { status: 'draft', visit_kind: 'repair', lines: [{ id: 1, kind: 'labor' }] };
-  assert.match(draftedFrom(draft).text, /then issue\.$/);
-  assert.match(draftedFrom({ ...draft, can_take_payments: false }).text, /The office issues it\.$/);
-  assert.match(draftedFrom({ ...draft, prices_visible: false }).text, /The office issues it\.$/);
+  assert.match(draftedFrom(draft).text, /Check it with the customer\.$/);
+  assert.match(draftedFrom({ ...draft, can_take_payments: false }).text, /The office makes it final\.$/);
+  assert.match(draftedFrom({ ...draft, prices_visible: false }).text, /The office makes it final\.$/);
   const empty = { ...draft, lines: [] };
   assert.match(draftedFrom(empty).text, /Add the lines from the price book\.$/);
   assert.match(draftedFrom({ ...empty, can_edit_lines: false }).text, /The office adds the lines\.$/);

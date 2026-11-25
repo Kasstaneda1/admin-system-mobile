@@ -67,7 +67,7 @@ export function linkError(error) {
     case 'nothing_due': return { kind: 'refused', code, text: 'Nothing is due on this bill now.' };
     case 'over_balance': return { kind: 'refused', code, text: data.balance_cents > 0 ? `Only ${usd(data.balance_cents)} is due now. Someone recorded a payment meanwhile: check the amount.` : 'Nothing is due on this bill now.' };
     case 'bill_void': return { kind: 'refused', code, text: 'This bill is void. Take the money on the bill that replaced it.' };
-    case 'not_issued': return { kind: 'refused', code, text: 'Issue the bill first: the customer pays an issued bill.' };
+    case 'not_issued': return { kind: 'refused', code, text: 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final first.' };
     case 'payments_off': return { kind: 'refused', code, text: 'Payments are turned off for you. Ask the office.' };
     // the server has no address for Stripe's page (503): trying again does not help
     case 'site_address_off': return { kind: 'refused', code, text: 'Card payments are not ready yet. Take the payment another way and tell the office.' };

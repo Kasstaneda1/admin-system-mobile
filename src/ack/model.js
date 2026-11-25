@@ -73,8 +73,8 @@ export function ackStage(bill, visit = null) {
 // What the technician reads when the customer cannot sign yet (null when they can); `bill` — the
 // visit's bill, for the company's «Bill before payment» (without it giving the bill is not asked)
 export function stageText(stage, bill = null, visit = null) {
-  if ((stage === 'draft' || stage === 'none') && !giveRequired(visit, bill)) return 'Issue the bill first. Then the customer signs for it.';
-  if (stage === 'draft' || stage === 'none') return 'Issue the bill and give it to the customer first. Then they sign that they got it.';
+  if ((stage === 'draft' || stage === 'none') && !giveRequired(visit, bill)) return 'Make the bill final first. Then the customer signs for it.';
+  if (stage === 'draft' || stage === 'none') return 'Make the bill final and give it to the customer first. Then they sign that they got it.';
   if (stage === 'undelivered') return 'Give the bill to the customer first: share the PDF or hand a printed copy. Then they sign that they got it.';
   if (stage === 'void') return 'This bill is void. The customer does not sign for it.';
   return null;

@@ -46,8 +46,13 @@ export function copyWaysOf({ bill, required, to = '' }) {
   return ways;
 }
 
-// Chosen at first: Email when it is there and the job has an address; else Share the PDF
-export function firstWay(ways, to) {
+// Chosen at first: Email when it is there and the job has an address; else Share the PDF.
+// quiet — the copy on the customer's screens (Get signature, Get paid in NY): the bill does not say
+// whether the job holds the customer's agreement to emails, and Email or Share without it stops
+// at «Tick the agreement…» (QA 25.11: the tick was under the fold, the first «Done · signed»
+// always failed) — so the way without a tick, Printed copy handed, until the technician picks one
+export function firstWay(ways, to, quiet = false) {
+  if (quiet && ways.some((w) => w.way === 'handed')) return 'handed';
   if (String(to || '').trim() && ways.some((w) => w.way === 'email')) return 'email';
   return 'share';
 }
