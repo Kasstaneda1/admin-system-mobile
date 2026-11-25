@@ -74,9 +74,9 @@ test('before_delivery: asked only with the rule; never sent for a company withou
 });
 
 test('words without an issued bill and after issuing', () => {
-  assert.equal(noBillText(null), 'The customer pays a final bill. Open the bill and check it, then the customer gets a copy.');
-  assert.equal(noBillText({ status: 'draft', bill_before_payment: true }), 'The customer pays a final bill. Open the bill and check it, then the customer gets a copy.');
-  assert.equal(noBillText({ status: 'draft', bill_before_payment: false }), 'The customer pays a final bill. Open the bill and check it.');
+  assert.equal(noBillText(null), 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final, then the customer gets a copy.');
+  assert.equal(noBillText({ status: 'draft', bill_before_payment: true }), 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final, then the customer gets a copy.');
+  assert.equal(noBillText({ status: 'draft', bill_before_payment: false }), 'The bill is not final yet. Tap Get paid on the visit: it makes the bill final first.');
   assert.equal(issuedText(ON), 'It is frozen and has its PDF. Give it to the customer before taking the payment.');
   assert.equal(issuedText(NOT_GIVEN), 'It is frozen and has its PDF. Give it to the customer before taking the payment.');
   assert.equal(issuedText(OFF), 'It is frozen and has its PDF.');
