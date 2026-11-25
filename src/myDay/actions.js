@@ -8,6 +8,7 @@
 // Try again» sends the same request again (the same client_request_id, written once).
 import { clock, closedMoment, finishLabel, firstName, kindText, momentWall, shortName, stateOf } from './model.js';
 import { keepCard } from './visit.js';
+import { SKIPS, canSkip, skippedOf } from '../steps/skip.js';
 
 export const UNDO_MINUTES = 15;
 
@@ -163,10 +164,14 @@ export function barOf(visit, nowMs, { billFinal = false } = {}) {
   let primary = null;
   let secondary = null;
   const finish = { action: 'finish', label: finishLabel(visit), icon: 'check' };
-  if (actions.includes('omw')) {
+  // On my way skipped (VS-APP, design app-skip k2): Finish is the main one, a grey line under the tag
+  const omwSkipped = visit.role !== 'helper' && state !== 'closed' ? skippedOf(visit, 'omw') : null;
+  if (actions.includes('omw') && !omwSkipped) {
     primary = omw;
     if (actions.includes('finish')) secondary = finish;
   } else if (actions.includes('finish')) primary = finish;
+  // the quiet «Skip On my way» under it, where the company has On my way Optional (k1)
+  const skip = primary === omw && canSkip(visit, 'omw') ? { key: 'omw', words: SKIPS.omw.link } : null;
   const noAccess = actions.includes('no_access') && !billFinal;
 
   let undo = null;
@@ -197,7 +202,11 @@ export function barOf(visit, nowMs, { billFinal = false } = {}) {
   } else if (visit.role === 'helper') {
     line = `${firstName(visit.main_technician_name) || 'The main technician'} finishes the visit`;
   }
-  return { primary, secondary, noAccess, undo, closed, line, empty: !primary && !secondary && !noAccess && !undo && !closed && !line };
+  // skip, omwSkipped — only when there (VS-APP): the bar of a company without the steps is as before
+  return { primary, secondary, noAccess, undo, closed, line,
+    ...(skip ? { skip } : {}),
+    ...(omwSkipped ? { omwSkipped: `${SKIPS.omw.skipped} · ${omwSkipped.reason}` } : {}),
+    empty: !primary && !secondary && !noAccess && !undo && !closed && !line };
 }
 
 // What a press asks the server: { action, outcome } (outcome only with finish)

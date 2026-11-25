@@ -47,6 +47,8 @@ import { callOffice } from '../myDay/officeStore';
 import { visitView } from '../perms/model';
 import { AccessText, NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
+import SkipSheet from '../steps/SkipSheet';
+import { skipBody, skipError } from '../steps/skip';
 import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
 import { nextButtonOf, nextOfDay, nowWordsOf, stepsOf, stripLabel } from '../myDay/steps';
 import { issueFailText, pressOf, threeOf } from '../bill/three';
@@ -448,6 +450,35 @@ export default function VisitScreen({ route, navigation }) {
     }
   }, [id, keepFresh, leaveGone]);
 
+  // ---------- Skip (VS-APP, design-mockups/app-skip) ----------
+  // The sheet of the step (omw, signs, collect, give); a tap on a reason is the skip: the visit as
+  // the server answers it (the skipped button grey, the next one lit). No signal or a refusal: the
+  // sheet stays with the words; the step became Required meanwhile: the sheet goes, the visit is read
+  const [skipKey, setSkipKey] = useState(null);
+  const [skipSending, setSkipSending] = useState(null);
+  const [skipFailure, setSkipFailure] = useState(null);
+  const openSkip = useCallback((key) => { setSkipFailure(null); setSkipSending(null); setSkipKey(key); }, []);
+  const doSkip = useCallback(async (reason) => {
+    if (!skipKey || skipSending) return;
+    const body = skipBody(reason, newRequestId(Date.now() + skew.current));
+    if (!body) return;
+    const mark = myDayMark();
+    setSkipSending(reason);
+    setSkipFailure(null);
+    try {
+      const data = await myDayAPI.skip(id, skipKey, body);
+      setSkipKey(null);
+      if (data && data.visit) await keepFresh(data.visit, mark);
+    } catch (error) {
+      const failed = skipError(error);
+      if (failed.kind === 'gone') { setSkipKey(null); await leaveGone(mark); return; }
+      if (failed.close) { setSkipKey(null); Alert.alert(failed.text); load(); return; }
+      setSkipFailure(failed.text);
+    } finally {
+      setSkipSending(null);
+    }
+  }, [skipKey, skipSending, id, keepFresh, leaveGone, load]);
+
   // ---------- the diagnosis ----------
   const diagCurrent = useMemo(() => (shown ? diagnosisOf(shown.visit) : null), [shown]);
   const diagBlock = useMemo(() => (shown ? diagnosisBlock(shown.visit) : null), [shown]);
@@ -825,6 +856,12 @@ export default function VisitScreen({ route, navigation }) {
               <Tag tag={card.tag} big />
               {card.kindLine ? <Text style={styles.kindLine} numberOfLines={1}>{card.kindLine}</Text> : null}
             </View>
+            {bar && bar.omwSkipped ? (
+              <View style={styles.skLine}>
+                <Icon name="skipc" size={18} color={colors.fgSecondary} />
+                <Text style={styles.skLineText} numberOfLines={2}>{bar.omwSkipped}</Text>
+              </View>
+            ) : null}
             <Text style={styles.name} accessibilityRole="header">{card.name}</Text>
             <View style={updated && updated.was.address ? styles.chg : null}>
               {card.address.line1 ? <Text style={styles.addr1}>{card.address.line1}</Text> : null}
@@ -1058,7 +1095,8 @@ export default function VisitScreen({ route, navigation }) {
           onCancel={() => { setPending(null); setFailure(null); }}
           onNote={extras ? () => setNoteOpen(true) : null}
           bill={billButton} billLink={billLink} steps={steps} onStep={stepPress}
-          three={three} threeNext={threeNext} threeBusy={threeBusy} threeFailure={threeFail} onThree={pressThree} />
+          three={three} threeNext={threeNext} threeBusy={threeBusy} threeFailure={threeFail} onThree={pressThree}
+          onSkip={busy.current || pending ? null : openSkip} />
       ) : null}
       {shown ? (
         <>
@@ -1078,6 +1116,8 @@ export default function VisitScreen({ route, navigation }) {
               text: finishText, failure: finishFailure, sending: diag.sheet.sending,
               onChangeText: (t) => { setFinishText(t); setFinishFailure(null); },
             } : null} />
+          <SkipSheet stepKey={skipKey} sending={skipSending} failure={skipFailure} bottom={insets.bottom}
+            onSkip={doSkip} onClose={() => setSkipKey(null)} />
           <DiagnosisSheet {...diag.sheet} visible={diag.sheet.visible && !!diagBlock} bottom={insets.bottom}
             onChangeText={diag.setText} onSave={diag.save} onUseTheirs={diag.keepTheirs} onAddMine={diag.addMine} onSaveMine={diag.saveMine} onClose={diag.close} />
           <NoAccessSheet step={noAccessStep} words={noAccessWords(shown.visit, hidden)} bottom={insets.bottom}
@@ -1136,6 +1176,9 @@ const styles = StyleSheet.create({
   noticeWrap: { paddingHorizontal: 16, paddingTop: 8 },
   body: { paddingBottom: 32 },
   head: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 18, gap: 4 },
+  // «On my way skipped · …» under the tag (design app-skip k2)
+  skLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4 },
+  skLineText: { flex: 1, fontSize: 15, color: colors.fgSecondary },
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 },
   kindLine: { fontSize: 14, fontWeight: '600', color: colors.fgSecondary, flexShrink: 1 },
   name: { fontSize: 26, lineHeight: 31, fontWeight: '800', color: colors.fgDefault },

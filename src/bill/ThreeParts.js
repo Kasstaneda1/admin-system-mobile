@@ -27,7 +27,10 @@ export function BillRow({ row, onChange, onOpen }) {
 
 // The column in the visit's foot: the three in the company's order; busy: the key in flight;
 // failure: the red line under them (the press itself is «Try again»)
-export function ThreeButtons({ three, busy = null, failure = null, onPress }) {
+// onSkip(stepKey): the quiet link under the orange one (VS-APP, design app-skip k1, k3, k6) —
+// only when three.skip says its step may be skipped; a skipped button is grey and still opens its
+// action (k6)
+export function ThreeButtons({ three, busy = null, failure = null, onPress, onSkip = null }) {
   if (!three) return null;
   if (three.kind === 'nobill') {
     return (
@@ -47,12 +50,19 @@ export function ThreeButtons({ three, busy = null, failure = null, onPress }) {
         const running = busy === b.key;
         const off = !!busy;
         const done = b.state === 'done';
-        const tone = done ? (b.warn ? s.waiting : s.done) : b.lit ? s.lit : s.calm;
-        const fg = done ? colors.successFg : b.lit ? colors.onAccent : colors.brandPressed;
+        const skipped = b.state === 'skipped';
+        const tone = done ? (b.warn ? s.waiting : s.done) : skipped ? s.skipped : b.lit ? s.lit : s.calm;
+        const fg = done ? colors.successFg : skipped ? colors.fgSecondary : b.lit ? colors.onAccent : colors.brandPressed;
         const lineFg = done ? colors.successFg : b.lit ? colors.onAccent : colors.fgSecondary;
         // calm and not done: compact — 52 pt, 17 pt, no line under it; Get paid's sum on the right
         // (the Designer on #96)
-        const compact = !done && !b.lit && !running;
+        const compact = !done && !skipped && !b.lit && !running;
+        const link = b.lit && three.skip && onSkip ? (
+          <TouchableOpacity key={`${b.key}-skip`} style={s.skip} onPress={() => onSkip(three.skip.key)} disabled={off}
+            accessibilityRole="button" accessibilityHint="Asks why">
+            <Text style={s.skipText}>{three.skip.words}</Text>
+          </TouchableOpacity>
+        ) : null;
         if (compact) {
           return (
             <TouchableOpacity key={b.key} style={[s.btn, s.compact, tone, off && s.off]} disabled={off} onPress={() => onPress(b.key)}
@@ -64,15 +74,18 @@ export function ThreeButtons({ three, busy = null, failure = null, onPress }) {
           );
         }
         return (
-          <TouchableOpacity key={b.key} style={[s.btn, tone, off && !running && s.off]} disabled={off} onPress={() => onPress(b.key)}
-            accessibilityRole="button" accessibilityLabel={running ? BUSY_LABELS[b.key] : b.label}
-            accessibilityHint={b.lit ? 'Next step' : undefined} accessibilityState={{ busy: running, disabled: off }}>
-            {running ? <ActivityIndicator color={fg} style={s.icon} /> : <Icon name={done ? 'checkc' : b.icon} size={24} color={fg} />}
-            <View style={s.btnBody}>
-              <Text style={[s.title, done && s.titleDone, { color: fg }]} numberOfLines={1} adjustsFontSizeToFit>{running ? BUSY_WORDS[b.key] : b.title}</Text>
-              {!running && b.line ? <Text style={[s.line, { color: lineFg }]} numberOfLines={1}>{b.line}</Text> : null}
-            </View>
-          </TouchableOpacity>
+          <React.Fragment key={b.key}>
+            <TouchableOpacity style={[s.btn, tone, off && !running && s.off]} disabled={off} onPress={() => onPress(b.key)}
+              accessibilityRole="button" accessibilityLabel={running ? BUSY_LABELS[b.key] : b.label}
+              accessibilityHint={b.lit ? 'Next step' : undefined} accessibilityState={{ busy: running, disabled: off }}>
+              {running ? <ActivityIndicator color={fg} style={s.icon} /> : <Icon name={done ? 'checkc' : b.icon} size={24} color={fg} />}
+              <View style={s.btnBody}>
+                <Text style={[s.title, (done || skipped) && s.titleDone, { color: skipped ? colors.fgDefault : fg }]} numberOfLines={1} adjustsFontSizeToFit>{running ? BUSY_WORDS[b.key] : b.title}</Text>
+                {!running && b.line ? <Text style={[s.line, { color: lineFg }]} numberOfLines={1}>{b.line}</Text> : null}
+              </View>
+            </TouchableOpacity>
+            {link}
+          </React.Fragment>
         );
       })}
       {failure ? <Text style={s.fail} accessibilityLiveRegion="polite" accessibilityRole="alert">{failure}</Text> : null}
@@ -94,6 +107,11 @@ const s = StyleSheet.create({
   lit: { backgroundColor: colors.accent, borderColor: colors.accent },
   done: { backgroundColor: colors.successBg, borderColor: colors.successBorder },
   waiting: { backgroundColor: colors.successBg, borderColor: colors.warningBorder },
+  // a skipped step (design app-skip .act.skp): grey, two lines, still pressable
+  skipped: { backgroundColor: colors.bgSubtle, borderColor: colors.borderSubtle },
+  // the quiet link under the orange one (.sk): centred, 44 pt, 17 pt 700, underlined
+  skip: { alignSelf: 'center', minHeight: 44, marginTop: -8, marginBottom: -6, paddingHorizontal: 14, justifyContent: 'center' },
+  skipText: { fontSize: 17, fontWeight: '700', color: colors.fgSecondary, textDecorationLine: 'underline' },
   off: { opacity: 0.5 },
   icon: { width: 24 },
   btnBody: { flex: 1, minWidth: 0 },

@@ -167,3 +167,50 @@ test('give off: Send the bill stays, calm, never orange; the visit is done witho
   assert.equal(done.lit, null);
   assert.equal(done.allDone, true);
 });
+
+// VS-APP (design-mockups/app-skip): a skipped step is grey and finished for the lit one and «all done»
+test('skip: the link under the lit one only; skipped grey, the next lit; all finished → allDone; done wins', () => {
+  const st = (o = {}) => ['omw', 'diagnosis', 'approve', 'finish', 'issue', 'give', 'signs', 'collect']
+    .map((key) => ({ key, mode: key === 'finish' ? 'required' : key === 'give' ? 'optional' : 'optional', skipped: null, ...(o[key] || {}) }));
+  const at = '2026-11-24T15:31:00Z';
+  const base = (o = {}, known = knownOf(issued())) => ctx({ visit: closed({ steps: st(o) }), known });
+  const t0 = threeOf(base());
+  assert.equal(t0.lit, 'send', 'give Optional above signs: Send the bill first in the company\'s order');
+  assert.deepEqual(t0.skip, { key: 'give', words: 'Skip sending the bill' });
+  const t1 = threeOf(base({ give: { skipped: { at, reason: 'The office sends it' } } }));
+  assert.equal(keys(t1), 'send:skipped sign:todo* pay:todo');
+  const sent = t1.buttons.find((b) => b.key === 'send');
+  assert.equal(sent.title, 'Bill not sent');
+  assert.equal(sent.line, 'The office sends it · 10:31');
+  assert.equal(sent.icon, 'skipc');
+  assert.equal(sent.label, 'Bill not sent: the office sends it, at 10:31. Opens sending.');
+  assert.deepEqual(t1.skip, { key: 'signs', words: 'Skip the signature' });
+  assert.equal(pressOf(t1, 'send', knownOf(issued())), 'open', 'a skipped button still opens its action');
+  const all = threeOf(base({ give: { skipped: { at, reason: 'x' } }, signs: { skipped: { at, reason: 'y' } }, collect: { skipped: { at, reason: 'z' } } }));
+  assert.equal(all.lit, null);
+  assert.equal(all.allDone, true);
+  assert.equal(all.skip, null);
+  // collect Required: «Customer didn't pay» still there (the server's rule)
+  const req = threeOf(base({ give: { skipped: { at, reason: 'x' } }, signs: { skipped: { at, reason: 'y' } }, collect: { mode: 'required' } }));
+  assert.deepEqual(req.skip, { key: 'collect', words: 'Customer didn’t pay' });
+  // done wins over skipped: delivered since
+  const done = threeOf(base({ give: { skipped: { at, reason: 'x' } } }, knownOf(issued({ delivered_at: at, delivered_via: 'handed' }))));
+  assert.equal(done.buttons.find((b) => b.key === 'send').state, 'done');
+  // signs Required: no link under it
+  assert.equal(threeOf(base({ give: { skipped: { at, reason: 'x' } }, signs: { mode: 'required' } })).skip, null);
+  // a helper never gets the link
+  const helper = threeOf(ctx({ visit: closed({ role: 'helper', steps: st() }), known: knownOf(issued()) }));
+  assert.ok(helper === null || helper.skip === null);
+});
+
+test('an empty bill (nothing to charge for): the three calm, none lit, no Skip link (the Designer on #102)', () => {
+  const st = ['omw', 'diagnosis', 'approve', 'finish', 'issue', 'give', 'signs', 'collect']
+    .map((key) => ({ key, mode: key === 'finish' ? 'required' : 'optional', skipped: null }));
+  for (const known of [knownOf(draft({ lines: [], total_cents: 0, tax_cents: 0 })), { status: 'none', bill: null }]) {
+    const t = threeOf(ctx({ visit: closed({ steps: st }), known }));
+    assert.equal(t.empty, true);
+    assert.equal(t.lit, null);
+    assert.equal(t.skip, null);
+    assert.ok(t.buttons.every((b) => !b.lit));
+  }
+});

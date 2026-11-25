@@ -262,3 +262,24 @@ test('the bill is final before Finish (T3, the Architect): no Deposit taken, no 
   const onway = visit({ status: 'omw', omw_at: '2026-11-10T16:08:00.000Z', actions: ['finish', 'undo_omw'], undo_until: '2026-11-10T16:23:00.000Z' });
   assert.equal(barOf(onway, NOW, { billFinal: true }).undo.action, 'undo_omw');
 });
+
+// VS-APP (design-mockups/app-skip k1, k2)
+test('the bar: «Skip On my way» under the lit On my way when Optional; skipped — Finish is the main one, a line', () => {
+  const st = (omw) => [{ key: 'omw', mode: 'optional', skipped: null, ...omw }, { key: 'finish', mode: 'required', skipped: null }];
+  const planned = visit({ status: 'scheduled', actions: ['omw', 'finish', 'no_access'], steps: st({}) });
+  const bar = barOf(planned, NOW);
+  assert.equal(bar.primary.action, 'omw');
+  assert.deepEqual(bar.skip, { key: 'omw', words: 'Skip On my way' });
+  assert.equal(barOf({ ...planned, steps: st({ mode: 'required' }) }, NOW).skip, undefined);
+  assert.equal(barOf({ ...planned, steps: null }, NOW).skip, undefined, 'an older server: as before');
+  const skipped = barOf({ ...planned, steps: st({ skipped: { at: '2026-11-10T15:00:00Z', reason: 'I’m already at the address' } }) }, NOW);
+  assert.equal(skipped.primary.action, 'finish');
+  assert.equal(skipped.secondary, null);
+  assert.equal(skipped.skip, undefined);
+  assert.equal(skipped.omwSkipped, 'On my way skipped · I’m already at the address');
+  // a helper: their own On my way, no link, no line
+  const helper = barOf({ ...planned, role: 'helper', actions: ['omw'], steps: st({ skipped: { at: null, reason: 'x' } }) }, NOW);
+  assert.equal(helper.primary.action, 'omw');
+  assert.equal(helper.skip, undefined);
+  assert.equal(helper.omwSkipped, undefined);
+});
