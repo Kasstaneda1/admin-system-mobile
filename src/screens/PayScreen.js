@@ -34,7 +34,7 @@ import { usd } from '../bill/model';
 import {
   PART_REASONS, VOID_REASONS, amountOf, chipOf, countWord, dueOf, historyOf, laterOf, laterReasonGiven, moneyText, noBillText, numbersOf, paidAt, payError, stageOf, voidBody,
 } from '../pay/model';
-import { collectSub } from '../pay/method';
+import { balanceWord, collectSub } from '../pay/method';
 import { MethodFields, useMethodForm } from '../pay/MethodForm';
 import { Chip, Field, History, Numbers, Pills, Section, payStyles } from '../pay/parts';
 import { depositPayRows, historyLabel } from '../deposit/model';
@@ -276,7 +276,8 @@ export default function PayScreen({ route, navigation }) {
             <Box kind="info" icon="info" style={payStyles.gap} title="The bill is sent later" text={`${later.reason}. The office sends ${label} to the customer.`} />
           ) : null}
 
-          {rows.length || stage === 'collect' ? (
+          {/* no payments yet: no empty History over the methods (the Designer on #92) */}
+          {rows.length ? (
             <History rows={rows} label={historyLabel(rows, countWord)} onVoid={offline ? null : openVoid} />
           ) : null}
           {rows.some((r) => r.voidLeft > 0) ? (
@@ -294,7 +295,7 @@ export default function PayScreen({ route, navigation }) {
                     <>
                       <Field big prefix="$" value={pick === 'full' ? moneyText(due) : typed} onChange={(t) => { setPick('part'); setTyped(t); }}
                         keyboard="decimal-pad" max={12} placeholder="0.00" label={null} a11y="Amount to collect now" autoFocus off={form.sending} />
-                      <Pills items={[{ key: 'full', label: `Full balance ${usd(due)}` }, { key: 'part', label: 'Part of it' }]} value={pick} onPick={(k) => k && choosePart(k)} off={form.sending} />
+                      <Pills items={[{ key: 'full', label: `${balanceWord(bill)} ${usd(due)}` }, { key: 'part', label: 'Part of it' }]} value={pick} onPick={(k) => k && choosePart(k)} off={form.sending} />
                       {pick === 'part' && amount.cents !== null && amount.cents <= due ? (
                         <View style={styles.leftRow}>
                           <Text style={styles.leftLabel}>Left after this</Text>
@@ -304,9 +305,9 @@ export default function PayScreen({ route, navigation }) {
                     </>
                   ) : (
                     <View style={styles.collect}>
-                      <View style={styles.flex} accessible accessibilityLabel={`Collect now ${usd(shownCents)}, ${collectSub(shownPart, shownCents, due)}`}>
+                      <View style={styles.flex} accessible accessibilityLabel={`Collect now ${usd(shownCents)}, ${collectSub(shownPart, shownCents, due, balanceWord(bill))}`}>
                         <Text style={styles.collectBig} numberOfLines={1} adjustsFontSizeToFit>{usd(shownCents)}</Text>
-                        <Text style={styles.collectSub}>{collectSub(shownPart, shownCents, due)}</Text>
+                        <Text style={styles.collectSub}>{collectSub(shownPart, shownCents, due, balanceWord(bill))}</Text>
                       </View>
                       {form.locked ? null : (
                         <TouchableOpacity style={styles.change} onPress={change} disabled={form.sending} accessibilityRole="button" accessibilityLabel="Change the amount">

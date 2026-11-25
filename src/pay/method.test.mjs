@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { collectSub, noteOf, shownOf } from './method.js';
+import { balanceWord, collectSub, noteOf, shownOf } from './method.js';
 import { attemptOf, dropAttempt, runAttempt, startAttempt } from './attempts.js';
 
 const picked = { tile: 'cash', otherKey: null, otherName: '', checkNumber: '', note: '', photo: null };
@@ -46,7 +46,16 @@ test('noteOf: a part sends the «Why only part?» note, a full payment the metho
   assert.equal(noteOf(false, '', null), '');
 });
 
+test('balanceWord: «Full balance» while nothing is taken, «Balance left» after a payment or a deposit', () => {
+  assert.equal(balanceWord({ total_cents: 10343, paid_cents: 0, balance_cents: 10343 }), 'Full balance');
+  assert.equal(balanceWord({ total_cents: 10343, paid_cents: 7000, balance_cents: 3343 }), 'Balance left');
+  assert.equal(balanceWord({ total_cents: 10343, deposits_applied_cents: 2000 }), 'Balance left');
+  assert.equal(balanceWord({ total_cents: 10343 }), 'Full balance');
+  assert.equal(balanceWord(null), 'Full balance');
+});
+
 test('collectSub: full balance, or the part and what is left', () => {
   assert.equal(collectSub(false, 33207, 33207), 'Full balance');
+  assert.equal(collectSub(false, 3343, 3343, 'Balance left'), 'Balance left');
   assert.equal(collectSub(true, 10000, 33207), 'Part of $332.07 · $232.07 left after this');
 });
