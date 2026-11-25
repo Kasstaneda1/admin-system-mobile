@@ -6,7 +6,7 @@
 //   helper: omw and undo_omw (their own «On my way», the visit's status does not change).
 // No queue without the network: a button waits for the answer; with none, «No connection.
 // Try again» sends the same request again (the same client_request_id, written once).
-import { clock, closedMoment, finishLabel, firstName, kindText, momentWall, shortName, stateOf } from './model.js';
+import { clock, clockAmPm, closedMoment, finishLabel, firstName, kindText, momentWall, shortName, stateOf } from './model.js';
 import { keepCard } from './visit.js';
 import { SKIPS, canSkip, modeOfStep, skippedOf, stepOff } from '../steps/skip.js';
 
@@ -213,7 +213,8 @@ export function barOf(visit, nowMs, { billFinal = false } = {}) {
     if (!undo) {
       const at = closedMoment(visit);
       closed = {
-        text: at ? `${closedWord(visit)} at ${clock(at.minutes)}` : closedWord(visit),
+        // with AM/PM, as the state line over the name ('Diagnosed at 8:41 AM', QA on #112)
+        text: at ? `${closedWord(visit)} at ${clockAmPm(at.minutes)}` : closedWord(visit),
         note: visit.role === 'helper' || billFinal ? null : `undo closed after ${UNDO_MINUTES} min`,
       };
     }

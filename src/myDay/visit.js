@@ -350,7 +350,8 @@ export function updatedOf(visit, old = null, oldAt = null) {
     // the time: the window and the plan tiles say what they were (the time matters most)
     const windowWas = (old.scheduled_start || null) !== (visit.scheduled_start || null) || (old.scheduled_end || null) !== (visit.scheduled_end || null);
     if (windowWas) {
-      const before = parseWall(old.scheduled_start) ? windowText(parseWall(old.scheduled_start), parseWall(old.scheduled_end)) : '';
+      // with AM/PM, as the window beside it ('was 1–4 PM' by '2–5 PM', QA on #112)
+      const before = parseWall(old.scheduled_start) ? windowAmPm(parseWall(old.scheduled_start), parseWall(old.scheduled_end)) : '';
       was.window = before ? `was ${before}` : 'new';
     }
     const [op, np] = [planOf(old), planOf(visit)];
