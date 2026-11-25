@@ -145,6 +145,7 @@ export const OUTCOMES = {
   deposit: ['Deposit taken', 'Deposit taken', 'money', 'deposit'],
   installation: ['Installed', 'Installed', 'install', 'installation'],
   recall: ['Recall checked', 'Recall checked', 'replay', 'recall'],
+  estimate_needed: ['Estimate needed', 'Estimate', 'doc', 'estimate'],
   no_access: ['No access', 'No access', 'door', 'neutral'],
   client_rescheduled: ['Moved', 'Moved', 'moved', 'neutral'],
 };

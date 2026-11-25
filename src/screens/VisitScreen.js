@@ -56,7 +56,7 @@ import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myD
 import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
 import { billError, billTile, canBill, draftedFrom, knownOf, overApproval } from '../bill/model';
 import { Box } from '../bill/parts';
-import { approveError, approveTile, canApprove } from '../approve/model';
+import { approveError, approveTile, approveTileAfterIssue, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
 import { VISIT_HINT, depositRow } from '../deposit/model';
 import { approvals } from '../approve/store';
@@ -278,7 +278,8 @@ export default function VisitScreen({ route, navigation }) {
   const updated = useMemo(() => (fresh === 'updated' && shown && before !== undefined
     ? updatedOf(shown.visit, before && before.visit, before && before.at) : null), [fresh, shown, before]);
   const tile = shown ? billTile(shown.visit, known) : null;
-  const approve = shown && payments ? approveTile(shown.visit, approveKnown, approveKept, now.date) : null;
+  // at diagnostics and a recall: no tile once the bill is issued, unless signed (approve/model)
+  const approve = shown && payments ? approveTileAfterIssue(approveTile(shown.visit, approveKnown, approveKept, now.date), shown.visit, known) : null;
   // signed (here or on this phone, not sent yet) — the brand tile with a tick; not signed or not
   // known yet — white with a border, no tick, so «to do» never looks like «done» (Дизайнер, #44)
   // the draft grew over the customer's approval (bill/model overApproval, usability п. 6): the

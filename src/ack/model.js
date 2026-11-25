@@ -147,8 +147,8 @@ function shortDay(date) {
 //   has no bill; failed — the server broke.
 // The time of the signature refused (400 signed_at_out_of_bounds): the clock first when it is
 // known to be off (the answer's Date header, approve/model clockOff)
-export const ACK_CLOCK_WORDS = 'The time it was signed doesn’t fit this bill. Ask the customer to sign again.';
-export const ACK_BILL_CHANGED = 'The bill changed after the customer signed: they sign for the bill there is now.';
+export const ACK_CLOCK_WORDS = 'The signing time doesn’t match this bill. Ask the customer to sign again.';
+export const ACK_BILL_CHANGED = 'The bill changed after the customer signed. They sign again for the bill as it is now.';
 export function ackError(error, nowMs = Date.now()) {
   const response = error && error.response;
   const status = response ? response.status : 0;

@@ -120,6 +120,9 @@ test('a visit: plan, day, state, kind, area, tag', () => {
   assert.equal(tagOf({ status: 'completed', outcome: 'diagnostics_only' }).text, 'Diagnostics');
   assert.equal(tagOf({ status: 'completed', outcome: 'diagnostics_only' }, { long: true }).text, 'Diagnostics only');
   assert.equal(tagOf({ status: 'completed', outcome: 'no_access' }).text, 'No access');
+  // a diagnostics closed as «Estimate needed» says so, not a grey «Closed» (QA Б14)
+  assert.deepEqual(tagOf({ status: 'completed', outcome: 'estimate_needed' }), { kind: 'estimate', icon: 'doc', text: 'Estimate' });
+  assert.equal(tagOf({ status: 'completed', outcome: 'estimate_needed' }, { long: true }).text, 'Estimate needed');
   assert.deepEqual(tagOf({ status: 'scheduled', role: 'helper', main_technician_name: 'Alex Kim' }), { kind: 'helper', icon: 'people', text: 'Helping Alex' });
   assert.deepEqual(tagOf({ status: 'scheduled', legacy: true }), { kind: 'neutral', icon: 'history', text: 'Old task' });
   assert.equal(tagOf({ status: 'scheduled', role: 'main' }), null);

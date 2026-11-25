@@ -40,6 +40,7 @@
 //   next     — the next visit of the day (nextOfDay) or null.
 import { billFirst, canBill, overApproval, usd } from '../bill/model.js';
 import { billHasParts } from '../ack/model.js';
+import { NO_APPROVE_KINDS } from '../approve/model.js';
 import { clock, stateOf } from './model.js';
 import { dueOf } from '../pay/model.js';
 
@@ -54,7 +55,6 @@ const issuedOf = (ctx) => {
 const overBill = (ctx) => !!(ctx.known && ctx.known.status === 'draft' && overApproval(ctx.known.bill));
 const billUnknown = (ctx) => !ctx.known || ctx.known.status === 'loading' || ctx.known.status === 'unknown';
 const PAID = ['paid', 'overpaid', 'no_charge'];
-const NO_APPROVE_KINDS = ['recall', 'diagnostics'];
 
 export const VISIT_STEPS = [
   {

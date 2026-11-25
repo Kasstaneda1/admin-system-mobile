@@ -26,6 +26,17 @@ import { clock, momentWall } from '../myDay/model.js';
 // The approval is taken by the main technician of a visit of the new schedule that still has
 // work (the same as the bill: canBill); a helper, an old task, a cancelled visit — none
 export const canApprove = (visit) => canBill(visit);
+// A recall and a diagnostics visit have no Approve step (myDay/steps.js): at diagnostics the tile
+// stays only for a repair on the spot, before its bill (Дизайнер, #84). Once the visit's bill is
+// issued nothing is left to sign there (the Approve screen gets «already has an issued bill»), so
+// the tile goes — unless there is a signature to show (signed, or on this phone).
+export const NO_APPROVE_KINDS = ['recall', 'diagnostics'];
+// tile — approveTile(); known — the bill as the visit knows it (bill/model knownOf) or null
+export function approveTileAfterIssue(tile, visit, known) {
+  if (!tile || !visit || !NO_APPROVE_KINDS.includes(visit.visit_kind)) return tile;
+  if (!known || known.status !== 'issued') return tile;
+  return tile.kind === 'signed' || tile.kind === 'pending' ? tile : null;
+}
 
 // ---------- the amount the customer agrees to ----------
 // The draft as the customer sees it: { amount (cents without tax), withTax, summary, count }
@@ -209,7 +220,7 @@ export function clockOff(error, nowMs = Date.now()) {
 }
 // A signature from the phone's queue, refused for its time: the plain words, the clock first
 // when it is known to be off (the box «The signature was not accepted»)
-export const CLOCK_QUEUED_WORDS = 'The time it was signed doesn’t fit this visit. Ask the customer to sign again, or call the office if they’re gone.';
+export const CLOCK_QUEUED_WORDS = 'The signing time doesn’t match this visit. Ask the customer to sign again, or call the office if they’re gone.';
 export function queuedClockText(clock) {
   return clock === true ? `The phone’s clock was off when it was signed. ${CLOCK_QUEUED_WORDS}` : CLOCK_QUEUED_WORDS;
 }

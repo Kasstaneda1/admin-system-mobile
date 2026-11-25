@@ -220,13 +220,13 @@ export function MethodFields({ form, bill, part }) {
             <View style={styles.choices} accessibilityRole="radiogroup">
               <Choice on={form.cardWay === 'entry'} title="Card details in this app" sub="Typed or scanned with the camera. Stripe charges it after the customer signs." off={form.entryKept}
                 onPress={() => form.setCardWay('entry')} />
-              <Choice on={form.cardWay === 'app'} title="Another card app (Square)" sub="Charge it there, then record it here." off={form.entryKept}
+              <Choice on={form.cardWay === 'app'} title="Another card app" sub="Charge it there, then record it here." off={form.entryKept}
                 onPress={() => form.setCardWay('app')} />
             </View>
           ) : null}
           <Box kind="info" icon="info" title="Next: the customer picks a tip"
             text={form.entry ? 'Then the card details, the customer’s signature and Charge. The card number goes to Stripe, never to SEMIX.'
-              : 'Then this app shows the total. Charge it in the card app (Square) on this phone. Never type a card number into SEMIX.'} />
+              : 'Then this app shows the total. Charge it in the card app on this phone. Never type a card number into SEMIX.'} />
           {noteField('Anything the office should know')}
         </Section>
       ) : null}
