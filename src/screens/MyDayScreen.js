@@ -10,9 +10,12 @@
 // the office changed since he opened it is UPDATED; opening the visit clears it (VisitScreen).
 // A grey row of the day log the office made since the day was last shown is NEW for this
 // showing of the day: a showing begins when a day is picked, when the screen or the app comes
-// back. Their count is on the My day tab, a dot on the other days of the week that have one.
+// back. Their dot is on the other days of the week that have one (the count is the bell's now, APP-1).
 // Picking the day (design-mockups/app-myday-date): the date bar ‹ [day ▾] › Today under the
 // summary, the month sheet from the date (dateParts.js); the swipe of the week stays.
+import AwayPanel from '../bell/AwayPanel';
+import { awayOf } from '../bell/away';
+import { dismissAway, useAway } from '../bell/store';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -177,6 +180,9 @@ export default function MyDayScreen({ navigation }) {
   const shownRoute = dayRoute && dayRoute.date === selected ? dayRoute.route : (keptRoute(userId, selected) || {}).route;
   const routeDot = hasStops && hasIssue(shownRoute, marksOf(userId, selected));
   const strip = useMemo(() => (day && day.live.length ? stripOf(day, now) : null), [day, now]);
+  // «Since you were off» (APP-1 part 2): only on today, until «Got it»
+  const awayState = useAway();
+  const away = useMemo(() => (awayState ? awayOf(awayState.items, { since: awayState.since, nowMs: Date.now(), today: now.date }) : null), [awayState, now.date]);
   const dates = weekOf(selected);
   const counts = useMemo(() => (visits ? weekCounts(visits, dates, now) : null), [visits, sunday, now]); // eslint-disable-line react-hooks/exhaustive-deps
   // no live visit (an empty day, or only rows of the day log): the next busy day of the week
@@ -251,6 +257,9 @@ export default function MyDayScreen({ navigation }) {
             offer={offer ? offerText(offer, { long: true }) : null}
             onOffer={() => offer && setSelected(offer.date)}
             onCallOffice={() => callOffice(userId)} />
+        ) : null}
+        {away && selected === now.date ? (
+          <AwayPanel away={away} onDone={dismissAway} onOpenVisit={(id) => navigation.navigate('Visit', { id })} />
         ) : null}
         {day && day.rows.length ? (
           <>

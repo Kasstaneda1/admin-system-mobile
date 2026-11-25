@@ -176,7 +176,8 @@ export function freshCounts(marks, visits) {
 }
 
 // The words: the row's pill (in capitals there, as the design's) and VoiceOver, the tab's count
-export const FRESH_TEXT = { new: 'New', updated: 'Updated', note: 'Note' };
+// moved, cancelled — only in «Since you were off» (bell/away.js), not on the rows
+export const FRESH_TEXT = { new: 'New', updated: 'Updated', note: 'Note', moved: 'Moved', cancelled: 'Cancelled' };
 export const badgeText = (total) => (total > 9 ? '9+' : String(total));
 export function tabLabel(total) {
   return total > 0 ? `My day, ${total} new or changed` : 'My day';

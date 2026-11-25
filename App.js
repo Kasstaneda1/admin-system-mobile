@@ -10,7 +10,7 @@ import { outbox } from './src/estimate/outboxStore';
 import { approvals } from './src/approve/store';
 import { acks } from './src/ack/store';
 import { refreshUnread, setUnread } from './src/estimate/unread';
-import { clearBell, refreshBell } from './src/bell/store';
+import { checkAway, clearBell, refreshBell } from './src/bell/store';
 import { listenTaps, registerDevice, registerOnWake, showWhileOpen } from './src/push/push';
 
 // Screens
@@ -97,6 +97,7 @@ function Screens() {
       acks.flushAll(userId).catch(() => {});
       refreshUnread(fullName, { force: true });
       refreshBell({ force: true });
+      checkAway(userId);
     };
     wake();
     const sub = AppState.addEventListener('change', (state) => { if (state === 'active') wake(); });
