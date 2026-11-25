@@ -111,7 +111,7 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
       {pair && primary ? (
         <View style={styles.pairRow}>
           <TouchableOpacity style={[styles.main, styles.pairMain, primary.off && styles.off]} disabled={primary.off} onPress={primary.press} accessibilityRole="button"
-            accessibilityLabel="On my way, optional. Texts the customer." accessibilityState={{ disabled: primary.off, busy: spinner(primary.action) }}>
+            accessibilityLabel="On my way, optional. Tells the office you’re driving." accessibilityState={{ disabled: primary.off, busy: spinner(primary.action) }}>
             {spinner(primary.action) ? <ActivityIndicator color={colors.onAccent} /> : (
               <>
                 <Icon name={primary.icon} size={24} color={colors.onAccent} />

@@ -214,7 +214,7 @@ export function nowWordsOf(visit) {
   // before the drive, On my way Optional with Finish there (design app-dock m5): both ways in words
   if (state === 'sched' && Array.isArray(visit.actions) && visit.actions.includes('omw') && visit.actions.includes('finish')
     && modeOfStep(visit, 'omw') === 'optional' && !skippedOf(visit, 'omw')) {
-    return 'Tap On my way to text the customer — or skip it and tap Finish when the work is done.';
+    return 'Tap On my way to tell the office you’re driving — or skip it and tap Finish when the work is done.';
   }
   if (state !== 'onway' && state !== 'onsite') return null;
   // the company's Diagnosis Off for a diagnostics visit: nothing to write in Finish

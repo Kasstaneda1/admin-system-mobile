@@ -78,7 +78,7 @@ test('the «now» line of a diagnostics visit with Diagnosis Off: nothing to wri
 test('Optional made visible (design app-dock m5, m6): the now line before the drive, the orange tile «next · optional»', async () => {
   const { nowWordsOf } = await import('../myDay/steps.js');
   const { tileOf } = await import('../bill/three.js');
-  assert.equal(nowWordsOf(visit()), 'Tap On my way to text the customer — or skip it and tap Finish when the work is done.');
+  assert.equal(nowWordsOf(visit()), 'Tap On my way to tell the office you’re driving — or skip it and tap Finish when the work is done.');
   assert.equal(nowWordsOf(visit({ steps: steps({ omw: 'required' }) })), null);
   assert.deepEqual(tileOf({ key: 'sign', state: 'todo', lit: true, mode: 'optional' }), { word: 'Signature', line: 'next · optional' });
   assert.deepEqual(tileOf({ key: 'send', state: 'todo', lit: true, mode: 'required' }), { word: 'Send bill', line: 'next' });
