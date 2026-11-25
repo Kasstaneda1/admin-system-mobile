@@ -41,6 +41,7 @@
 import { billFirst, canBill, overApproval, usd } from '../bill/model.js';
 import { billHasParts } from '../ack/model.js';
 import { NO_APPROVE_KINDS } from '../approve/model.js';
+import { diagnosisModeOf, stepOff } from '../steps/skip.js';
 import { clock, finishLabel, stateOf } from './model.js';
 import { dueOf } from '../pay/model.js';
 
@@ -61,7 +62,8 @@ export const VISIT_STEPS = [
     key: 'approve',
     label: 'Approve',
     required: false,
-    on: (ctx) => !!ctx.approve && !NO_APPROVE_KINDS.includes(ctx.visit.visit_kind),
+    // Approve Off for the company: no «Customer approves» (steps/skip.js stepOff)
+    on: (ctx) => !!ctx.approve && !NO_APPROVE_KINDS.includes(ctx.visit.visit_kind) && !stepOff(ctx.visit, 'approve'),
     // signed, but the bill grew over it: to do again (a signature still on the phone covers it)
     state: (ctx) => (ctx.approve.kind === 'pending' ? 'done'
       : overBill(ctx) ? 'todo'
@@ -210,5 +212,7 @@ export function nowWordsOf(visit) {
   if (!visit || visit.legacy || visit.role === 'helper') return null;
   const state = stateOf(visit);
   if (state !== 'onway' && state !== 'onsite') return null;
+  // the company's Diagnosis Off for a diagnostics visit: nothing to write in Finish
+  if (visit.visit_kind === 'diagnostics' && diagnosisModeOf(visit) === 'off') return 'Find the problem, then tap Finish.';
   return NOW_WORDS[visit.visit_kind] || null;
 }

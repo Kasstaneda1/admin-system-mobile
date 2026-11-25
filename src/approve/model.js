@@ -21,6 +21,7 @@
 //     billError → reapprove). The app does not count the rule itself.
 import { canBill, usd } from '../bill/model.js';
 import { clock, momentWall } from '../myDay/model.js';
+import { stepOff } from '../steps/skip.js';
 
 // ---------- who signs where ----------
 // The approval is taken by the main technician of a visit of the new schedule that still has
@@ -31,8 +32,9 @@ export const canApprove = (visit) => canBill(visit);
 // unless there is a signature to show (signed earlier, or still on this phone).
 export const NO_APPROVE_KINDS = ['recall', 'diagnostics'];
 // tile — approveTile(); known — kept for the callers, the bill no longer matters here
+// Approve Off for the company (steps/skip.js stepOff): no tile either, unless signed already
 export function approveTileAfterIssue(tile, visit, known) { // eslint-disable-line no-unused-vars
-  if (!tile || !visit || !NO_APPROVE_KINDS.includes(visit.visit_kind)) return tile;
+  if (!tile || !visit || (!NO_APPROVE_KINDS.includes(visit.visit_kind) && !stepOff(visit, 'approve'))) return tile;
   return tile.kind === 'signed' || tile.kind === 'pending' ? tile : null;
 }
 

@@ -8,7 +8,7 @@
 // Try again» sends the same request again (the same client_request_id, written once).
 import { clock, closedMoment, finishLabel, firstName, kindText, momentWall, shortName, stateOf } from './model.js';
 import { keepCard } from './visit.js';
-import { SKIPS, canSkip, skippedOf } from '../steps/skip.js';
+import { SKIPS, canSkip, skippedOf, stepOff } from '../steps/skip.js';
 
 export const UNDO_MINUTES = 15;
 
@@ -175,7 +175,10 @@ export function barOf(visit, nowMs, { billFinal = false } = {}) {
   const finish = { action: 'finish', label: finishLabel(visit), icon: 'check' };
   // On my way skipped (VS-APP, design app-skip k2): Finish is the main one, a grey line under the tag
   const omwSkipped = visit.role !== 'helper' && state !== 'closed' ? skippedOf(visit, 'omw') : null;
-  if (actions.includes('omw') && !omwSkipped) {
+  // On my way Off for the company (steps/skip.js stepOff): no button and no link, Finish is the
+  // orange one at once — even while an older server still offers omw
+  const omwOff = stepOff(visit, 'omw');
+  if (actions.includes('omw') && !omwSkipped && !omwOff) {
     primary = omw;
     if (actions.includes('finish')) secondary = finish;
   } else if (actions.includes('finish')) primary = finish;
