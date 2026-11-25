@@ -8,6 +8,7 @@ import { stripeSdk } from './src/pay/stripeSdk';
 import { AuthProvider, useAuth } from './src/session/AuthContext';
 import { outbox } from './src/estimate/outboxStore';
 import { approvals } from './src/approve/store';
+import { acks } from './src/ack/store';
 import { refreshUnread, setUnread } from './src/estimate/unread';
 import { listenTaps, registerDevice, showWhileOpen } from './src/push/push';
 
@@ -84,7 +85,7 @@ function Screens() {
   }, [status]);
 
   // Signed in, at start and on return to the app: the messages to the office still on the phone
-  // go (estimate/outbox.js, never twice), the customers' signatures too (approve/queue.js) and the Parts tab gets its count of unread estimates
+  // go (estimate/outbox.js, never twice), the customers' signatures too (approve/queue.js, ack/queue.js) and the Parts tab gets its count of unread estimates
   const userId = status === 'signedIn' && user ? user.id : null;
   const fullName = status === 'signedIn' && user ? user.fullName || null : null;
   useEffect(() => {
@@ -92,6 +93,7 @@ function Screens() {
     const wake = () => {
       outbox.flushAll(userId).catch(() => {});
       approvals.flushAll(userId).catch(() => {});
+      acks.flushAll(userId).catch(() => {});
       refreshUnread(fullName, { force: true });
     };
     wake();

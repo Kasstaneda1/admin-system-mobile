@@ -35,6 +35,20 @@ import { approveError, withSignedAt } from './model.js';
 export const SIGNED_AT_FIRST_SEND = false;
 
 export function makeApproveQueue({ queue, api, signedAtFirst = SIGNED_AT_FIRST_SEND }) {
+  return makeSignatureQueue({
+    queue, api, errorOf: approveError, withMoment: withSignedAt, momentFirst: signedAtFirst,
+    sentOf: (data) => ({ authorization: (data && data.authorization) || null }),
+  });
+}
+
+// The queue itself, for any customer's signature the server takes once by client_request_id:
+// the approval before the work (above) and the signature «after the work» (ack/queue.js).
+//   errorOf(error) — { kind, text }: 'offline' and 'failed' wait, the kinds in `drops` take the
+//     entry off the phone, any other marks it (never sent again by itself);
+//   withMoment(body, at) — the body of a send from the queue (the first one too with momentFirst);
+//   sentOf(data) — what a sent result carries of the server's answer ({ result: 'sent', ...sentOf });
+//   sign({ visitId, userId, body, at, ...more }) keeps `more` in the entry.
+export function makeSignatureQueue({ queue, api, errorOf, withMoment = (body) => body, momentFirst = false, drops = ['gone'], sentOf = () => ({}) }) {
   const running = new Set(); // keys being sent right now
 
   const list = async () => {
@@ -43,23 +57,24 @@ export function makeApproveQueue({ queue, api, signedAtFirst = SIGNED_AT_FIRST_S
   };
   const change = (fn) => queue.update((b) => fn(Array.isArray(b) ? b : []), queue.mark());
   const sameVisit = (e, visitId, userId) => String(e.visitId) === String(visitId) && String(e.userId) === String(userId);
+  const mark = (entry, failed) => change((b) => b.map((e) => (e.key === entry.key ? { ...e, failed: { kind: failed.kind, text: failed.text } } : e)));
 
   async function post(entry, { first = false } = {}) {
     if (running.has(entry.key)) return { result: 'busy' };
     running.add(entry.key);
     try {
-      const body = first && !signedAtFirst ? entry.body : withSignedAt(entry.body, entry.at);
+      const body = first && !momentFirst ? entry.body : withMoment(entry.body, entry.at);
       const data = await api.sign(entry.visitId, body);
       await change((b) => b.filter((e) => e.key !== entry.key));
-      return { result: 'sent', authorization: (data && data.authorization) || null };
+      return { result: 'sent', ...sentOf(data) };
     } catch (error) {
-      const failed = approveError(error);
+      const failed = errorOf(error);
       if (failed.kind === 'offline' || failed.kind === 'failed') return { result: 'waiting', failed };
-      if (failed.kind === 'gone') {
+      if (drops.includes(failed.kind)) {
         await change((b) => b.filter((e) => e.key !== entry.key));
-        return { result: 'gone', failed };
+        return { result: failed.kind, failed };
       }
-      await change((b) => b.map((e) => (e.key === entry.key ? { ...e, failed: { kind: failed.kind, text: failed.text } } : e)));
+      await mark(entry, failed);
       return { result: failed.kind, failed };
     } finally {
       running.delete(entry.key);
@@ -70,8 +85,8 @@ export function makeApproveQueue({ queue, api, signedAtFirst = SIGNED_AT_FIRST_S
     return (await list()).find((e) => sameVisit(e, visitId, userId)) || null;
   }
 
-  async function sign({ visitId, userId, body, at }) {
-    const entry = { key: body.client_request_id, visitId: String(visitId), userId: String(userId), body, at, failed: null };
+  async function sign({ visitId, userId, body, at, ...more }) {
+    const entry = { ...more, key: body.client_request_id, visitId: String(visitId), userId: String(userId), body, at, failed: null };
     await change((b) => [...b.filter((e) => !sameVisit(e, visitId, userId)), entry]);
     return post(entry, { first: true });
   }

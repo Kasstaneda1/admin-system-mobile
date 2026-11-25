@@ -8,7 +8,8 @@
 //     customer's consent to electronic documents (a box to tick, the server keeps its words);
 //     once per bill (POST …/bill/delivered). A share that went out offers the mark at once.
 // Showing the bill on the phone does not count: the customer must keep a copy.
-// Delivered: the customer signs that they got it (AckScreen), or the line of their signature.
+// Delivered: the customer signs that they got it (AckScreen), or the line of their signature (one
+// still on this phone, ack/queue.js: «Signed · saved on this phone»).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -16,6 +17,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../constants/colors';
 import { ackAPI, billAPI } from '../services/api';
+import { useAuth } from '../session/AuthContext';
+import { acks } from '../ack/store';
 import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { nowWall, clock, momentWall } from '../myDay/model';
@@ -32,6 +35,9 @@ export default function BillSendScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const [bill, setBill] = useState(null);
   const [ack, setAck] = useState(null);               // the customer's signature for the bill, once they signed
+  const [onPhone, setOnPhone] = useState(false);      // their signature still on this phone, going by itself
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [problem, setProblem] = useState(null);
   const seq = useRef(0);
 
@@ -43,6 +49,9 @@ export default function BillSendScreen({ route, navigation }) {
       // the signature for it: only a delivered bill has one (any issued one for a company without
       // «Bill before payment»); not read — the button opens the screen that reads it
       if (data.bill && data.bill.status === 'issued' && (data.bill.delivered_at || !billFirst(data.bill))) {
+        if (userId !== null) await acks.flushAll(userId).catch(() => {});
+        const kept = userId === null ? null : await acks.pendingOf(id, userId).catch(() => null);
+        if (n === seq.current) setOnPhone(!!(kept && !kept.failed));
         const signed = await ackAPI.get(id).catch(() => null);
         if (n === seq.current && signed) setAck(signed.acknowledgment || null);
       }
@@ -52,7 +61,7 @@ export default function BillSendScreen({ route, navigation }) {
       if (failed.kind === 'failed') logError('Error loading a bill to send:', error);
       setProblem(failed);
     }
-  }, [id]);
+  }, [id, userId]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // ---------- the PDF ----------
@@ -207,8 +216,9 @@ export default function BillSendScreen({ route, navigation }) {
 
       <Foot bottom={insets.bottom} note={delivered ? null : 'Shown on your phone only does not count: the customer must keep a copy.'}>
         {delivered ? null : <MainButton text="Mark as delivered…" icon="check" onPress={() => openMark(null)} />}
-        {delivered && !ack ? <MainButton text="Customer signs for the bill" icon="check" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
-        {!delivered && signsFirst && !ack ? <PlainButton text="Customer signs for the bill" icon="check" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
+        {(delivered || signsFirst) && !ack && onPhone ? <PlainButton text="Signed · saved on this phone" icon="checkc" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
+        {delivered && !ack && !onPhone ? <MainButton text="Customer signs for the bill" icon="check" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
+        {!delivered && signsFirst && !ack && !onPhone ? <PlainButton text="Customer signs for the bill" icon="check" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
         {(delivered || signsFirst) && ack ? <PlainButton text={signedLine(ack, now.date)} icon="checkc" onPress={() => navigation.navigate('Ack', { id, visit })} /> : null}
         <PlainButton text="Share the PDF" icon="share" waiting={pdfBusy === 'share'} onPress={sharePdf} />
       </Foot>

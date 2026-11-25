@@ -16,3 +16,6 @@ export const ESTIMATE_OUTBOX_KEY = 'semix.estimate.outbox';
 // The customer's signatures not yet on the server (approve/queue.js): a name and a signature,
 // so they go with the session too (session/store.js)
 export const APPROVE_QUEUE_KEY = 'semix.approve.queue';
+// The customer's signatures «after the work» not yet on the server (ack/queue.js): a name and a
+// signature, so they go with the session too (session/store.js)
+export const ACK_QUEUE_KEY = 'semix.ack.queue';
