@@ -91,3 +91,11 @@ test('Issue Off (the office makes the bill final): no «Make the bill final» st
   assert.equal(bill.on({ visit: visit() }), true);
   assert.equal(bill.on({ visit: visit({ steps: undefined }) }), true);
 });
+
+test('Approve Off: no Approve step in the visit\'s chain (the Teamlead on #109)', async () => {
+  const { VISIT_STEPS } = await import('../myDay/steps.js');
+  const approve = VISIT_STEPS.find((s) => s.key === 'approve');
+  const ctx = (modes) => ({ visit: visit({ steps: steps(modes) }), approve: { kind: 'none' } });
+  assert.equal(approve.on(ctx({ approve: 'off' })), false);
+  assert.equal(approve.on(ctx({})), true);
+});

@@ -124,11 +124,14 @@ export function CopyChoice({ copy, label = null, off = false, onChange = null, o
 // red stop but this sheet — the same ways; Email or Printed copy handed go on at one tap, Share
 // shows its tick and its button (the lead 25.11: no dead end; words — the Designer).
 // onChosen(way) — the signature goes on with it; onClose — back to the signature
-export function CopyChooseSheet({ visible, copy, bottom, onChosen, onClose }) {
+// sub: the line under the title (the Designer on #110; the signature's by default)
+export const CHOOSE_SUB_SIGN = 'The customer keeps a copy of this bill. Tap one to finish signing.';
+export function CopyChooseSheet({ visible, copy, bottom, onChosen, onClose, sub = CHOOSE_SUB_SIGN }) {
   const share = visible && copy.way === 'share';
   return (
     <Sheet visible={visible} onClose={onClose} bottom={bottom}>
       <Text style={styles.sheetTitle} accessibilityRole="header">Choose how the customer gets the copy</Text>
+      <Text style={styles.sheetSub}>{sub}</Text>
       <CopyChoice copy={copy} onPick={(w) => { if (w !== 'share') onChosen(w); }} />
       {share ? (
         <View style={styles.sheetButton}>
@@ -226,6 +229,7 @@ export function BillCard({ card, compact = false, style = null }) {
 }
 
 const styles = StyleSheet.create({
+  sheetSub: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary, marginTop: -4, marginBottom: 12 },
   sheetTitle: { marginBottom: 14, fontSize: 24, fontWeight: '800', color: colors.fgDefault },
   fail: { marginTop: 10, fontSize: 15, lineHeight: 20, color: colors.dangerFg },
   sheetButton: { marginTop: 14 },
