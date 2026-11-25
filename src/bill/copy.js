@@ -23,7 +23,7 @@
 import { CONSENT_WORDS, billFirst, percentText, usd } from './model.js';
 import { momentWall } from '../myDay/model.js';
 
-export const EMAIL_CONSENT_WORDS = 'The customer agreed to get bills by email';
+export const EMAIL_CONSENT_WORDS = CONSENT_WORDS; // one phrase everywhere (the Designer on #97)
 export const SHARE_CONSENT_WORDS = CONSENT_WORDS;
 export const LATER_REASON = 'The customer gets the copy later';
 

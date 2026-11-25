@@ -39,6 +39,9 @@ test('the copy is missing: issued, required, not delivered', () => {
 
 test('the tick: Email may go without it, Share not; handed and show have none', () => {
   assert.equal(tickOf('email').must, false);
+  // one phrase for both (the Designer on #97)
+  assert.equal(tickOf('email').words, 'The customer agreed to get the documents of this job electronically.');
+  assert.equal(tickOf('share').words, tickOf('email').words);
   assert.equal(tickOf('share').must, true);
   assert.equal(tickOf('handed'), null);
   assert.equal(tickOf('show'), null);
