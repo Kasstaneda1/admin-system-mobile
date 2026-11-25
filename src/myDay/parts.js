@@ -136,7 +136,8 @@ export function DayRow({ row, fresh = null, onDirections, onCall, onPress }) {
           <Text key={i} style={[styles.window, lines.length > 1 && styles.windowLong, row.state === 'closed' && styles.closedText, row.state === 'moved' && styles.movedText]}
             numberOfLines={lines.length > 1 ? 1 : undefined} adjustsFontSizeToFit={lines.length > 1}>{line}</Text>
         ))}
-        <Text style={styles.time}>{row.timeText}</Text>
+        {/* one line: 'done 10:52', 'plan 10:00' wrapped in the narrow column (the owner, 2026-11-24) */}
+        <Text style={styles.time} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{row.timeText}</Text>
       </View>
       <View style={styles.middle}>
         <View style={styles.line1Row}>
