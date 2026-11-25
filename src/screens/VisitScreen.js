@@ -48,13 +48,14 @@ import { visitView } from '../perms/model';
 import { AccessText, NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
-import { nextOfDay, stepsOf, stripLabel } from '../myDay/steps';
+import { nextButtonOf, nextOfDay, stepsOf, stripLabel } from '../myDay/steps';
+import { issueFailText, pressOf, threeOf } from '../bill/three';
+import { BillRow } from '../bill/ThreeParts';
 import { nextTodayOf } from '../myDay/access';
-import { billHasParts } from '../ack/model';
 import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
 import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
 import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
-import { billError, billTile, canBill, draftedFrom, knownOf, overApproval } from '../bill/model';
+import { billError, billFirst, billTile, canBill, draftedFrom, knownOf, overApproval } from '../bill/model';
 import { Box } from '../bill/parts';
 import { approveError, approveTile, approveTileAfterIssue, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
@@ -113,8 +114,9 @@ export default function VisitScreen({ route, navigation }) {
     }
   }, [id]);
 
-  // The customer's signature after the work (src/ack), for the visit's steps (steps.js): read with
-  // an issued bill that has replaced parts — only then is it a step. { status, signed } | null.
+  // The customer's signature after the work (src/ack): read with every issued bill — Get signature
+  // of the three buttons (bill/three.js), and the strip's «Signs» when it has replaced parts.
+  // { status, signed, pending?, name?, at?, parts? } | null.
   // The phone's signatures go first (ack/queue.js); one of this visit still on the phone counts as
   // signed (it goes by itself), as the approval's. One the server refused while it waited
   // (ackRefused) marks the Bill tile until the customer signs again (the Designer on #91): the
@@ -124,29 +126,29 @@ export default function VisitScreen({ route, navigation }) {
   const ackSeq = useRef(0);
   const loadAck = useCallback(async (bill) => {
     if (!bill || bill.status !== 'issued') { setAckRefused(false); return; }
-    const parts = billHasParts(bill);
     const seq = ++ackSeq.current;
-    if (parts) setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'loading' }));
+    // every issued bill: the three buttons' Get signature (T3); the strip's «Signs» only with parts
+    setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'loading' }));
     let kept = null;
     if (userId !== null) {
       await acks.flushAll(userId).catch(() => {});
       kept = await acks.pendingOf(id, userId).catch(() => null);
       if (seq !== ackSeq.current) return;
       setAckRefused(!!(kept && kept.failed));
-      if (kept && !kept.failed) { if (parts) setAckKnown({ status: 'ok', signed: true }); return; }
+      if (kept && !kept.failed) { setAckKnown({ status: 'ok', signed: true, pending: true, at: kept.at || null, parts: kept.body && kept.body.replaced_parts }); return; }
     }
-    if (!parts && !kept) return;                       // no step and nothing refused: nothing to read
     try {
       const data = await ackAPI.get(id);
       if (seq !== ackSeq.current) return;
       const signed = !!(data && data.acknowledgment);
       // signed after all (the office, another phone): the refused one on this phone is moot
       if (signed && kept) { acks.drop(id, userId).catch(() => {}); setAckRefused(false); }
-      if (parts) setAckKnown({ status: 'ok', signed });
+      const a = signed ? data.acknowledgment : null;
+      setAckKnown({ status: 'ok', signed, name: a ? a.signer_name : null, at: a ? a.signed_at || a.created_at : null, parts: a ? a.replaced_parts : null });
     } catch (error) {
       if (seq !== ackSeq.current) return;
       if (error.response?.status >= 500) logError('Error loading the bill acknowledgment:', error);
-      if (parts) setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'unknown' }));
+      setAckKnown((a) => (a && a.status === 'ok' ? a : { status: 'unknown' }));
     }
   }, [id, userId]);
 
@@ -314,8 +316,13 @@ export default function VisitScreen({ route, navigation }) {
   const next = useMemo(() => (myDay ? nextOfDay(myDay, id) : null), [myDay, id]);
   const steps = shown ? stepsOf({ visit: shown.visit, approve, known, ack: ackKnown, money: payments, next }) : null;
   const closedBill = !!(tile && card && card.state === 'closed');
-  const billButton = closedBill && !steps ? { label: 'Open the bill', onPress: openBill } : null;
-  const billLink = closedBill && steps && steps.main && steps.main.key !== 'bill' ? { label: 'Open the bill', onPress: openBill } : null;
+  // The bill's three buttons (T3, bill/three.js): Get signature · Get paid · Send the bill, before
+  // Finish too; with them the Bill and Pay tiles, the strip and «Open the bill» are gone
+  const three = shown ? threeOf({ visit: shown.visit, known, ack: ackKnown, money: payments, now,
+    deposits: shown.visit.deposits && Number.isFinite(shown.visit.deposits.open_cents) ? shown.visit.deposits.open_cents : 0 }) : null;
+  const threeNext = three && card && card.state === 'closed' && (three.kind === 'nobill' || three.allDone) ? nextButtonOf(next) : null;
+  const billButton = closedBill && !steps && !three ? { label: 'Open the bill', onPress: openBill } : null;
+  const billLink = closedBill && steps && !three && steps.main && steps.main.key !== 'bill' ? { label: 'Open the bill', onPress: openBill } : null;
   // «Pay» (src/pay): what the bill's money says under the button; the last known balance without
   // the connection (recording waits for it)
   const pay = shown && payments ? payTile(shown.visit, known, { offline: problem === 'offline' }) : null;
@@ -327,6 +334,47 @@ export default function VisitScreen({ route, navigation }) {
   const openPay = useCallback(() => {
     if (shown) navigation.navigate('Pay', { id, visit: shown.visit, bill: known && known.bill ? known.bill : null });
   }, [navigation, id, shown, known]);
+  // A press on one of the three: an empty draft (or none yet) opens «Change»; a draft is made final
+  // first, right here (the button spins, no question: the word «issue» is not on the screen); then
+  // the button's screen. Done — the screen of what was done. Bill before payment (NY) and not given
+  // yet: the signature and the payment go through giving the bill first (BillSend), as before.
+  const [threeBusy, setThreeBusy] = useState(null);
+  const [threeFail, setThreeFail] = useState(null);
+  const openThree = useCallback((key, bill) => {
+    if (!shown) return;
+    const given = !!(bill && bill.delivered_at);
+    const first = billFirst(bill) && !given;
+    if (key === 'send' || (key === 'sign' && first)) {
+      navigation.navigate('BillSend', { id, visit: shown.visit, back: 'Visit' });
+    } else if (key === 'sign') navigation.navigate('Ack', { id, visit: shown.visit, back: 'Visit' });
+    else navigation.navigate('Pay', { id, visit: shown.visit, bill });
+  }, [shown, navigation, id]);
+  const pressThree = useCallback(async (key) => {
+    if (!shown || !three || threeBusy) return;
+    setThreeFail(null);
+    const what = pressOf(three, key, known);
+    if (what === 'change') { openBill(); return; }
+    if (what === 'open') { openThree(key, known && known.bill); return; }
+    if (what !== 'issue' || !known || !known.bill) return;
+    setThreeBusy(key);
+    try {
+      const data = await billAPI.issue(id, known.bill.total_cents);
+      if (gone.current) return;
+      setKnown(knownOf(data.bill));
+      loadAck(data.bill);
+      openThree(key, data.bill);
+    } catch (error) {
+      if (gone.current) return;
+      const failed = billError(error, { issue: true, company: known.bill.company && (known.bill.company.name || known.bill.company.legal_name) });
+      if (failed.kind === 'failed') logError('Error making a bill final:', error);
+      setThreeFail(issueFailText(failed));
+      if (failed.kind === 'refused') loadBill(shown.visit);
+      // over the customer's approval: the customer signs again (src/approve), as the bill's screen offers
+      if (failed.reapprove) navigation.navigate('Approve', { id, visit: shown.visit, again: true });
+    } finally {
+      if (!gone.current) setThreeBusy(null);
+    }
+  }, [shown, three, threeBusy, known, openBill, openThree, id, loadAck, loadBill, navigation]);
   const notice = problem && shown ? (problem === 'offline' ? offlineText(shown.savedAt, now) : failedText(shown.savedAt, now)) : null;
   // history and notes come only with the card itself
   const waiting = problem ? 'Needs connection' : 'Loading…';
@@ -772,7 +820,7 @@ export default function VisitScreen({ route, navigation }) {
             </View>
 
             {/* before Finish nothing competes with the one lit button (d0): the strip comes after it */}
-            {steps && steps.strip.length > 1 && card.state === 'closed' ? <StepStrip strip={steps.strip} label={stripLabel(steps.strip)} /> : null}
+            {steps && !three && steps.strip.length > 1 && card.state === 'closed' ? <StepStrip strip={steps.strip} label={stripLabel(steps.strip)} /> : null}
             {approveShown ? (
               <TouchableOpacity style={[styles.billTile, !approveDone && styles.approveTodo]} onPress={openApprove} accessibilityRole="button"
                 accessibilityLabel={`${approveShown.title}, ${approveShown.line}${approveShown.warn ? `, ${approveShown.warn}` : ''}`}>
@@ -787,7 +835,12 @@ export default function VisitScreen({ route, navigation }) {
                 <Icon name="chev" size={20} color={colors.fgSecondary} />
               </TouchableOpacity>
             ) : null}
-            {billShown ? (
+            {three && three.kind === 'three' ? (
+              <View style={styles.threeRow}>
+                <BillRow row={three.row} onChange={openBill} onOpen={known && known.status === 'issued' ? openBill : null} />
+              </View>
+            ) : null}
+            {billShown && !three ? (
               <TouchableOpacity style={[styles.billTile, billFill && styles.billTileFill, over && styles.billTileQuiet, billShown.off && styles.billTileOff]}
                 onPress={ackRefused ? openAck : openBill} disabled={billShown.off} accessibilityRole="button"
                 accessibilityLabel={`${billShown.title}, ${billShown.line}${billShown.warn ? `, ${billShown.warn}` : ''}`}
@@ -803,7 +856,7 @@ export default function VisitScreen({ route, navigation }) {
                 {billShown.off ? null : <Icon name="chev" size={20} color={billFill ? colors.fgOnFill : colors.fgSecondary} />}
               </TouchableOpacity>
             ) : null}
-            {pay ? (
+            {pay && !three ? (
               <TouchableOpacity style={[styles.billTile, pay.kind === 'paid' && styles.payPaid, ['wait', 'free', 'offline', 'loading'].includes(pay.kind) && styles.billTileOff]}
                 onPress={openPay} disabled={pay.off} accessibilityRole="button" accessibilityLabel={`${pay.title}, ${pay.line}`} accessibilityState={{ disabled: pay.off }}>
                 <Icon name={pay.kind === 'paid' ? 'checkc' : 'money'} size={26}
@@ -954,7 +1007,8 @@ export default function VisitScreen({ route, navigation }) {
           onRetry={() => pending && send(pending)}
           onCancel={() => { setPending(null); setFailure(null); }}
           onNote={extras ? () => setNoteOpen(true) : null}
-          bill={billButton} billLink={billLink} steps={steps} onStep={stepPress} />
+          bill={billButton} billLink={billLink} steps={steps} onStep={stepPress}
+          three={three} threeNext={threeNext} threeBusy={threeBusy} threeFailure={threeFail} onThree={pressThree} />
       ) : null}
       {shown ? (
         <>
@@ -1054,6 +1108,7 @@ const styles = StyleSheet.create({
   tileChanged: { borderWidth: 2, borderColor: colors.infoBorder },
   tileWas: { color: colors.infoFg },
   // The Bill tile (design app-invoice visit-done): a draft is the filled one
+  threeRow: { marginTop: 12 },
   billTile: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.brandPressed, backgroundColor: colors.brandSoft },
   billTileFill: { backgroundColor: colors.brandPressed },
   // over the approval: white, as a tile with nothing to do now (the Designer on #90)

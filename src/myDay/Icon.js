@@ -39,6 +39,7 @@ const ICONS = {
   moved: require('../../assets/icons/moved.png'),
   nav: require('../../assets/icons/nav.png'),
   note: require('../../assets/icons/note.png'),
+  pen: require('../../assets/icons/pen.png'),
   people: require('../../assets/icons/people.png'),
   phone: require('../../assets/icons/phone.png'),
   pin: require('../../assets/icons/pin.png'),
