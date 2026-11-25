@@ -33,7 +33,7 @@ export const fieldFocused = () => {
 // only one left of them is «Next: …» once all three are done (threeNext) and «Customer approves»
 // plain beside Finish. threeBusy / threeFailure / onThree: bill/ThreeParts.js ThreeButtons.
 export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onRetry, onCancel, onNote = null, bill = null, steps = null, onStep = null, billLink = null,
-  three = null, threeNext = null, threeBusy = null, threeFailure = null, onThree = null, onSkip = null }) {
+  three = null, threeNext = null, threeBusy = null, threeFailure = null, onThree = null, onSkip = null, hint = null }) {
   const main = three ? threeNext : steps && steps.main ? steps.main : null;
   if (bar.empty && !failure && !main && !three) return null;
   const waiting = !!pending && !failure;
@@ -113,6 +113,9 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
       ) : null}
 
       {nobill ? <ThreeButtons three={three} /> : null}
+
+      {/* «what to do now» (steps.js nowWordsOf) over the lit button, in the foot (calm p2) */}
+      {hint && primary && !quietNext ? <Text style={styles.hint}>{hint}</Text> : null}
 
       {pair && primary ? (
         <View style={styles.pairRow}>
@@ -467,8 +470,10 @@ const styles = StyleSheet.create({
   undoStrong: { fontWeight: '700' },
   undoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minWidth: 96, height: 44, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.infoFg },
   undoBtnText: { fontSize: 16, fontWeight: '700', color: colors.fgOnFill },
-  main: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 60, borderRadius: 14, backgroundColor: colors.accent },
-  mainText: { fontSize: 20, fontWeight: '800', color: colors.onAccent, flexShrink: 1 },
+  // the one orange of the screen (calm): 54 pt, 700, corners 12
+  main: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 54, borderRadius: 12, backgroundColor: colors.accent },
+  mainText: { fontSize: 18, fontWeight: '700', color: colors.onAccent, flexShrink: 1 },
+  hint: { fontSize: 15, lineHeight: 21, color: colors.fgSecondary },
   // all done: «Next: Nguyen T. · 1:30» — the brand's dark button, not the amber one (design usab-u1)
   mainNext: { backgroundColor: colors.brandPressed },
   mainTextNext: { color: colors.fgOnFill },

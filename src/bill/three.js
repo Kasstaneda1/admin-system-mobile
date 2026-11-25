@@ -99,20 +99,23 @@ export function linesLine(bill) {
 // nothing on the bill closed with neither an orange button nor Next; «Change» still adds the work)
 export const threeOffersNext = (three) => !!three && (three.kind === 'nobill' || !!three.allDone || !!three.empty);
 
-// The bill's row over the three (d0, d1, d3, d7)
+// The bill's row over the three (d0, d1, d3, d7): title and line (VoiceOver, older screens), and
+// the calm row's parts (design-mockups/app-calm p2): head — the small caps over it ('Bill',
+// 'Bill NY-1048'), amount — the sum in bold or null, text — the grey words beside it
 export function billRow(known, { issueOff = false } = {}) {
   const status = known ? known.status : 'loading';
   const bill = known ? known.bill : null;
-  if (status === 'loading') return { title: 'Bill', line: 'Loading…', change: false };
-  if (status === 'unknown') return { title: 'Bill', line: 'Needs connection', change: false };
+  const row = (title, line, change, head = 'Bill', amount = null, text = line) => ({ title, line, change, head, amount, text });
+  if (status === 'loading') return row('Bill', 'Loading…', false);
+  if (status === 'unknown') return row('Bill', 'Needs connection', false);
   if (status === 'issued' && bill) {
     const label = bill.label || `#${bill.bill_number}`;
-    if (PAID.includes(bill.payment_status)) return { title: `Bill ${label} · Paid`, line: `${usd(bill.total_cents)} · final`, change: false };
-    return { title: `Bill ${label} · ${usd(bill.total_cents)}`, line: 'Final · the office can correct it', change: false };
+    if (PAID.includes(bill.payment_status)) return row(`Bill ${label} · Paid`, `${usd(bill.total_cents)} · final`, false, `Bill ${label}`, usd(bill.total_cents), 'Paid · final');
+    return row(`Bill ${label} · ${usd(bill.total_cents)}`, 'Final · the office can correct it', false, `Bill ${label}`, usd(bill.total_cents));
   }
-  if (issueOff) return { title: 'Bill', line: 'The office makes it final', change: false };
-  if (status === 'draft' && bill) return { title: `Bill · ${usd(bill.total_cents)}`, line: linesLine(bill), change: true };
-  return { title: 'Bill', line: 'Nothing to charge for yet', change: true };
+  if (issueOff) return row('Bill', 'The office makes it final', false);
+  if (status === 'draft' && bill) return row(`Bill · ${usd(bill.total_cents)}`, linesLine(bill), true, 'Bill', usd(bill.total_cents));
+  return row('Bill', 'Nothing to charge for yet', true);
 }
 
 function signButton(ack, issued, now) {

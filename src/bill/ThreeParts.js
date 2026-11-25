@@ -6,21 +6,27 @@ import { colors } from '../constants/colors';
 import Icon from '../myDay/Icon';
 import { BUSY_WORDS, tileOf } from './three';
 
-// The bill's row in the visit's body: «Bill · $136.09 / Diagnostics $125.00 + tax · Change»
-export function BillRow({ row, onChange, onOpen }) {
+// The bill's row in the visit's body, calm (design-mockups/app-calm p2, p3): no frame, no icon —
+// «BILL» in small caps, then «$103.43  Diagnostics $95.00 + tax» and the Change link on the right;
+// note — a line under it in dark amber ('Not paid yet' after Finish), or null
+export function BillRow({ row, note = null, onChange, onOpen }) {
   if (!row) return null;
   return (
-    <TouchableOpacity style={s.row} onPress={onOpen} disabled={!onOpen} accessibilityRole="button" accessibilityLabel={`${row.title}, ${row.line}`}>
-      <Icon name="doc" size={24} color={colors.fgDefault} />
-      <View style={s.rowBody}>
-        <Text style={s.rowTitle} numberOfLines={1}>{row.title}</Text>
-        <Text style={s.rowLine} numberOfLines={2}>{row.line}</Text>
+    <TouchableOpacity style={s.row} onPress={onOpen} disabled={!onOpen} accessibilityRole="button"
+      accessibilityLabel={`${row.title}, ${row.line}${note ? `, ${note}` : ''}`}>
+      <Text style={s.rowHead}>{(row.head || 'Bill').toUpperCase()}</Text>
+      <View style={s.rowMain}>
+        <Text style={s.rowLine} numberOfLines={2}>
+          {row.amount ? <Text style={s.rowAmount}>{`${row.amount}  `}</Text> : null}
+          {row.text || row.line}
+        </Text>
+        {row.change ? (
+          <TouchableOpacity style={s.change} onPress={onChange} accessibilityRole="button" accessibilityLabel="Change the bill lines">
+            <Text style={s.changeText}>Change</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
-      {row.change ? (
-        <TouchableOpacity style={s.change} onPress={onChange} accessibilityRole="button" accessibilityLabel="Change the bill lines">
-          <Text style={s.changeText}>Change</Text>
-        </TouchableOpacity>
-      ) : null}
+      {note ? <Text style={s.rowNote}>{note}</Text> : null}
     </TouchableOpacity>
   );
 }
@@ -92,22 +98,23 @@ export function ThreeButtons({ three, busy = null, failure = null, onPress, onSk
     </View>
   );
 }
-// Skip under the row (design app-dock m6): a button, not a grey line — full width, 48 pt, a frame,
-// the skip icon and the step's words (app-skip), calmer than the orange
+// Skip under the row (calm p3: «Skip the signature» in brand green like every other link, centred,
+// 44 pt to press, underlined)
 export function SkipButton({ words, off = false, onPress }) {
   return (
     <TouchableOpacity style={[s.skipBtn, off && s.off]} onPress={onPress} disabled={off} accessibilityRole="button" accessibilityHint="Asks why">
-      <Icon name="skipc" size={22} color={colors.brandPressed} />
       <Text style={s.skipBtnText} numberOfLines={1} adjustsFontSizeToFit>{words}</Text>
     </TouchableOpacity>
   );
 }
 
-// The row in the visit's foot (design-mockups/app-dock m1–m4, README «Для Фулстека»): three tiles
-// side by side, always Signature · Get paid · Send bill, the same place before and after Finish;
-// after Finish the next one is the orange tile (no big button over the row). A tile: 64 pt, the
-// icon 22 on top, the word 15 pt, a line 13 pt (three.js tileOf). Skip — under the row; a refusal —
-// the red line under it. The VoiceOver words are the old buttons' (b.label).
+// The row in the visit's foot (design-mockups/app-dock m1–m4, calm p2/p3): three tiles side by
+// side, always Signature · Get paid · Send bill, the same place before and after Finish; after
+// Finish the next one is the orange tile (no big button over the row). Calm: words only in brand
+// green (they are pressed, like Call), a grey 1 pt frame, 54 pt; the line under the word 13 pt
+// (three.js tileOf: the sum under Get paid, «next» under the orange one); a done one — white, a
+// small grey tick and grey words (no green fill); a skipped one — grey. Skip — a link under the
+// row; a refusal — the red line under it. The VoiceOver words are the old buttons' (b.label).
 export function ThreeTiles({ three, busy = null, failure = null, onPress, onSkip = null }) {
   if (!three || three.kind !== 'three' || !three.buttons.length) return null;
   const off = !!busy;
@@ -118,17 +125,18 @@ export function ThreeTiles({ three, busy = null, failure = null, onPress, onSkip
           const running = busy === b.key;
           const done = b.state === 'done';
           const skipped = b.state === 'skipped';
-          const tone = done ? (b.warn ? s.waiting : s.done) : skipped ? s.skipped : b.lit ? s.lit : s.calm;
-          const fg = done ? colors.successFg : skipped ? colors.fgDefault : b.lit ? colors.onAccent : colors.brandPressed;
-          const lineFg = done ? colors.successFg : b.lit ? colors.onAccent : colors.fgSecondary;
+          const fg = done || skipped ? colors.fgSecondary : b.lit ? colors.onAccent : colors.brandPressed;
+          const lineFg = done && b.warn ? colors.warningFg : b.lit ? colors.onAccent : colors.fgSecondary;
           const t = tileOf(b, running);
-          const icon = done ? 'checkc' : skipped ? 'skipc' : b.icon;
           return (
-            <TouchableOpacity key={b.key} style={[s.tile, tone, off && !running && s.off]} disabled={off} onPress={() => onPress(b.key)}
+            <TouchableOpacity key={b.key} style={[s.tile, b.lit && !done && !skipped ? s.tileLit : s.tileCalm, off && !running && s.off]} disabled={off} onPress={() => onPress(b.key)}
               accessibilityRole="button" accessibilityLabel={running ? BUSY_LABELS[b.key] : b.label}
               accessibilityHint={b.lit ? (b.mode === 'optional' ? 'Next step, optional' : 'Next step') : undefined} accessibilityState={{ busy: running, disabled: off }}>
-              {running ? <ActivityIndicator color={fg} style={s.tileIcon} /> : <Icon name={icon} size={22} color={skipped ? colors.fgSecondary : fg} />}
-              <Text style={[s.tileWord, b.lit && s.tileWordLit, { color: fg }]} numberOfLines={1} adjustsFontSizeToFit>{t.word}</Text>
+              {running ? <ActivityIndicator color={fg} style={s.tileIcon} /> : null}
+              <View style={s.tileWordRow}>
+                {done && !running ? <Icon name="check" size={14} color={colors.fgSecondary} /> : null}
+                <Text style={[s.tileWord, b.lit && s.tileWordLit, { color: fg }]} numberOfLines={1} adjustsFontSizeToFit>{t.word}</Text>
+              </View>
               {t.line ? <Text style={[s.tileLine, { color: lineFg }]} numberOfLines={1} adjustsFontSizeToFit>{t.line}</Text> : null}
             </TouchableOpacity>
           );
@@ -142,12 +150,15 @@ export function ThreeTiles({ three, busy = null, failure = null, onPress, onSkip
 const BUSY_LABELS = { sign: 'Saving the signature', pay: 'Recording the payment', send: 'Sending the bill' };
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.borderDefault, borderRadius: 14, backgroundColor: colors.bgCard },
-  rowBody: { flex: 1, minWidth: 0 },
-  rowTitle: { fontSize: 18, fontWeight: '800', color: colors.fgDefault },
-  rowLine: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary },
-  change: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5, borderColor: colors.brandPressed, alignItems: 'center', justifyContent: 'center' },
-  changeText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed },
+  row: { gap: 2 },
+  rowHead: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: colors.fgSecondary },
+  rowMain: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 32 },
+  rowLine: { flex: 1, minWidth: 0, fontSize: 15, lineHeight: 21, color: colors.fgSecondary },
+  rowAmount: { fontSize: 17, fontWeight: '700', color: colors.fgDefault },
+  rowNote: { fontSize: 15, lineHeight: 20, fontWeight: '600', color: colors.warningFg },
+  // Change: a link in brand green, 44 pt to press
+  change: { minHeight: 44, justifyContent: 'center', paddingLeft: 8 },
+  changeText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed, textDecorationLine: 'underline' },
   column: { gap: 10 },
   btn: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1.5 },
   calm: { backgroundColor: colors.bgCard, borderColor: colors.borderDefault },
@@ -173,11 +184,14 @@ const s = StyleSheet.create({
   // the row of tiles (app-dock): three equal columns, 8 apart
   tilesWrap: { gap: 10 },
   tiles: { flexDirection: 'row', gap: 8 },
-  tile: { flex: 1, minWidth: 0, minHeight: 64, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 9, paddingBottom: 8, paddingHorizontal: 6, borderRadius: 14, borderWidth: 1.5, gap: 2 },
-  tileIcon: { height: 22 },
-  tileWord: { fontSize: 15, fontWeight: '700', marginTop: 2 },
-  tileWordLit: { fontWeight: '800' },
+  tile: { flex: 1, minWidth: 0, minHeight: 54, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, paddingHorizontal: 6, borderRadius: 12, borderWidth: 1, gap: 1 },
+  tileCalm: { backgroundColor: colors.bgCard, borderColor: colors.borderDefault },
+  tileLit: { backgroundColor: colors.accent, borderColor: colors.accent },
+  tileIcon: { height: 20 },
+  tileWordRow: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
+  tileWord: { flexShrink: 1, fontSize: 15, fontWeight: '600' },
+  tileWordLit: { fontWeight: '700' },
   tileLine: { fontSize: 13, lineHeight: 16 },
-  skipBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
-  skipBtnText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed, flexShrink: 1 },
+  skipBtn: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 14 },
+  skipBtnText: { fontSize: 16, fontWeight: '600', color: colors.brandPressed, textDecorationLine: 'underline' },
 });
