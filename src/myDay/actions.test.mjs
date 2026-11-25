@@ -225,3 +225,20 @@ test('actionBody: the part goes only with Estimate needed, only what is filled, 
   assert.equal(long.part_number.length, PART_NUMBER_MAX);
   assert.deepEqual([PART_NAME_MAX, PART_NUMBER_MAX], [500, 100]);
 });
+
+test('the bill is final before Finish (T3, the Architect): no Deposit taken, no No access, no undo of the Finish', () => {
+  const onsite = visit({ status: 'in_progress', visit_kind: 'repair', actions: ['finish', 'no_access'], finish_outcomes: ['done', 'deposit', 'diagnostics_only'] });
+  assert.deepEqual(finishChoices(onsite).map((c) => c.outcome), ['done', 'deposit', 'diagnostics_only']);
+  assert.deepEqual(finishChoices(onsite, { billFinal: true }).map((c) => c.outcome), ['done', 'diagnostics_only']);
+  assert.equal(defaultOutcome({ ...onsite, finish_outcomes: ['deposit', 'done'] }, { billFinal: true }), 'done');
+  assert.equal(defaultOutcome({ ...onsite, finish_outcomes: [] }, { billFinal: true }), 'done');
+  assert.equal(barOf(onsite, NOW).noAccess, true);
+  assert.equal(barOf(onsite, NOW, { billFinal: true }).noAccess, false);
+  const closed = visit({ status: 'completed', outcome: 'done', closed_at: '2026-11-10T15:52:00.000Z', actions: ['undo_finish'], undo_until: '2026-11-10T16:07:00.000Z' });
+  const bar = barOf(closed, at('2026-11-10T15:55:00Z'), { billFinal: true });
+  assert.equal(bar.undo, null);
+  assert.deepEqual(bar.closed, { text: 'Finished at 10:52', note: null });
+  // On my way's undo stays: only the Finish's goes
+  const onway = visit({ status: 'omw', omw_at: '2026-11-10T16:08:00.000Z', actions: ['finish', 'undo_omw'], undo_until: '2026-11-10T16:23:00.000Z' });
+  assert.equal(barOf(onway, NOW, { billFinal: true }).undo.action, 'undo_omw');
+});

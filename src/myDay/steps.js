@@ -197,3 +197,18 @@ export function nextButtonOf(next) {
   const step = VISIT_STEPS.find((s) => s.key === 'next');
   return { key: 'next', server: false, ...step.button({ next }) };
 }
+
+// «What to do now» under the visit's data (README tech-bill-plain, the Designer after mobile #95):
+// only for the main technician on the way or on site; before it and after Finish — none
+const NOW_WORDS = {
+  diagnostics: 'Find the problem, write the diagnosis, then tap Finish.',
+  repair: 'Fix it, add parts to the bill, then tap Finish.',
+  installation: 'Install and test the new unit, then tap Finish.',
+  recall: 'Check the earlier work, then tap Finish.',
+};
+export function nowWordsOf(visit) {
+  if (!visit || visit.legacy || visit.role === 'helper') return null;
+  const state = stateOf(visit);
+  if (state !== 'onway' && state !== 'onsite') return null;
+  return NOW_WORDS[visit.visit_kind] || null;
+}

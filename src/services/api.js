@@ -222,6 +222,11 @@ export const billAPI = {
   // { via: 'handed' | 'shared', to?, consent? (shared: true) }: the issued bill reached the
   // customer; once per bill (409 again). The PDF itself: src/bill/pdf.js
   delivered: async (id, body) => (await api.post(`${billPath(id)}/delivered`, body, { timeout: 15000 })).data,
+  // { to, consent? } (MAIL-1, backend billEmail.js): the issued bill's PDF by email from the
+  // company's server; the first email marks the bill delivered. 200 { bill, emailed, delivered };
+  // 409 consent_required / just_sent, 429 too_many_emails, 502 email_not_sent, 503 email_off.
+  // Only while the bill says can_email (src/bill/copy.js)
+  email: async (id, body) => (await api.post(`${billPath(id)}/email`, body, { timeout: 45000 })).data,
 };
 
 // «Approve» before the work (backend routes/scheduler/billConsents.js, billCopies.js; the main

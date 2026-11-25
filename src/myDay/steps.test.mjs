@@ -2,7 +2,7 @@
 // Times are New York: Tuesday Nov 24 2026, EST (UTC−5).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VISIT_STEPS, stepsOf, stripLabel, nextOfDay } from './steps.js';
+import { VISIT_STEPS, nowWordsOf, stepsOf, stripLabel, nextOfDay } from './steps.js';
 import { buildDay } from './model.js';
 
 function visit(o = {}) {
@@ -215,4 +215,16 @@ test('within the rule (needs_new false) or an issued bill: as before', () => {
   assert.deepEqual(keys(stepsOf(ctx({ visit: done(), approve: signed, known: within }))), ['bill', null]);
   const issued = { status: 'issued', bill: bill({ authorization: { needs_new: true, current_cents: 30500, authorization: { amount_cents: 23000 } } }) };
   assert.equal(stepsOf(ctx({ visit: done(), approve: signed, known: issued })).main.key, 'give');
+});
+
+test('what to do now: on the way or on site, by the kind; none before, after, for a helper', () => {
+  const v = (o) => ({ role: 'main', legacy: false, status: 'in_progress', visit_kind: 'diagnostics', ...o });
+  assert.equal(nowWordsOf(v()), 'Find the problem, write the diagnosis, then tap Finish.');
+  assert.equal(nowWordsOf(v({ status: 'omw', visit_kind: 'repair' })), 'Fix it, add parts to the bill, then tap Finish.');
+  assert.equal(nowWordsOf(v({ visit_kind: 'installation' })), 'Install and test the new unit, then tap Finish.');
+  assert.equal(nowWordsOf(v({ visit_kind: 'recall' })), 'Check the earlier work, then tap Finish.');
+  assert.equal(nowWordsOf(v({ status: 'scheduled' })), null);
+  assert.equal(nowWordsOf(v({ status: 'completed' })), null);
+  assert.equal(nowWordsOf(v({ role: 'helper' })), null);
+  assert.equal(nowWordsOf(v({ visit_kind: 'other' })), null);
 });

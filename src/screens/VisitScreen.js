@@ -48,14 +48,16 @@ import { visitView } from '../perms/model';
 import { AccessText, NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
-import { nextButtonOf, nextOfDay, stepsOf, stripLabel } from '../myDay/steps';
+import { nextButtonOf, nextOfDay, nowWordsOf, stepsOf, stripLabel } from '../myDay/steps';
 import { issueFailText, pressOf, threeOf } from '../bill/three';
 import { BillRow } from '../bill/ThreeParts';
+import { SendSheet } from '../bill/CopyParts';
+import { copyRequired } from '../bill/copy';
 import { nextTodayOf } from '../myDay/access';
 import { canAddExtras, noteBody, noteError, noteReady, noteRequest, photoError, photoFile, photosOf, photosTitle } from '../myDay/notesPhotos';
 import { ExtrasRow, NoteSheet, PhotoGrid, PhotoSheet, PhotoViewer } from '../myDay/visitExtras';
 import { SEEN_REST_MS, onScreen, seenError, toSend } from '../myDay/officeSeen';
-import { billError, billFirst, billTile, canBill, draftedFrom, knownOf, overApproval } from '../bill/model';
+import { billError, billTile, canBill, draftedFrom, knownOf, overApproval } from '../bill/model';
 import { Box } from '../bill/parts';
 import { approveError, approveTile, approveTileAfterIssue, canApprove } from '../approve/model';
 import { payTile } from '../pay/model';
@@ -336,19 +338,27 @@ export default function VisitScreen({ route, navigation }) {
   }, [navigation, id, shown, known]);
   // A press on one of the three: an empty draft (or none yet) opens «Change»; a draft is made final
   // first, right here (the button spins, no question: the word «issue» is not on the screen); then
-  // the button's screen. Done — the screen of what was done. Bill before payment (NY) and not given
-  // yet: the signature and the payment go through giving the bill first (BillSend), as before.
+  // the button's screen: Get signature — the customer's screen (AckScreen, d2; the copy first under
+  // the box when it is required, d2-ny); Get paid — Pay (the copy first when required, d5); Send
+  // the bill — the sheet over the visit (d6). Done — the screen of what was done.
   const [threeBusy, setThreeBusy] = useState(null);
   const [threeFail, setThreeFail] = useState(null);
+  const [sendOpen, setSendOpen] = useState(false);
   const openThree = useCallback((key, bill) => {
     if (!shown) return;
-    const given = !!(bill && bill.delivered_at);
-    const first = billFirst(bill) && !given;
-    if (key === 'send' || (key === 'sign' && first)) {
-      navigation.navigate('BillSend', { id, visit: shown.visit, back: 'Visit' });
-    } else if (key === 'sign') navigation.navigate('Ack', { id, visit: shown.visit, back: 'Visit' });
+    if (key === 'send') setSendOpen(true);
+    else if (key === 'sign') navigation.navigate('Ack', { id, visit: shown.visit, back: 'Visit' });
     else navigation.navigate('Pay', { id, visit: shown.visit, bill });
   }, [shown, navigation, id]);
+  const sentBill = useCallback((bill) => {
+    setSendOpen(false);
+    if (bill) { setKnown(knownOf(bill)); loadAck(bill); } else if (shown) loadBill(shown.visit);
+  }, [shown, loadAck, loadBill]);
+  const showBill = useCallback((file) => {
+    setSendOpen(false);
+    const bill = known && known.bill;
+    navigation.navigate('BillPdf', { uri: file.uri, label: bill ? bill.label || `#${bill.bill_number}` : '' });
+  }, [known, navigation]);
   const pressThree = useCallback(async (key) => {
     if (!shown || !three || threeBusy) return;
     setThreeFail(null);
@@ -507,7 +517,10 @@ export default function VisitScreen({ route, navigation }) {
 
   // the undo counts down by the minute
   const nowMs = tick + skew.current;
-  const bar = useMemo(() => (shown ? barOf(shown.visit, nowMs) : null), [shown, nowMs]);
+  // the bill is final already (one of the three went before Finish): no Deposit taken, no No access,
+  // no undo of the Finish (the Architect, T3; the server checks it too once IB-BE is in)
+  const billFinal = !!known && known.status === 'issued';
+  const bar = useMemo(() => (shown ? barOf(shown.visit, nowMs, { billFinal }) : null), [shown, nowMs, billFinal]);
   const undoShown = !!(bar && bar.undo);
   useEffect(() => {
     if (!undoShown) return undefined;
@@ -819,6 +832,8 @@ export default function VisitScreen({ route, navigation }) {
               })}
             </View>
 
+            {nowWordsOf(shown.visit) ? <Text style={styles.nowWords}>{nowWordsOf(shown.visit)}</Text> : null}
+
             {/* before Finish nothing competes with the one lit button (d0): the strip comes after it */}
             {steps && !three && steps.strip.length > 1 && card.state === 'closed' ? <StepStrip strip={steps.strip} label={stripLabel(steps.strip)} /> : null}
             {approveShown ? (
@@ -1012,7 +1027,11 @@ export default function VisitScreen({ route, navigation }) {
       ) : null}
       {shown ? (
         <>
-          <FinishSheet visible={finishOpen} choices={finishChoices(shown.visit)} initial={defaultOutcome(shown.visit)}
+          {sendOpen && known && known.bill && known.status === 'issued' ? (
+            <SendSheet id={id} bill={known.bill} required={copyRequired(known.bill)} bottom={insets.bottom}
+              onSent={sentBill} onShow={showBill} onClose={() => setSendOpen(false)} />
+          ) : null}
+          <FinishSheet visible={finishOpen} choices={finishChoices(shown.visit, { billFinal })} initial={defaultOutcome(shown.visit, { billFinal })}
             subtitle={finishSubtitle(shown.visit, n)} bottom={insets.bottom}
             onClose={() => setFinishOpen(false)}
             onFinish={finishVisit}
@@ -1071,6 +1090,8 @@ function Section({ label, children }) {
 const ACK_REFUSED_WARN = 'signature not accepted · new signature needed';
 
 const styles = StyleSheet.create({
+  // «what to do now» on the way or on site (steps.js nowWordsOf)
+  nowWords: { marginTop: 12, fontSize: 15, lineHeight: 21, color: colors.fgSecondary },
   screen: { flex: 1, backgroundColor: colors.bgCard },
   topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 44, paddingLeft: 4, paddingRight: 14, borderRadius: 22 },

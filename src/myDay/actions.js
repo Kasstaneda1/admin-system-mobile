@@ -42,14 +42,25 @@ const KIND_OUTCOME = { repair: 'done', diagnostics: 'diagnostics_only', installa
 function allowedOutcomes(list) {
   return (Array.isArray(list) ? list : []).filter((o, i, all) => Object.prototype.hasOwnProperty.call(CHOICES, o) && all.indexOf(o) === i);
 }
-export function finishChoices(visit) {
+// billFinal: the visit's bill is already final (one of the three buttons went before Finish — the
+// Architect, T3, README tech-bill-plain «Первое действие до Finish»): no Deposit taken (the visit
+// has a bill), until the server says so itself (IB-BE: finish_outcomes without it)
+const NO_BILL_OUTCOMES = ['deposit'];
+function outcomesOf(visit, billFinal) {
   const allowed = allowedOutcomes(visit.finish_outcomes);
-  return (allowed.length ? allowed : ALL_OUTCOMES).map((outcome) => ({ outcome, ...CHOICES[outcome] }));
+  const list = allowed.length ? allowed : ALL_OUTCOMES;
+  return billFinal ? list.filter((o) => !NO_BILL_OUTCOMES.includes(o)) : list;
+}
+export function finishChoices(visit, { billFinal = false } = {}) {
+  return outcomesOf(visit, billFinal).map((outcome) => ({ outcome, ...CHOICES[outcome] }));
 }
 // The choice marked when the sheet opens: the server's first, else what the visit was booked for
-export function defaultOutcome(visit) {
+export function defaultOutcome(visit, { billFinal = false } = {}) {
   const allowed = allowedOutcomes(visit.finish_outcomes);
-  return allowed.length ? allowed[0] : KIND_OUTCOME[visit.visit_kind] || 'done';
+  const booked = KIND_OUTCOME[visit.visit_kind] || 'done';
+  if (!allowed.length) return billFinal && NO_BILL_OUTCOMES.includes(booked) ? 'done' : booked;
+  const list = outcomesOf(visit, billFinal);
+  return list.length ? list[0] : allowed[0];
 }
 // The words under «The office changed this visit» when an outcome is refused: 'Finish it as:
 // Repaired, Deposit taken or Diagnostics only.' (the server's answer names the outcomes, not the new kind)
@@ -119,7 +130,9 @@ function closedWord(visit) {
 //            closed after 15 min» (a helper did not close it: no note);
 //   line — a quiet line: why an old or cancelled visit has no buttons, and for a helper who
 //          closes the visit.
-export function barOf(visit, nowMs) {
+// billFinal (see finishChoices): no «No access» before Finish, no undo of the Finish after it —
+// the server refuses it for a final bill («ask the office»)
+export function barOf(visit, nowMs, { billFinal = false } = {}) {
   const actions = Array.isArray(visit.actions) ? visit.actions : [];
   const state = stateOf(visit);
   const omw = { action: 'omw', label: 'On my way', icon: 'car' };
@@ -130,10 +143,10 @@ export function barOf(visit, nowMs) {
     primary = omw;
     if (actions.includes('finish')) secondary = finish;
   } else if (actions.includes('finish')) primary = finish;
-  const noAccess = actions.includes('no_access');
+  const noAccess = actions.includes('no_access') && !billFinal;
 
   let undo = null;
-  const undoAction = actions.find((a) => a === 'undo_omw' || a === 'undo_finish') || null;
+  const undoAction = actions.find((a) => a === 'undo_omw' || (a === 'undo_finish' && !billFinal)) || null;
   const until = Date.parse(visit.undo_until);
   if (undoAction && Number.isFinite(until) && until > nowMs) {
     const at = momentWall(until - UNDO_MINUTES * 60 * 1000);
@@ -154,7 +167,7 @@ export function barOf(visit, nowMs) {
       const at = closedMoment(visit);
       closed = {
         text: at ? `${closedWord(visit)} at ${clock(at.minutes)}` : closedWord(visit),
-        note: visit.role === 'helper' ? null : `undo closed after ${UNDO_MINUTES} min`,
+        note: visit.role === 'helper' || billFinal ? null : `undo closed after ${UNDO_MINUTES} min`,
       };
     }
   } else if (visit.role === 'helper') {
