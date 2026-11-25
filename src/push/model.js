@@ -109,6 +109,11 @@ export function thisPhoneOn(status, deviceId) {
 }
 export function pushStatusRow({ state, status, deviceId = null, failed = false }) {
   if (state !== 'on') return null;
+  const row = rowOf(state, status, deviceId, failed);
+  // a yellow row says what it is in its title: «on» would argue with «not registered» (the Designer on #99)
+  return row && row.tone === 'warn' ? { ...row, title: 'Notifications: not working' } : row;
+}
+function rowOf(state, status, deviceId, failed) {
   const title = 'Notifications: on';
   if (!status) {
     if (failed) return { tone: 'warn', title, text: 'Couldn’t check this phone — tap to retry', retry: true };

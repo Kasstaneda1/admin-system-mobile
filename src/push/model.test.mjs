@@ -192,18 +192,18 @@ test('pushStatusRow: on, registered, last push; not registered — tap to retry;
     assert.equal(pushStatusRow({ state: 'on', status: STATUS({ last_push: { at: '2026-11-25T03:24:00Z', status } }), deviceId: 7 }).tone, 'ok');
   }
   assert.deepEqual(pushStatusRow({ state: 'on', status: STATUS({ registered: false, devices: [] }), deviceId: null }),
-    { tone: 'warn', title: 'Notifications: on', text: 'This phone is not registered — tap to retry', retry: true });
+    { tone: 'warn', title: 'Notifications: not working', text: 'This phone is not registered — tap to retry', retry: true });
   assert.equal(pushStatusRow({ state: 'on', status: STATUS(), deviceId: 8 }).retry, true);
   for (const status of ['failed', 'no_device', 'inactive']) {
     assert.deepEqual(pushStatusRow({ state: 'on', status: STATUS({ last_push: { at: '2026-11-25T03:24:00Z', status, code: 'http_400' } }), deviceId: 7 }),
-      { tone: 'warn', title: 'Notifications: on', text: 'This phone registered · last push failed Nov 24, 10:24 PM', retry: false });
+      { tone: 'warn', title: 'Notifications: not working', text: 'This phone registered · last push failed Nov 24, 10:24 PM', retry: false });
   }
   assert.deepEqual(pushStatusRow({ state: 'on', status: STATUS({ sender_on: false }), deviceId: 7 }),
-    { tone: 'warn', title: 'Notifications: on', text: 'The server is not sending notifications right now', retry: false });
+    { tone: 'warn', title: 'Notifications: not working', text: 'The server is not sending notifications right now', retry: false });
   // no answer yet; no answer at all (no network, the server failed)
   assert.deepEqual(pushStatusRow({ state: 'on', status: null }), { tone: 'mute', title: 'Notifications: on', text: 'Checking this phone…', retry: false });
   assert.deepEqual(pushStatusRow({ state: 'on', status: null, failed: true }),
-    { tone: 'warn', title: 'Notifications: on', text: 'Couldn’t check this phone — tap to retry', retry: true });
+    { tone: 'warn', title: 'Notifications: not working', text: 'Couldn’t check this phone — tap to retry', retry: true });
   // no token in the words, ever
   assert.equal(JSON.stringify(pushStatusRow({ state: 'on', status: STATUS(), deviceId: 7 })).includes('Token'), false);
 });
