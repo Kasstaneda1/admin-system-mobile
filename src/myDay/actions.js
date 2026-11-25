@@ -8,7 +8,7 @@
 // Try again» sends the same request again (the same client_request_id, written once).
 import { clock, closedMoment, finishLabel, firstName, kindText, momentWall, shortName, stateOf } from './model.js';
 import { keepCard } from './visit.js';
-import { SKIPS, canSkip, skippedOf, stepOff } from '../steps/skip.js';
+import { SKIPS, canSkip, modeOfStep, skippedOf, stepOff } from '../steps/skip.js';
 
 export const UNDO_MINUTES = 15;
 
@@ -178,12 +178,18 @@ export function barOf(visit, nowMs, { billFinal = false } = {}) {
   // On my way Off for the company (steps/skip.js stepOff): no button and no link, Finish is the
   // orange one at once — even while an older server still offers omw
   const omwOff = stepOff(visit, 'omw');
+  // On my way Optional: the word on the button itself (design app-dock m5 — the owner on build 3
+  // read the orange one as a must)
+  const omwOptional = modeOfStep(visit, 'omw') === 'optional';
   if (actions.includes('omw') && !omwSkipped && !omwOff) {
-    primary = omw;
+    primary = omwOptional ? { ...omw, sub: 'Optional' } : omw;
     if (actions.includes('finish')) secondary = finish;
   } else if (actions.includes('finish')) primary = finish;
-  // the quiet «Skip On my way» under it, where the company has On my way Optional (k1)
-  const skip = primary === omw && canSkip(visit, 'omw') ? { key: 'omw', words: SKIPS.omw.link } : null;
+  // Optional with Finish there (the main technician): two big buttons in a row, «Finish · without
+  // it» beside On my way is the skip — no link, no reason asked (m5); a helper (no Finish) keeps
+  // «Skip On my way» (k1, now a button)
+  const pair = !!primary && primary.action === 'omw' && omwOptional && !!secondary && visit.role !== 'helper';
+  const skip = !!primary && primary.action === 'omw' && !pair && canSkip(visit, 'omw') ? { key: 'omw', words: SKIPS.omw.link } : null;
   const noAccess = actions.includes('no_access') && !billFinal;
 
   let undo = null;
@@ -217,6 +223,7 @@ export function barOf(visit, nowMs, { billFinal = false } = {}) {
   // skip, omwSkipped — only when there (VS-APP): the bar of a company without the steps is as before
   return { primary, secondary, noAccess, undo, closed, line,
     ...(skip ? { skip } : {}),
+    ...(pair ? { pair: true } : {}),
     ...(omwSkipped ? { omwSkipped: `${SKIPS.omw.skipped} · ${omwSkipped.reason}` } : {}),
     empty: !primary && !secondary && !noAccess && !undo && !closed && !line };
 }

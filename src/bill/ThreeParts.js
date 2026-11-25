@@ -92,6 +92,17 @@ export function ThreeButtons({ three, busy = null, failure = null, onPress, onSk
     </View>
   );
 }
+// Skip under the row (design app-dock m6): a button, not a grey line — full width, 48 pt, a frame,
+// the skip icon and the step's words (app-skip), calmer than the orange
+export function SkipButton({ words, off = false, onPress }) {
+  return (
+    <TouchableOpacity style={[s.skipBtn, off && s.off]} onPress={onPress} disabled={off} accessibilityRole="button" accessibilityHint="Asks why">
+      <Icon name="skipc" size={22} color={colors.brandPressed} />
+      <Text style={s.skipBtnText} numberOfLines={1} adjustsFontSizeToFit>{words}</Text>
+    </TouchableOpacity>
+  );
+}
+
 // The row in the visit's foot (design-mockups/app-dock m1–m4, README «Для Фулстека»): three tiles
 // side by side, always Signature · Get paid · Send bill, the same place before and after Finish;
 // after Finish the next one is the orange tile (no big button over the row). A tile: 64 pt, the
@@ -115,7 +126,7 @@ export function ThreeTiles({ three, busy = null, failure = null, onPress, onSkip
           return (
             <TouchableOpacity key={b.key} style={[s.tile, tone, off && !running && s.off]} disabled={off} onPress={() => onPress(b.key)}
               accessibilityRole="button" accessibilityLabel={running ? BUSY_LABELS[b.key] : b.label}
-              accessibilityHint={b.lit ? 'Next step' : undefined} accessibilityState={{ busy: running, disabled: off }}>
+              accessibilityHint={b.lit ? (b.mode === 'optional' ? 'Next step, optional' : 'Next step') : undefined} accessibilityState={{ busy: running, disabled: off }}>
               {running ? <ActivityIndicator color={fg} style={s.tileIcon} /> : <Icon name={icon} size={22} color={skipped ? colors.fgSecondary : fg} />}
               <Text style={[s.tileWord, b.lit && s.tileWordLit, { color: fg }]} numberOfLines={1} adjustsFontSizeToFit>{t.word}</Text>
               {t.line ? <Text style={[s.tileLine, { color: lineFg }]} numberOfLines={1} adjustsFontSizeToFit>{t.line}</Text> : null}
@@ -123,11 +134,7 @@ export function ThreeTiles({ three, busy = null, failure = null, onPress, onSkip
           );
         })}
       </View>
-      {three.skip && onSkip && three.lit ? (
-        <TouchableOpacity style={s.skip} onPress={() => onSkip(three.skip.key)} disabled={off} accessibilityRole="button" accessibilityHint="Asks why">
-          <Text style={s.skipText}>{three.skip.words}</Text>
-        </TouchableOpacity>
-      ) : null}
+      {three.skip && onSkip && three.lit ? <SkipButton words={three.skip.words} off={off} onPress={() => onSkip(three.skip.key)} /> : null}
       {failure ? <Text style={s.fail} accessibilityLiveRegion="polite" accessibilityRole="alert">{failure}</Text> : null}
     </View>
   );
@@ -171,4 +178,6 @@ const s = StyleSheet.create({
   tileWord: { fontSize: 15, fontWeight: '700', marginTop: 2 },
   tileWordLit: { fontWeight: '800' },
   tileLine: { fontSize: 13, lineHeight: 16 },
+  skipBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.borderControl, backgroundColor: colors.bgCard },
+  skipBtnText: { fontSize: 17, fontWeight: '700', color: colors.brandPressed, flexShrink: 1 },
 });

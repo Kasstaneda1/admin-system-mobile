@@ -26,7 +26,7 @@ test('On my way Off: no button, no Skip link — Finish is the orange one at onc
   assert.equal(off.skip, undefined);
   const on = barOf(visit(), Date.now());
   assert.equal(on.primary.action, 'omw');
-  assert.deepEqual(on.skip, { key: 'omw', words: 'Skip On my way' });
+  assert.equal(on.pair, true);
   // no steps (an older server): as before
   assert.equal(barOf(visit({ steps: undefined }), Date.now()).primary.action, 'omw');
 });
@@ -73,4 +73,13 @@ test('the «now» line of a diagnostics visit with Diagnosis Off: nothing to wri
   const v = (modes) => visit({ visit_kind: 'diagnostics', status: 'in_progress', steps: steps(modes, { diagnosis: { mode_estimate_needed: modes.diagnosis } }) });
   assert.equal(nowWordsOf(v({ diagnosis: 'off' })), 'Find the problem, then tap Finish.');
   assert.equal(nowWordsOf(v({ diagnosis: 'required' })), 'Find the problem, then tap Finish and write what you found.');
+});
+
+test('Optional made visible (design app-dock m5, m6): the now line before the drive, the orange tile «next · optional»', async () => {
+  const { nowWordsOf } = await import('../myDay/steps.js');
+  const { tileOf } = await import('../bill/three.js');
+  assert.equal(nowWordsOf(visit()), 'Tap On my way to text the customer — or skip it and tap Finish when the work is done.');
+  assert.equal(nowWordsOf(visit({ steps: steps({ omw: 'required' }) })), null);
+  assert.deepEqual(tileOf({ key: 'sign', state: 'todo', lit: true, mode: 'optional' }), { word: 'Signature', line: 'next · optional' });
+  assert.deepEqual(tileOf({ key: 'send', state: 'todo', lit: true, mode: 'required' }), { word: 'Send bill', line: 'next' });
 });

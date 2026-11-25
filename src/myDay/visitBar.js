@@ -8,7 +8,7 @@ import Icon from './Icon';
 import { TAG_FAMILIES } from './parts';
 import { FinishDiagnosisField } from '../diagnosis/field';
 import { PART_NAME_MAX, PART_NUMBER_MAX, finishTitle, notFixedAt } from './actions';
-import { ThreeButtons, ThreeTiles } from '../bill/ThreeParts';
+import { SkipButton, ThreeButtons, ThreeTiles } from '../bill/ThreeParts';
 import { keyboardFirst } from './keyboardTap';
 
 // bar: barOf(); pending: { action } while a press waits for the server; failure: { text }
@@ -49,7 +49,10 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
   const approve = three && !omwFirst && steps ? [steps.main, steps.second].find((b) => b && b.key === 'approve') || null : null;
   // with the three under it On my way stands alone (README d0: «On my way», then «Finish …»): the
   // foot would take half the screen with a plain Finish too
-  const plains = (omwFirst ? [bar.secondary && !three ? buttonOf(bar.secondary, false) : null] : three ? [
+  // On my way Optional with Finish (design app-dock m5): the two side by side, no plain Finish under
+  const pair = !!bar.pair && omwFirst && !!bar.secondary;
+  const finishBeside = pair ? buttonOf(bar.secondary, false) : null;
+  const plains = (omwFirst ? [bar.secondary && !three && !pair ? buttonOf(bar.secondary, false) : null] : three ? [
     approve ? buttonOf(approve, true) : null,
     bar.secondary ? buttonOf(bar.secondary, false) : null,
   ] : [
@@ -105,7 +108,34 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
 
       {nobill ? <ThreeButtons three={three} /> : null}
 
-      {primary && quietNext ? (
+      {pair && primary ? (
+        <View style={styles.pairRow}>
+          <TouchableOpacity style={[styles.main, styles.pairMain, primary.off && styles.off]} disabled={primary.off} onPress={primary.press} accessibilityRole="button"
+            accessibilityLabel="On my way, optional. Texts the customer." accessibilityState={{ disabled: primary.off, busy: spinner(primary.action) }}>
+            {spinner(primary.action) ? <ActivityIndicator color={colors.onAccent} /> : (
+              <>
+                <Icon name={primary.icon} size={24} color={colors.onAccent} />
+                <View style={styles.pairText}>
+                  <Text style={styles.mainText} numberOfLines={1} adjustsFontSizeToFit>{primary.label}</Text>
+                  <Text style={styles.pairSubLit} numberOfLines={1}>{primary.sub}</Text>
+                </View>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.pairFinish, finishBeside.off && styles.off]} disabled={finishBeside.off} onPress={finishBeside.press} accessibilityRole="button"
+            accessibilityLabel="Finish without On my way" accessibilityState={{ disabled: finishBeside.off, busy: spinner(finishBeside.action) }}>
+            {spinner(finishBeside.action) ? <ActivityIndicator color={colors.brandPressed} /> : (
+              <>
+                <Icon name="check" size={24} color={colors.brandPressed} />
+                <View style={styles.pairText}>
+                  <Text style={styles.pairFinishText} numberOfLines={1} adjustsFontSizeToFit>Finish</Text>
+                  <Text style={styles.pairSub} numberOfLines={1}>without it</Text>
+                </View>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : primary && quietNext ? (
         <TouchableOpacity style={[styles.nextQuiet, primary.off && styles.off]} disabled={primary.off} onPress={primary.press} accessibilityRole="button"
           accessibilityState={{ disabled: primary.off }}>
           <Text style={styles.nextQuietText} numberOfLines={1} adjustsFontSizeToFit>{primary.label}</Text>
@@ -123,11 +153,7 @@ export function ActionBar({ bar, pending, failure, blocked, bottom, onPress, onR
       ) : null}
 
       {/* «Skip On my way» under the lit On my way (VS-APP, design app-skip k1) */}
-      {omwFirst && bar.skip && onSkip ? (
-        <TouchableOpacity style={styles.skip} onPress={() => onSkip(bar.skip.key)} disabled={off} accessibilityRole="button" accessibilityHint="Asks why">
-          <Text style={styles.skipText}>{bar.skip.words}</Text>
-        </TouchableOpacity>
-      ) : null}
+      {omwFirst && bar.skip && onSkip ? <SkipButton words={bar.skip.words} off={off} onPress={() => onSkip(bar.skip.key)} /> : null}
 
       {plains.length ? (
         <View style={styles.plains}>
@@ -416,6 +442,14 @@ export function NoAccessSheet({ step, words, bottom, onCall, onNext, onClose, on
 }
 
 const styles = StyleSheet.create({
+  // On my way Optional and Finish side by side (design app-dock m5: 1.35 : 1, 60 pt)
+  pairRow: { flexDirection: 'row', gap: 8 },
+  pairMain: { flex: 1.35, minWidth: 0, paddingHorizontal: 12 },
+  pairText: { flexShrink: 1, minWidth: 0 },
+  pairSubLit: { fontSize: 13, fontWeight: '600', color: colors.onAccent },
+  pairFinish: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 60, paddingHorizontal: 10, borderRadius: 14, borderWidth: 2, borderColor: colors.brand, backgroundColor: colors.bgCard },
+  pairFinishText: { fontSize: 19, fontWeight: '800', color: colors.brandPressed },
+  pairSub: { fontSize: 13, color: colors.fgSecondary },
   undoLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
   undoLinkText: { fontSize: 15, fontWeight: '700', color: colors.brandPressed, textDecorationLine: 'underline' },
   noAccessLink: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, alignSelf: 'flex-start', marginTop: 8, marginBottom: 12, marginHorizontal: 16 },

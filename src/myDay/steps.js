@@ -41,7 +41,7 @@
 import { billFirst, canBill, overApproval, usd } from '../bill/model.js';
 import { billHasParts } from '../ack/model.js';
 import { NO_APPROVE_KINDS } from '../approve/model.js';
-import { diagnosisModeOf, stepOff } from '../steps/skip.js';
+import { diagnosisModeOf, modeOfStep, skippedOf, stepOff } from '../steps/skip.js';
 import { clock, finishLabel, stateOf } from './model.js';
 import { dueOf } from '../pay/model.js';
 
@@ -211,6 +211,11 @@ const NOW_WORDS = {
 export function nowWordsOf(visit) {
   if (!visit || visit.legacy || visit.role === 'helper') return null;
   const state = stateOf(visit);
+  // before the drive, On my way Optional with Finish there (design app-dock m5): both ways in words
+  if (state === 'sched' && Array.isArray(visit.actions) && visit.actions.includes('omw') && visit.actions.includes('finish')
+    && modeOfStep(visit, 'omw') === 'optional' && !skippedOf(visit, 'omw')) {
+    return 'Tap On my way to text the customer — or skip it and tap Finish when the work is done.';
+  }
   if (state !== 'onway' && state !== 'onsite') return null;
   // the company's Diagnosis Off for a diagnostics visit: nothing to write in Finish
   if (visit.visit_kind === 'diagnostics' && diagnosisModeOf(visit) === 'off') return 'Find the problem, then tap Finish.';

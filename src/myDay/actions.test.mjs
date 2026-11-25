@@ -269,8 +269,18 @@ test('the bar: «Skip On my way» under the lit On my way when Optional; skipped
   const planned = visit({ status: 'scheduled', actions: ['omw', 'finish', 'no_access'], steps: st({}) });
   const bar = barOf(planned, NOW);
   assert.equal(bar.primary.action, 'omw');
-  assert.deepEqual(bar.skip, { key: 'omw', words: 'Skip On my way' });
-  assert.equal(barOf({ ...planned, steps: st({ mode: 'required' }) }, NOW).skip, undefined);
+  // design app-dock m5 (after the owner on build 3): Optional with Finish — two in a row, «Optional»
+  // on On my way, no link (Finish beside it is the skip)
+  assert.equal(bar.primary.sub, 'Optional');
+  assert.equal(bar.pair, true);
+  assert.equal(bar.secondary.action, 'finish');
+  assert.equal(bar.skip, undefined);
+  // no Finish offered: the Skip stays
+  assert.deepEqual(barOf({ ...planned, actions: ['omw', 'no_access'] }, NOW).skip, { key: 'omw', words: 'Skip On my way' });
+  const req = barOf({ ...planned, steps: st({ mode: 'required' }) }, NOW);
+  assert.equal(req.skip, undefined);
+  assert.equal(req.pair, undefined);
+  assert.equal(req.primary.sub, undefined);
   assert.equal(barOf({ ...planned, steps: null }, NOW).skip, undefined, 'an older server: as before');
   const skipped = barOf({ ...planned, steps: st({ skipped: { at: '2026-11-10T15:00:00Z', reason: 'I’m already at the address' } }) }, NOW);
   assert.equal(skipped.primary.action, 'finish');
