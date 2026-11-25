@@ -214,3 +214,18 @@ test('an empty bill (nothing to charge for): the three calm, none lit, no Skip l
     assert.ok(t.buttons.every((b) => !b.lit));
   }
 });
+
+test('skip: collect skipped, then part of the bill paid — the part shows, not the skip (the Architect on #102)', () => {
+  const st = ['omw', 'diagnosis', 'approve', 'finish', 'issue', 'give', 'signs', 'collect']
+    .map((key) => ({ key, mode: key === 'finish' ? 'required' : 'optional', skipped: key === 'collect' ? { at: '2026-11-24T15:33:00Z', reason: 'Pays the office later' } : null }));
+  const part = issued({ payment_status: 'partly_paid', payments: [{ kind: 'payment', amount_cents: 5000, method: 'cash', received_at: '2026-11-24T15:40:00Z', voided_at: null }] });
+  const t = threeOf(ctx({ visit: closed({ steps: st }), known: knownOf(part) }));
+  const pay = t.buttons.find((b) => b.key === 'pay');
+  assert.equal(pay.state, 'part');
+  assert.equal(pay.title, 'Paid $50.00');
+  assert.ok(/left$/.test(pay.line), pay.line);
+  assert.notEqual(pay.icon, 'skipc');
+  // and fully paid: done, not skipped
+  const paid = threeOf(ctx({ visit: closed({ steps: st }), known: knownOf(issued({ payment_status: 'paid', payments: [{ kind: 'payment', amount_cents: 13609, method: 'cash', received_at: '2026-11-24T15:40:00Z', voided_at: null }] })) }));
+  assert.equal(paid.buttons.find((b) => b.key === 'pay').state, 'done');
+});

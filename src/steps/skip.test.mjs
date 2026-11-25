@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { REASON_MAX, SKIPS, canSkip, skipBody, skipError, skipReason, skippedLabel, skippedLine, skippedOf, stepOf } from './skip.js';
+import { REASON_MAX, SKIPS, canSkip, requestIdFor, skipBody, skipError, skipReason, skippedLabel, skippedLine, skippedOf, stepOf } from './skip.js';
 
 const steps = (o = {}) => [
   { key: 'omw', mode: 'optional', skipped: null }, { key: 'diagnosis', mode: 'optional', skipped: null },
@@ -61,4 +61,15 @@ test('the words of every sheet: a link, a title, reasons, the skipped title (des
   assert.equal(SKIPS.collect.link, 'Customer didn’t pay');
   assert.deepEqual(SKIPS.signs.reasons, ['The customer isn’t here', 'The customer doesn’t want to sign', 'Signed on a paper copy']);
   for (const w of Object.values(SKIPS)) assert.ok(w.link && w.title && w.sub && w.reasons.length >= 3 && w.skipped);
+});
+
+test('requestIdFor: one id per open sheet and reason — a repeat after a lost answer goes with the same id', () => {
+  let n = 0;
+  const make = () => `app-id-${++n}`;
+  const ids = {};
+  assert.equal(requestIdFor(ids, 'Pays the office later', make), 'app-id-1');
+  assert.equal(requestIdFor(ids, ' Pays the office  later ', make), 'app-id-1', 'the same reason as sent');
+  assert.equal(requestIdFor(ids, 'Refused to pay', make), 'app-id-2', 'another reason: another skip');
+  assert.equal(requestIdFor(ids, '   ', make), null);
+  assert.equal(requestIdFor({}, 'Pays the office later', make), 'app-id-3', 'the sheet opened again: a new id');
 });

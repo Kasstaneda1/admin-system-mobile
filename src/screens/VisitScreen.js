@@ -48,7 +48,7 @@ import { visitView } from '../perms/model';
 import { AccessText, NoticeBar, Tag } from '../myDay/parts';
 import Icon from '../myDay/Icon';
 import SkipSheet from '../steps/SkipSheet';
-import { skipBody, skipError } from '../steps/skip';
+import { requestIdFor, skipBody, skipError } from '../steps/skip';
 import { ActionBar, FinishSheet, NoAccessSheet, StepStrip } from '../myDay/visitBar';
 import { nextButtonOf, nextOfDay, nowWordsOf, stepsOf, stripLabel } from '../myDay/steps';
 import { issueFailText, pressOf, threeOf } from '../bill/three';
@@ -457,10 +457,12 @@ export default function VisitScreen({ route, navigation }) {
   const [skipKey, setSkipKey] = useState(null);
   const [skipSending, setSkipSending] = useState(null);
   const [skipFailure, setSkipFailure] = useState(null);
-  const openSkip = useCallback((key) => { setSkipFailure(null); setSkipSending(null); setSkipKey(key); }, []);
+  // one request id per open sheet and reason (a repeat after a lost answer is «nothing new»)
+  const skipIds = useRef({});
+  const openSkip = useCallback((key) => { skipIds.current = {}; setSkipFailure(null); setSkipSending(null); setSkipKey(key); }, []);
   const doSkip = useCallback(async (reason) => {
     if (!skipKey || skipSending) return;
-    const body = skipBody(reason, newRequestId(Date.now() + skew.current));
+    const body = skipBody(reason, requestIdFor(skipIds.current, reason, () => newRequestId(Date.now() + skew.current)));
     if (!body) return;
     const mark = myDayMark();
     setSkipSending(reason);
