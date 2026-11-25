@@ -28,6 +28,7 @@ export function useCopy({ id, bill, required, quiet = false }) {
   const ways = useMemo(() => copyWaysOf({ bill, required, to }), [bill, required, to]);
   const [picked, setPicked] = useState(null);
   const way = picked && ways.some((w) => w.way === picked) ? picked : firstWay(ways, to, quiet);
+  const wayNow = way;
   const [ticked, setTicked] = useState(false);
   const tick = tickOf(way);
 
@@ -38,7 +39,9 @@ export function useCopy({ id, bill, required, quiet = false }) {
     ], 'plain-text', to, 'email-address');
   }, [to]);
 
-  const give = useCallback(async () => {
+  // chosen: the way picked in the «choose» sheet this moment (the state is not there yet)
+  const give = useCallback(async (chosen = null) => {
+    const way = typeof chosen === 'string' ? chosen : wayNow;
     const stop = copyCheck({ way, to, ticked });
     if (stop) return { ok: false, text: stop };
     if (way === 'show') return { ok: true, bill: null, show: true };
@@ -61,13 +64,13 @@ export function useCopy({ id, bill, required, quiet = false }) {
       if (status >= 500 && status !== 502 && status !== 503) logError('Error giving the bill’s copy:', error);
       return { ok: false, text: copyFailText(error) };
     }
-  }, [way, to, ticked, id, bill]);
+  }, [wayNow, to, ticked, id, bill]);
 
   return { ways, way, setWay: setPicked, to, changeTo, ticked, setTicked, tick, give };
 }
 
 // The rows and the tick — right under the chosen row, so it is seen with it (QA 25.11). label: «THE CUSTOMER’S COPY» over them, or null; off: while sending
-export function CopyChoice({ copy, label = null, off = false, onChange = null }) {
+export function CopyChoice({ copy, label = null, off = false, onChange = null, onPick = null }) {
   const { ways, way, setWay, changeTo, ticked, setTicked, tick } = copy;
   const pick = (w) => {
     if (off) return;
@@ -76,6 +79,7 @@ export function CopyChoice({ copy, label = null, off = false, onChange = null })
     setWay(w);
     setTicked(false);
     if (onChange) onChange();
+    if (onPick) onPick(w);
   };
   return (
     <View>
@@ -113,6 +117,25 @@ export function CopyChoice({ copy, label = null, off = false, onChange = null })
         })}
       </View>
     </View>
+  );
+}
+
+// «Done · signed» with no copy chosen where the signature waits for it (NY, Give required): not a
+// red stop but this sheet — the same ways; Email or Printed copy handed go on at one tap, Share
+// shows its tick and its button (the lead 25.11: no dead end; words — the Designer).
+// onChosen(way) — the signature goes on with it; onClose — back to the signature
+export function CopyChooseSheet({ visible, copy, bottom, onChosen, onClose }) {
+  const share = visible && copy.way === 'share';
+  return (
+    <Sheet visible={visible} onClose={onClose} bottom={bottom}>
+      <Text style={styles.sheetTitle} accessibilityRole="header">Choose how the customer gets the copy</Text>
+      <CopyChoice copy={copy} onPick={(w) => { if (w !== 'share') onChosen(w); }} />
+      {share ? (
+        <View style={styles.sheetButton}>
+          <MainButton text="Share the PDF · signed" icon="share" onPress={() => onChosen('share')} off={!copy.ticked} />
+        </View>
+      ) : null}
+    </Sheet>
   );
 }
 

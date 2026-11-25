@@ -21,10 +21,12 @@ test('chosen at first: Email with an address, else Share', () => {
   assert.equal(firstWay(list, 'x@y.z'), 'email');
   assert.equal(firstWay(list, ''), 'share');
   assert.equal(firstWay(copyWaysOf({ bill: bill({ can_email: false }), required: true }), 'x@y.z'), 'share');
-  // the customer's screens (Get signature, Get paid in NY): the way without a tick first, even
-  // with an address (QA 25.11 — the tick under the fold); the technician still picks Email
-  assert.equal(firstWay(list, 'x@y.z', true), 'handed');
-  assert.equal(firstWay(list, '', true), 'handed');
+  // Printed copy handed is never chosen ahead (the lead 25.11): Email with an address, else nothing
+  assert.equal(firstWay(list, 'x@y.z', true), 'email');
+  assert.equal(firstWay(list, '', true), null);
+  assert.equal(firstWay(copyWaysOf({ bill: bill({ can_email: false }), required: true }), 'x@y.z', true), null);
+  assert.deepEqual(buttonOf('pay', null), { text: 'Get paid', icon: 'money' });
+  assert.equal(copyCheck({ way: null, to: '', ticked: false }), 'Choose how the customer gets the copy.');
 });
 
 test('the job’s address: hidden contacts give none', () => {
@@ -120,4 +122,13 @@ test('copyMissing / copyRequired: Give the bill Required in visit.steps decides;
   assert.equal(copyRequired(bill({ bill_before_payment: false }), visit('required')), true);
   assert.equal(copyRequired(bill({ bill_before_payment: true }), visit('optional')), false);
   assert.equal(copyRequired(bill({ bill_before_payment: true })), true);
+});
+
+test('the signature asks for the copy only when Give is Required (the lead 25.11: Optional and Off never ask)', () => {
+  const steps = (mode) => [{ key: 'give', mode }];
+  const b = bill({ status: 'issued', delivered_at: null });
+  assert.equal(copyMissing(b, { steps: steps('required') }), true);
+  assert.equal(copyMissing(b, { steps: steps('optional') }), false);
+  assert.equal(copyMissing(b, { steps: steps('off') }), false);
+  assert.equal(copyMissing({ ...b, delivered_at: '2026-11-25T14:00:00Z' }, { steps: steps('required') }), false);
 });

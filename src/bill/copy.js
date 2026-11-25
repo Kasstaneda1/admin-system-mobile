@@ -47,13 +47,13 @@ export function copyWaysOf({ bill, required, to = '' }) {
 }
 
 // Chosen at first: Email when it is there and the job has an address; else Share the PDF.
-// quiet — the copy on the customer's screens (Get signature, Get paid in NY): the bill does not say
-// whether the job holds the customer's agreement to emails, and Email or Share without it stops
-// at «Tick the agreement…» (QA 25.11: the tick was under the fold, the first «Done · signed»
-// always failed) — so the way without a tick, Printed copy handed, until the technician picks one
+// quiet — the copy on the customer's screens (Get signature, Get paid in NY): Printed copy handed
+// is never chosen ahead (the lead 25.11, the Teamlead on #107: the technicians have no printers,
+// a «Done» would write a delivery that never happened); Email when the job has an address (its
+// tick under it); else nothing — the technician picks (null)
 export function firstWay(ways, to, quiet = false) {
-  if (quiet && ways.some((w) => w.way === 'handed')) return 'handed';
   if (String(to || '').trim() && ways.some((w) => w.way === 'email')) return 'email';
+  if (quiet) return null;
   return 'share';
 }
 
@@ -77,6 +77,8 @@ const WORDS = {
 const BUTTON_ICONS = { email: 'mail', share: 'share', handed: 'check', show: 'eye' };
 export function buttonOf(screen, way) {
   if (screen === 'sign') return { text: 'Done · signed', icon: 'check' };
+  // nothing chosen yet (quiet): the press says to choose (copyCheck)
+  if (!way) return screen === 'pay' ? { text: 'Get paid', icon: 'money' } : { text: 'Send', icon: 'send' };
   const text = (WORDS[screen] || WORDS.send)[way] || 'Send';
   return { text, icon: BUTTON_ICONS[way] || 'send' };
 }

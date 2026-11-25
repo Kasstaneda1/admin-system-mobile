@@ -35,7 +35,7 @@ import { newRequestId } from '../myDay/actions';
 import { CONSENT_WORDS, billError, deliverBody } from '../bill/model';
 import { Box, Foot, MainButton, PlainButton, TopBar, billStyles } from '../bill/parts';
 import { billCardOf, copyMissing, signWordsOf } from '../bill/copy';
-import { BillCard, CopyChoice, useCopy } from '../bill/CopyParts';
+import { BillCard, CopyChoice, CopyChooseSheet, useCopy } from '../bill/CopyParts';
 import { ackBody, ackStage, ackTermsLine, billHasParts, initialParts, partsChoicesOf, partsOf, pickParts, signedLine, stageText } from '../ack/model';
 import { downloadAckPdf } from '../ack/pdf';
 import SignaturePad from '../approve/SignaturePad';
@@ -92,9 +92,11 @@ export default function AckScreen({ route, navigation }) {
   const [drawn, setDrawn] = useState(false);
   const [scroll, setScroll] = useState(true);         // the page stands still while the finger signs
   const pad = useRef(null);
-  // starts on Printed copy handed (no tick to miss); a stop scrolls down to the choice (QA 25.11:
-  // Email was chosen, its tick under the fold, the first «Done · signed» always failed)
+  // Printed copy handed is never chosen ahead; Email when the job has an address; else nothing
+  // (copy.js firstWay quiet). «Done» with nothing chosen opens the choose sheet (no red stop); a
+  // stop scrolls down to the choice (QA 25.11)
   const copy = useCopy({ id, bill, required: true, quiet: true });
+  const [choosing, setChoosing] = useState(false);
   const page = useRef(null);
 
   const choose = (next) => {
@@ -105,8 +107,10 @@ export default function AckScreen({ route, navigation }) {
     if (clear && pad.current) pad.current.clear();
   };
 
-  // «Done · signed»: the copy (when required and not given), then the signature
-  const done = async () => {
+  // «Done · signed»: the copy (when required and not given), then the signature. chosen: the way
+  // picked in the choose sheet (the press of the button passes an event: not a way)
+  const done = async (chosen) => {
+    const pickedWay = typeof chosen === 'string' ? chosen : null;
     if (sending) return;
     if (userId === null) { setSaid('You are signed out. Sign in again, then the customer signs.'); return; }
     const png = pad.current ? await pad.current.png() : null;
@@ -117,8 +121,10 @@ export default function AckScreen({ route, navigation }) {
     setSaid(null);
     let current = bill;
     if (copyMissing(bill, visit)) {
+      if (!pickedWay && !copy.way) { setChoosing(true); return; }
+      setChoosing(false);
       setSending('copy');
-      const gave = await copy.give();
+      const gave = await copy.give(pickedWay);
       if (!gave.ok) {
         setSending(null);
         if (gave.text) { setSaid(gave.text); if (page.current) page.current.scrollToEnd({ animated: true }); }
@@ -306,6 +312,8 @@ export default function AckScreen({ route, navigation }) {
         </Foot>
       </KeyboardAvoidingView>
 
+      {/* «Done» with no copy chosen in NY: choose it here and go on (bill/CopyParts CopyChooseSheet) */}
+      <CopyChooseSheet visible={choosing} copy={copy} bottom={insets.bottom} onChosen={(w) => done(w)} onClose={() => setChoosing(false)} />
       <Modal visible={termsOpen && !!consent} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTermsOpen(false)}>
         <SafeAreaView edges={['top', 'bottom']} style={billStyles.screen}>
           <TopBar back="Your bill" title={consent ? consent.title : 'Terms'} onBack={() => setTermsOpen(false)} />
