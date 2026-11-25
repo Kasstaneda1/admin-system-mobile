@@ -54,3 +54,13 @@ test('awayOf: one of a kind in the singular; nothing new — no panel; 14 days a
   assert.equal(awayOf([old], { since: NOW - 30 * 24 * H, nowMs: NOW, today: TODAY }), null);
   assert.equal(awayOf([item({ kind: 'T4', data: { customer: 'Min Lee', reason: 'client_rescheduled' } })], { since: NOW - 20 * H, nowMs: NOW, today: TODAY }).rows[0].sub, 'The customer rescheduled');
 });
+
+test('awayOf: another kind of the bell is never a row — not even a «note» (Тимлид on #104)', () => {
+  const since = NOW - 20 * H;
+  for (const kind of ['T3', 'E1', 'M1', 'T6', 'T7', 'T10', 'Z9']) {
+    assert.equal(awayOf([item({ kind })], { since, nowMs: NOW, today: TODAY }), null, kind);
+  }
+  const mixed = awayOf([item({ id: 1, kind: 'T3' }), item({ id: 2, kind: 'T5', data: { customer: 'X Y', text: 'Hi' } })], { since, nowMs: NOW, today: TODAY });
+  assert.deepEqual(mixed.rows.map((r) => [r.key, r.mark]), [[2, 'note']]);
+  assert.equal(mixed.line, '1 office note');
+});
