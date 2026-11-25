@@ -16,7 +16,7 @@ import { billAPI } from '../services/api';
 import { logError } from '../utils/logError';
 import Icon from '../myDay/Icon';
 import { downloadBillPdf } from './pdf';
-import { alreadyGiven, buttonOf, copyCheck, copyFailText, copyWaysOf, emailBody, firstWay, jobEmailOf, tickOf } from './copy';
+import { alreadyGiven, tickAfterAddress, tickFor, buttonOf, copyCheck, copyFailText, copyWaysOf, emailBody, firstWay, jobEmailOf, tickOf } from './copy';
 
 // The choice and the sending. bill: the issued bill; required: the copy is required (copy.js
 // copyRequired); quiet: start on the way without a tick (copy.js firstWay — the customer's screens). give() → { ok: true, bill (the answer's, or null: read it again), show (Show it
@@ -28,23 +28,27 @@ export function useCopy({ id, bill, required, quiet = false }) {
   const ways = useMemo(() => copyWaysOf({ bill, required, to }), [bill, required, to]);
   const [picked, setPicked] = useState(null);
   const way = picked && ways.some((w) => w.way === picked) ? picked : firstWay(ways, to, quiet);
+  const wayNow = way;
   const [ticked, setTicked] = useState(false);
   const tick = tickOf(way);
 
   const changeTo = useCallback(() => {
     Alert.prompt('The customer’s email', 'The bill goes to this address. The job keeps its own.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'OK', onPress: (value) => { setTo(String(value || '').trim()); setPicked('email'); } },
+      { text: 'OK', onPress: (value) => { setTo(String(value || '').trim()); setTicked((t) => tickAfterAddress(way, t)); setPicked('email'); } },
     ], 'plain-text', to, 'email-address');
-  }, [to]);
+  }, [to, way]);
 
-  const give = useCallback(async () => {
-    const stop = copyCheck({ way, to, ticked });
+  // chosen: the way picked in the «choose» sheet this moment (the state is not there yet)
+  const give = useCallback(async (chosen = null) => {
+    const way = typeof chosen === 'string' ? chosen : wayNow;
+    const tickNow = tickFor(chosen, wayNow, ticked);
+    const stop = copyCheck({ way, to, ticked: tickNow });
     if (stop) return { ok: false, text: stop };
     if (way === 'show') return { ok: true, bill: null, show: true };
     try {
       if (way === 'email') {
-        const data = await billAPI.email(id, emailBody(to, ticked));
+        const data = await billAPI.email(id, emailBody(to, tickNow));
         return { ok: true, bill: (data && data.bill) || null };
       }
       if (way === 'share') {
@@ -61,13 +65,13 @@ export function useCopy({ id, bill, required, quiet = false }) {
       if (status >= 500 && status !== 502 && status !== 503) logError('Error giving the bill’s copy:', error);
       return { ok: false, text: copyFailText(error) };
     }
-  }, [way, to, ticked, id, bill]);
+  }, [wayNow, to, ticked, id, bill]);
 
   return { ways, way, setWay: setPicked, to, changeTo, ticked, setTicked, tick, give };
 }
 
 // The rows and the tick — right under the chosen row, so it is seen with it (QA 25.11). label: «THE CUSTOMER’S COPY» over them, or null; off: while sending
-export function CopyChoice({ copy, label = null, off = false, onChange = null }) {
+export function CopyChoice({ copy, label = null, off = false, onChange = null, onPick = null }) {
   const { ways, way, setWay, changeTo, ticked, setTicked, tick } = copy;
   const pick = (w) => {
     if (off) return;
@@ -76,6 +80,7 @@ export function CopyChoice({ copy, label = null, off = false, onChange = null })
     setWay(w);
     setTicked(false);
     if (onChange) onChange();
+    if (onPick) onPick(w);
   };
   return (
     <View>
@@ -113,6 +118,36 @@ export function CopyChoice({ copy, label = null, off = false, onChange = null })
         })}
       </View>
     </View>
+  );
+}
+
+// «Done · signed» with no copy chosen where the signature waits for it (NY, Give required): not a
+// red stop but this sheet — the same ways; Email or Printed copy handed go on at one tap, Share
+// shows its tick and its button (the lead 25.11: no dead end; words — the Designer).
+// onChosen(way) — the signature goes on with it; onClose — back to the signature
+// sub: the line under the title (the Designer on #110; the signature's by default)
+export const CHOOSE_SUB_SIGN = 'The customer keeps a copy of this bill. Tap one to finish signing.';
+export function CopyChooseSheet({ visible, copy, bottom, onChosen, onClose, sub = CHOOSE_SUB_SIGN }) {
+  const share = visible && copy.way === 'share';
+  // Email chosen by typing its address here: a new address has no consent yet (the server: 409
+  // consent_required) — the button waits for the tick under Email, as Share does (the Architect on #110)
+  const email = visible && copy.way === 'email';
+  return (
+    <Sheet visible={visible} onClose={onClose} bottom={bottom}>
+      <Text style={styles.sheetTitle} accessibilityRole="header">Choose how the customer gets the copy</Text>
+      <Text style={styles.sheetSub}>{sub}</Text>
+      <CopyChoice copy={copy} onPick={(w) => { if (w !== 'share') onChosen(w); }} />
+      {share ? (
+        <View style={styles.sheetButton}>
+          <MainButton text="Share the PDF · signed" icon="share" onPress={() => onChosen('share')} off={!copy.ticked} />
+        </View>
+      ) : null}
+      {email ? (
+        <View style={styles.sheetButton}>
+          <MainButton text="Email the copy · signed" icon="mail" onPress={() => onChosen('email')} off={!copy.ticked} />
+        </View>
+      ) : null}
+    </Sheet>
   );
 }
 
@@ -203,6 +238,7 @@ export function BillCard({ card, compact = false, style = null }) {
 }
 
 const styles = StyleSheet.create({
+  sheetSub: { fontSize: 15, lineHeight: 20, color: colors.fgSecondary, marginTop: -4, marginBottom: 12 },
   sheetTitle: { marginBottom: 14, fontSize: 24, fontWeight: '800', color: colors.fgDefault },
   fail: { marginTop: 10, fontSize: 15, lineHeight: 20, color: colors.dangerFg },
   sheetButton: { marginTop: 14 },

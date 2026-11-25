@@ -151,7 +151,7 @@ export default function PayScreen({ route, navigation }) {
   };
 
   // ---------- the customer's copy first (d5) ----------
-  // starts on Printed copy handed (no tick to miss); a stop scrolls to the choice (QA 25.11)
+  // nothing chosen ahead but Email with an address (copy.js firstWay quiet); a stop scrolls to the choice
   const copy = useCopy({ id, bill, required: true, quiet: true });
   const copyY = useRef(0);
   const [copyBusy, setCopyBusy] = useState(false);

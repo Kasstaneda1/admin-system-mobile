@@ -89,7 +89,9 @@ export const VISIT_STEPS = [
     key: 'bill',
     label: 'Bill',
     required: true,
-    on: () => true,
+    // Issue Off for the company: the office makes the bill final (the server: 403 issue_off) — no
+    // «Make the bill final» for the technician (the Architect 25.11)
+    on: (ctx) => !stepOff(ctx.visit, 'issue'),
     state: (ctx) => (issuedOf(ctx) ? 'done' : billUnknown(ctx) ? 'unknown' : 'todo'),
     // not known yet: the bill opens as it is, and says itself what is next
     button: (ctx, state) => (state === 'unknown' ? { label: 'Open the bill', icon: 'doc' } : { label: 'Make the bill final', icon: 'doc' }),

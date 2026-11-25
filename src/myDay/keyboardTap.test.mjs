@@ -33,3 +33,17 @@ test('no keyboard API (old React Native, tests): the tap is never swallowed', ()
   keyboardFirst({}, () => calls.push(2))();
   assert.deepEqual(calls, [1, 2]);
 });
+
+test('the keyboard says up but no field has the focus (a lost «hidden» event): the tap works', () => {
+  const k = kb(true);
+  const calls = [];
+  const tap = keyboardFirst(k, () => calls.push(1), () => false);
+  tap();
+  assert.deepEqual(calls, [1]);
+  assert.equal(k.dismissed, 0);
+  // a field in focus: swallowed as before
+  const k2 = kb(true);
+  keyboardFirst(k2, () => calls.push(2), () => true)();
+  assert.deepEqual(calls, [1]);
+  assert.equal(k2.dismissed, 1);
+});

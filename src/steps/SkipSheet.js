@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { colors } from '../constants/colors';
 import Icon from '../myDay/Icon';
-import { Sheet } from '../myDay/visitBar';
+import { Sheet, fieldFocused } from '../myDay/visitBar';
 import { keyboardFirst } from '../myDay/keyboardTap';
 import { OTHER_REASON, REASON_MAX, SKIPS, skipReason } from './skip';
 
@@ -22,7 +22,7 @@ export default function SkipSheet({ stepKey, sending = null, failure = null, bot
   // «Other…» open, the keyboard up: the first tap on a reason or a button only puts it away — a
   // stray tap on a reason above the field is not a skip (myDay/keyboardTap.js); Done on the
   // keyboard still skips with the words written
-  const tap = (fn) => keyboardFirst(Keyboard, fn);
+  const tap = (fn) => keyboardFirst(Keyboard, fn, fieldFocused);
   return (
     <Sheet visible={!!words} onClose={busy ? () => {} : onClose} bottom={bottom} keyboard>
       {words ? (
