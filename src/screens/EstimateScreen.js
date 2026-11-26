@@ -11,7 +11,12 @@
 //   Read (mark-viewed) only once the newest message of others has been on the screen.
 //   A message shows at once with «Sending…»; no answer — «Not sent · Tap to retry»; it waits
 //   on the phone and goes later, never twice (estimate/outbox.js).
-//   Not here yet, no data on the server: Diagnosis, Visits, @mentions, dates on the path.
+//   «@» (estimate/mentions.js): typed in the field, a list of the people the server allows on
+//   this estimate shows over the field, narrowed by the first letters of a first or last name;
+//   a tap puts «@Full Name » in. Without a connection — the list saved on the phone
+//   (estimate/peopleStore.js), or one quiet line «No connection — type the name». Mentions are
+//   marked in the messages, the reader's own name stronger; «Notified: …» under my own.
+//   Not here yet, no data on the server: Diagnosis, Visits, dates on the path.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, AppState, Image, Keyboard, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text,
@@ -34,6 +39,8 @@ import {
   EMPTY_MESSAGES, MESSAGE_HINT, NOT_SENT, POLL_MS, SENDING, entriesOf, estimateError, estimateOf, headOf, landingOf,
   lastCommentId, lastOtherKey, messageReady, messagesOf, newMessagesText, newSince,
 } from '../estimate/model';
+import { mentionsIn, insertMention, notNotifiedLine, peopleOf, pickerOf, queryAt, roleLine } from '../estimate/mentions';
+import { peopleMark, savePeople, savedPeople } from '../estimate/peopleStore';
 import { formatAuthorTime } from '../utils/dateUtils';
 import { logError } from '../utils/logError';
 
@@ -79,6 +86,12 @@ export default function EstimateScreen({ route, navigation }) {
   const [lit, setLit] = useState(null);                   // a message key, or 'arrived'
   const [keyboard, setKeyboard] = useState(false);        // the field sits on the keyboard, no home-bar gap
   const [compH, setCompH] = useState(60);                 // the field's bar: the pill sits above it
+  const [sel, setSel] = useState({ start: 0, end: 0 });   // the caret in the field
+  const [forcedSel, setForcedSel] = useState(null);       // the caret after a name is put in
+  const [picked, setPicked] = useState([]);               // people picked from the «@» list
+  const [people, setPeople] = useState(null);             // who may be mentioned here, or null
+  const [peopleState, setPeopleState] = useState('idle'); // 'loading' | 'ok' | 'offline' | 'failed' | 'none'
+  const [missed, setMissed] = useState({});               // comment key → «Not notified: …»
 
   const scroll = useRef(null);
   const view = useRef({ top: 0, height: 0, content: 0 });
@@ -91,6 +104,8 @@ export default function EstimateScreen({ route, navigation }) {
   const restTimer = useRef(null);
   const litTimer = useRef(null);
   const loadSeq = useRef(0);
+  const peopleBusy = useRef(false);
+  const peopleTriedAt = useRef(null);                     // the «@» the last failed load was for
 
   const head = useMemo(() => (estimate ? headOf(estimate, { me, thisYear: new Date().getFullYear() }) : null), [estimate, me]);
   const messages = useMemo(() => (comments ? messagesOf(comments, { meId, pending, formatTime }) : []), [comments, pending, meId]);
@@ -142,6 +157,32 @@ export default function EstimateScreen({ route, navigation }) {
     await loadComments();
     if (n === loadSeq.current) setRefreshing(false);
   }, [id, loadComments]);
+
+  // «@»: the people of this estimate — the saved list at once, then the server's
+  const loadPeople = useCallback(async () => {
+    if (peopleBusy.current || id === undefined || id === null) return;
+    peopleBusy.current = true;
+    const mark = peopleMark();
+    try {
+      const saved = await savedPeople(id);
+      if (saved) setPeople((p) => p || saved);
+      setPeopleState('loading');
+      try {
+        const list = peopleOf(await estimateAPI.people(id));
+        setPeople(list);
+        setPeopleState('ok');
+        savePeople(id, list, mark);
+      } catch (error) {
+        const status = error && error.response ? error.response.status : 0;
+        if (status === 404) { setPeople(null); setPeopleState('none'); }
+        else if (!status) setPeopleState('offline');
+        else { setPeopleState('failed'); logError('Error loading people to mention:', error); }
+      }
+    } finally {
+      peopleBusy.current = false;
+    }
+  }, [id]);
+  useEffect(() => { loadPeople(); }, [loadPeople]);
 
   // open: everything; every 20 s: the messages; back from the background: everything
   useFocusEffect(useCallback(() => {
@@ -260,24 +301,58 @@ export default function EstimateScreen({ route, navigation }) {
     if (!messageReady(text) || !estimate) return;
     const key = newRequestId();
     const body = text;
+    const mentions = mentionsIn(body, picked);
     setText('');
-    setPending((p) => [...p, { key, estimateId: String(id), userId: meId, text: body.trim(), at: Date.now(), state: 'sending' }]);
+    setPicked([]);
+    setPending((p) => [...p, { key, estimateId: String(id), userId: meId, text: body.trim(), mentions, at: Date.now(), state: 'sending' }]);
     stickToEnd.current = true;
-    const r = await outbox.send({ key, estimateId: id, userId: meId, text: body, afterId: comments ? (lastCommentId(comments) ?? 0) : null });
+    const r = await outbox.send({ key, estimateId: id, userId: meId, text: body, mentions, afterId: comments ? (lastCommentId(comments) ?? 0) : null });
     if (r.result === 'sent') {
+      noteMissed(r);
       if (r.comment) setComments((c) => [...(c || []), r.comment]);
       setOffline(false);
     } else if (r.result === 'failed') setOffline(true);
     else if (r.result === 'gone') setGone(true);
     await readPending();
   };
+  // People the server would not take (no longer on the estimate): the message went without
+  // them; a line under it says so, and the list is asked again
+  const noteMissed = (r) => {
+    const line = notNotifiedLine(r.notNotified);
+    if (!line) return;
+    if (r.comment && r.comment.id !== undefined) setMissed((m) => ({ ...m, [`c${r.comment.id}`]: line }));
+    loadPeople();
+  };
   const retry = async (key) => {
     setPending((p) => p.map((x) => (x.key === key ? { ...x, state: 'sending' } : x)));
     const r = await outbox.retry(key);
-    if (r.result === 'sent') { setOffline(false); await loadComments(); return; }
+    if (r.result === 'sent') { noteMissed(r); setOffline(false); await loadComments(); return; }
     if (r.result === 'failed') setOffline(true);
     if (r.result === 'gone') setGone(true);
     await readPending();
+  };
+
+  // ---------- «@» ----------
+  const query = sel.start === sel.end ? queryAt(text, sel.end) : null;
+  const picker = pickerOf({ query, picked, people, state: peopleState });
+  // A new «@» after a failed load tries the server again (not on every letter)
+  useEffect(() => {
+    if (!query || people || peopleState === 'none' || peopleState === 'loading') return;
+    if (peopleTriedAt.current === query.at) return;
+    peopleTriedAt.current = query.at;
+    loadPeople();
+  }, [query && query.at, people, peopleState, loadPeople]);
+  const pick = (person) => {
+    if (!query) return;
+    const next = insertMention(text, query.at, sel.end, person.name);
+    setText(next.text);
+    setSel({ start: next.caret, end: next.caret });
+    setForcedSel({ start: next.caret, end: next.caret });
+    setPicked((p) => (p.some((x) => x.user_id === person.user_id) ? p : [...p, { user_id: person.user_id, name: person.name }]));
+  };
+  const onSelection = (e) => {
+    setSel(e.nativeEvent.selection);
+    if (forcedSel) setForcedSel(null);
   };
 
   // ---------- drawing ----------
@@ -365,7 +440,7 @@ export default function EstimateScreen({ route, navigation }) {
                 ) : messages.length ? (
                   <View style={styles.list} onLayout={(e) => { where.current.list = e.nativeEvent.layout.y; land(); }}>
                     {messages.map((m) => (
-                      <Message key={m.key} m={m} lit={lit === m.key} onRetry={retry}
+                      <Message key={m.key} m={m} lit={lit === m.key} onRetry={retry} missed={missed[m.key]}
                         onLayout={(e) => { where.current.rows[m.key] = { y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height }; land(); }} />
                     ))}
                   </View>
@@ -373,15 +448,18 @@ export default function EstimateScreen({ route, navigation }) {
               </View>
             </ScrollView>
 
-            {fresh ? (
+            {fresh && !picker ? (
               <TouchableOpacity style={[styles.pill, { bottom: compH + 12 }]} onPress={() => { setFresh(0); toEnd(); }} accessibilityRole="button" accessibilityLabel={newMessagesText(fresh)}>
                 <Text style={styles.pillText}>{newMessagesText(fresh).replace(' ↓', '')}</Text>
                 <Icon name="down" size={16} color={colors.fgOnFill} />
               </TouchableOpacity>
             ) : null}
 
+            {picker ? <Picker picker={picker} onPick={pick} /> : null}
+
             <View style={[styles.comp, { paddingBottom: keyboard ? 8 : Math.max(insets.bottom, 8) }]} onLayout={(e) => setCompH(e.nativeEvent.layout.height)}>
               <TextInput style={[styles.input, text ? styles.inputOn : null]} value={text} onChangeText={setText} multiline
+                onSelectionChange={onSelection} selection={forcedSel || undefined}
                 placeholder={MESSAGE_HINT} placeholderTextColor={colors.fgMutedField} accessibilityLabel="Message the office" />
               <TouchableOpacity style={[styles.send, !messageReady(text) && styles.sendOff]} onPress={send} disabled={!messageReady(text)}
                 accessibilityRole="button" accessibilityLabel="Send" accessibilityState={{ disabled: !messageReady(text) }}>
@@ -454,9 +532,9 @@ function PathSection({ path, lit }) {
 
 // A message: others on the left with name and role, mine on the right; the author's time, or
 // «Sending…», or «Not sent · Tap to retry»
-function Message({ m, lit, onRetry, onLayout }) {
+function Message({ m, lit, onRetry, onLayout, missed }) {
   const label = [m.mine ? 'You' : [m.author, m.role].filter(Boolean).join(', '), m.text,
-    m.state === 'sending' ? SENDING : m.state === 'failed' ? NOT_SENT : m.time].filter(Boolean).join('. ');
+    m.state === 'sending' ? SENDING : m.state === 'failed' ? NOT_SENT : m.time, m.notified, missed].filter(Boolean).join('. ');
   return (
     <View style={[styles.msg, m.mine && styles.msgMine]} onLayout={onLayout}>
       <View accessible accessibilityLabel={label} style={[styles.msgBody, m.mine && styles.msgMine]}>
@@ -467,9 +545,15 @@ function Message({ m, lit, onRetry, onLayout }) {
           </View>
         )}
         <View style={[styles.bub, m.mine && styles.bubMine, lit && styles.bubLit]}>
-          <Text style={styles.bubText} selectable>{m.text}</Text>
+          <Text style={styles.bubText} selectable>
+            {(m.parts && m.parts.length ? m.parts : [{ text: m.text }]).map((part, i) => (part.mention
+              ? <Text key={i} style={part.me ? styles.mentionMe : styles.mention}>{part.text}</Text>
+              : part.text))}
+          </Text>
         </View>
         {m.state === 'sent' ? <Text style={styles.time}>{m.time}</Text> : null}
+        {m.state === 'sent' && m.notified ? <Text style={styles.notified}>{m.notified}</Text> : null}
+        {missed ? <Text style={styles.missed}>{missed}</Text> : null}
         {m.state === 'sending' ? (
           <View style={styles.timeRow}>
             <Icon name="clock" size={13} color={colors.fgMutedField} />
@@ -483,6 +567,33 @@ function Message({ m, lit, onRetry, onLayout }) {
           <Text style={styles.failText}>{NOT_SENT}</Text>
         </TouchableOpacity>
       ) : null}
+    </View>
+  );
+}
+
+// The «@» list over the field: the people who fit, or one quiet line
+function Picker({ picker, onPick }) {
+  if (picker.line) {
+    return (
+      <View style={styles.pick} accessibilityLiveRegion="polite">
+        <Text style={styles.pickLine}>{picker.line}</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.pick}>
+      <ScrollView style={styles.pickList} keyboardShouldPersistTaps="always" accessibilityLabel="People to notify">
+        {picker.rows.map((p, i) => {
+          const role = roleLine(p);
+          return (
+            <TouchableOpacity key={p.user_id} style={[styles.pickRow, i === picker.rows.length - 1 && styles.pickLast]} onPress={() => onPick(p)}
+              accessibilityRole="button" accessibilityLabel={[p.name, role].filter(Boolean).join(', ')}>
+              <Text style={styles.pickName} numberOfLines={1}>{p.name}</Text>
+              {role ? <Text style={styles.pickRole} numberOfLines={1}>{role}</Text> : null}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -562,6 +673,10 @@ const styles = StyleSheet.create({
   bubMine: { borderBottomLeftRadius: 14, borderBottomRightRadius: 4, borderColor: colors.brand, backgroundColor: colors.brandSoft },
   bubLit: { borderWidth: 2, borderColor: colors.infoBorder, shadowColor: colors.infoBorder, shadowOpacity: 0.35, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
   bubText: { fontSize: 16, lineHeight: 22, color: colors.fgDefault },
+  mention: { fontWeight: '600', color: colors.fgDefault },
+  mentionMe: { fontWeight: '700', color: colors.warningFg },
+  notified: { fontSize: 13, color: colors.fgSecondary },
+  missed: { fontSize: 13, color: colors.warningFg },
   time: { fontSize: 12, color: colors.fgMutedField },
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   failRow: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32, marginTop: 3 },
@@ -579,6 +694,13 @@ const styles = StyleSheet.create({
   pill: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.brandPressed, shadowColor: colors.shadow, shadowOpacity: 0.22, shadowRadius: 8, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   pillText: { fontSize: 15, fontWeight: '700', color: colors.fgOnFill },
 
+  pick: { backgroundColor: colors.bgCard, borderTopWidth: 1, borderTopColor: colors.borderDefault },
+  pickList: { maxHeight: 4 * 52 },
+  pickRow: { minHeight: 52, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.borderDefault },
+  pickLast: { borderBottomWidth: 0 },
+  pickName: { fontSize: 16, fontWeight: '600', color: colors.fgDefault },
+  pickRole: { fontSize: 13, color: colors.fgSecondary },
+  pickLine: { fontSize: 13, color: colors.fgSecondary, paddingHorizontal: 16, paddingVertical: 12 },
   comp: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingTop: 8, paddingHorizontal: 12, backgroundColor: colors.bgCard, borderTopWidth: 1, borderTopColor: colors.borderDefault },
   input: { flex: 1, minHeight: 44, maxHeight: 132, paddingTop: 11, paddingBottom: 11, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1.5, borderColor: colors.borderControl, fontSize: 16, lineHeight: 22, color: colors.fgDefault },
   inputOn: { borderWidth: 2, borderColor: colors.brandPressed },

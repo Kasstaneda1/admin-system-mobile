@@ -10,6 +10,7 @@ import { clearMyDay } from '../myDay/storage';
 import { clearOutbox } from '../estimate/outboxQueue';
 import { clearApprovals } from '../approve/storeQueue';
 import { clearAcks } from '../ack/storeQueue';
+import { clearPeople } from '../estimate/peopleStore';
 
-const clearUnsent = () => Promise.all([clearOutbox(), clearApprovals(), clearAcks()]);
+const clearUnsent = () => Promise.all([clearOutbox(), clearApprovals(), clearAcks(), clearPeople()]);
 export const deviceStore = makeDeviceStore({ SecureStore, AsyncStorage, clearMyDay, clearOutbox: clearUnsent });
