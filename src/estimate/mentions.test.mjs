@@ -75,6 +75,8 @@ test('«Notified: …» under a sent message: its mentions but the author; «Not
   assert.equal(notifiedLine({ user_id: 9, mentions: null }), '');
   assert.equal(notifiedLine(null), '');
   assert.equal(notNotifiedLine([{ user_id: 7, name: 'Sam Anders' }]), 'Not notified: Sam A. can’t open this estimate');
+  assert.equal(notNotifiedLine([{ user_id: 4, name: 'Anna Smith' }, { user_id: 2, name: 'Mike Torres' }, { user_id: 4, name: 'Anna Smith' }]),
+    'Not notified: Anna S., Mike T. — they can’t open this estimate');
   assert.equal(notNotifiedLine([]), '');
   assert.equal(shortName('Cher'), 'Cher');
 });

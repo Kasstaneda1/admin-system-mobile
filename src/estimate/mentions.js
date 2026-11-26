@@ -162,21 +162,25 @@ function namesLine(list, without = null) {
     const n = shortName(m.name);
     if (n) names.push(n);
   }
-  return names.join(', ');
+  return names;
 }
 
 // «Notified: Anna S., Mike T.» under a sent message: its mentions but the author. '' — none.
 export function notifiedLine(comment) {
   const c = comment || {};
   const names = namesLine(c.mentions, c.user_id);
-  return names ? `Notified: ${names}` : '';
+  return names.length ? `Notified: ${names.join(', ')}` : '';
 }
 
-// «Not notified: Anna S. can’t open this estimate» — people the server would not take (they can
-// no longer open the estimate); the message went without them. '' — none.
+// «Not notified: Anna S. can’t open this estimate», several — «Not notified: Anna S., Mike T. —
+// they can’t open this estimate» (Designer): people the server would not take (they can no
+// longer open the estimate); the message went without them. '' — none.
 export function notNotifiedLine(people) {
   const names = namesLine(people);
-  return names ? `Not notified: ${names} can’t open this estimate` : '';
+  if (!names.length) return '';
+  return names.length === 1
+    ? `Not notified: ${names[0]} can’t open this estimate`
+    : `Not notified: ${names.join(', ')} — they can’t open this estimate`;
 }
 
 // The second line of a person in the list
