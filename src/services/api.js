@@ -66,6 +66,9 @@ export const estimateAPI = {
   comments: async (id) => (await api.get(`/api/estimates/${encodeURIComponent(id)}/comments`, { timeout: 15000 })).data,
   send: async (id, body) => (await api.post(`/api/estimates/${encodeURIComponent(id)}/comments`, body, { timeout: 15000 })).data,
   viewed: async (id) => (await api.post(`/api/estimates/${encodeURIComponent(id)}/mark-viewed`, {}, { timeout: 15000 })).data,
+  // «@»: the people one may mention on this estimate, { people: [{ user_id, name, role }] }
+  // (server routes/estimates/mentions.js; 404 — not this technician's estimate)
+  people: async (id) => (await api.get('/api/mentionable', { params: { target: `estimate:${id}` }, timeout: 15000 })).data,
 };
 
 // Salary API

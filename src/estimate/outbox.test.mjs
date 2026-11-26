@@ -22,6 +22,13 @@ function setup({ at = Date.UTC(2026, 10, 17, 15) } = {}) {
     },
     post: async (id, body) => {
       server.posts += 1;
+      server.bodies = [...(server.bodies || []), body];
+      if (server.refuseAll && (body.mentions || []).length) {
+        throw { response: { status: 400, data: { error: 'These people cannot be mentioned on this estimate', code: 'mention_not_allowed' } } };
+      }
+      if (server.refuse && (body.mentions || []).some((u) => server.refuse.includes(u))) {
+        throw { response: { status: 400, data: { error: 'These people cannot be mentioned on this estimate', code: 'mention_not_allowed', user_ids: (body.mentions || []).filter((u) => server.refuse.includes(u)) } } };
+      }
       if (server.fail) throw server.fail;
       const c = { id: n++, user_id: 9, user_name: 'Ivan', user_role: 'technician', comment_text: body.commentText, author_tz: body.author_tz, created_at_utc: new Date(clock + 2000).toISOString() };
       server.comments[id].push(c);
@@ -166,4 +173,40 @@ test('«Yes», then «Yes» again offline: the first is not taken for the second
   tick(RECENT_MS);
   assert.equal((await outbox.retry('b')).result, 'sent');
   assert.deepEqual(server.comments[14].map((c) => c.comment_text), ['Yes', 'Yes']);
+});
+
+test('mentions go as ids with the key as the request id; the entry keeps the people for the bubble', async () => {
+  const { outbox, server } = setup();
+  server.fail = new Error('Network Error');
+  const mentions = [{ user_id: 4, name: 'Anna Smith' }];
+  assert.equal((await outbox.send({ key: 'app-1-abc', estimateId: 14, userId: 9, text: '@Anna Smith fan?', mentions })).result, 'failed');
+  assert.deepEqual((await outbox.list())[0].mentions, mentions);
+  server.fail = null;
+  assert.equal((await outbox.retry('app-1-abc')).result, 'sent');
+  // both tries: the same request id, the same mentions — the server answers a repeat with the first comment
+  assert.deepEqual(server.bodies.map((b) => [b.client_request_id, b.mentions]), [['app-1-abc', [4]], ['app-1-abc', [4]]]);
+});
+
+test('a person the server will not take: the message goes at once without them, never lost', async () => {
+  const { outbox, server } = setup();
+  server.refuse = [7];
+  const mentions = [{ user_id: 4, name: 'Anna Smith' }, { user_id: 7, name: 'Sam Anders' }];
+  const r = await outbox.send({ key: 'k', estimateId: 14, userId: 9, text: '@Anna Smith @Sam Anders look', mentions });
+  assert.equal(r.result, 'sent');
+  assert.deepEqual(r.notNotified, [{ user_id: 7, name: 'Sam Anders' }]);
+  assert.deepEqual(server.bodies.map((b) => b.mentions), [[4, 7], [4]]);
+  assert.deepEqual(server.bodies.map((b) => b.client_request_id), ['k', 'k']);
+  assert.equal(server.comments[14].length, 1);
+  assert.equal(server.comments[14][0].comment_text, '@Anna Smith @Sam Anders look');
+  assert.deepEqual(await outbox.list(), []);
+});
+
+test('a refusal that names nobody of ours: the message goes without any mention', async () => {
+  const { outbox, server } = setup();
+  server.refuseAll = true;
+  const r = await outbox.send({ key: 'k', estimateId: 14, userId: 9, text: '@Anna Smith hi', mentions: [{ user_id: 4, name: 'Anna Smith' }] });
+  assert.equal(r.result, 'sent');
+  assert.deepEqual(r.notNotified, [{ user_id: 4, name: 'Anna Smith' }]);
+  assert.deepEqual(server.bodies.map((b) => b.mentions), [[4], undefined]);
+  assert.equal(server.posts, 2);
 });

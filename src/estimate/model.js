@@ -3,11 +3,13 @@
 // note, what the customer pays — and the messages with the office under it. Without React
 // Native (model.test.mjs); EstimateScreen.js draws it.
 //   Data: GET /api/estimates/:id (the fields a technician may see, routes/estimates/access.js),
-//   GET /api/estimates/:id/comments, POST …/comments { commentText, author_tz },
-//   POST …/mark-viewed. A technician gets 404 for an estimate that is not theirs.
-//   Not here yet (no data on the server): the visits of the estimate, the diagnosis, @mentions,
-//   dates under the path (estimate_events).
+//   GET /api/estimates/:id/comments, POST …/comments { commentText, author_tz, mentions,
+//   client_request_id }, POST …/mark-viewed, GET /api/mentionable (mentions.js). A technician
+//   gets 404 for an estimate that is not theirs.
+//   Not here yet (no data on the server): the visits of the estimate, the diagnosis, dates under
+//   the path (estimate_events).
 import { money } from '../salary/model.js';
+import { notifiedLine, segments } from './mentions.js';
 import { partsOf, partnerOf, shortDate } from '../parts/model.js';
 
 // ---------- status ----------
@@ -136,7 +138,9 @@ export function commentMs(c) {
 // The list of the screen: the server's comments by time (the oldest first, new at the bottom),
 // then this phone's messages not yet on the server. mine: on the right. formatTime(c) gives
 // the author's own time with their zone (utils/dateUtils formatAuthorTime), passed in so the
-// tests need no Intl zones.
+// tests need no Intl zones. parts: the text cut into plain and «@Name» pieces (mentions.js
+// segments, me — the reader's own name); notified: «Notified: …» under my sent messages;
+// notNotified (pending only): people the server would not take, mentions.js notNotifiedLine.
 export function messagesOf(comments, { meId = null, pending = [], formatTime = () => '' } = {}) {
   const rows = (Array.isArray(comments) ? comments : [])
     .filter((c) => c && clean(c.comment_text))
@@ -149,6 +153,8 @@ export function messagesOf(comments, { meId = null, pending = [], formatTime = (
       author: clean(c.user_name) || 'Unknown',
       role: roleWord(c.user_role),
       text: String(c.comment_text).trim(),
+      parts: segments(String(c.comment_text).trim(), c.mentions, meId),
+      notified: meId !== null && String(c.user_id) === String(meId) ? notifiedLine(c) : '',
       time: formatTime(c),
       state: 'sent',
     }));
@@ -160,6 +166,8 @@ export function messagesOf(comments, { meId = null, pending = [], formatTime = (
     author: null,
     role: null,
     text: p.text,
+    parts: segments(p.text, p.mentions, meId),
+    notified: '',
     time: null,
     state: p.state === 'failed' ? 'failed' : 'sending',
   }));
@@ -179,8 +187,16 @@ export function messageToSend(text) {
 }
 export const messageReady = (text) => messageToSend(text).length > 0;
 
-// The body of POST /api/estimates/:id/comments (the site sends the same)
-export const commentBody = (text, timeZone) => ({ commentText: messageToSend(text), author_tz: timeZone || null });
+// The body of POST /api/estimates/:id/comments (the site sends the same): mentions — the ids of
+// the people picked (mentions.js mentionsIn), client_request_id — the entry's key, so a repeat
+// of a request that did reach the server is the same comment, not a second one (N3-BE)
+export function commentBody(text, timeZone, { mentions = [], requestId = null } = {}) {
+  const body = { commentText: messageToSend(text), author_tz: timeZone || null };
+  const ids = (Array.isArray(mentions) ? mentions : []).map((m) => Number(m && m.user_id)).filter((n) => Number.isInteger(n) && n > 0);
+  if (ids.length) body.mentions = [...new Set(ids)];
+  if (requestId) body.client_request_id = String(requestId);
+  return body;
+}
 
 // «1 new message ↓» while the technician reads above the bottom (spec §4.5)
 export const newMessagesText = (n) => (n === 1 ? '1 new message ↓' : `${n} new messages ↓`);
@@ -192,8 +208,10 @@ export function newSince(beforeKeys, messages) {
 }
 
 // ---------- the phone's unsent messages (spec §4.3) ----------
-// An entry: { key, estimateId, userId, text, at (ms the first try started), state:
-// 'sending' | 'failed' }. The server takes no request id for a comment, so a try that may
+// An entry: { key, estimateId, userId, text, mentions: [{ user_id, name }], at (ms the first try
+// started), state: 'sending' | 'failed' }. The key goes as client_request_id, so the server
+// answers a repeat with the comment it wrote the first time. The app's builds before that, and
+// a server without it, still rely on this check: a try that may
 // have reached it (no answer) is checked against the comments before it is sent again: a
 // comment of mine with the same text, newer than every comment the screen had when the message
 // was written (afterId: the highest id then), is that message — no second copy. A comment the
@@ -208,9 +226,12 @@ export function lastCommentId(comments) {
   return ids.length ? Math.max(...ids) : null;
 }
 
-export function newEntry({ key, estimateId, userId, text, at, afterId = null }) {
+export function newEntry({ key, estimateId, userId, text, at, afterId = null, mentions = [] }) {
   const after = afterId === null || afterId === undefined || !Number.isFinite(Number(afterId)) ? null : Number(afterId);
-  return { key, estimateId: String(estimateId), userId: userId === null || userId === undefined ? null : String(userId), text: messageToSend(text), at, afterId: after, state: 'sending' };
+  const people = (Array.isArray(mentions) ? mentions : [])
+    .filter((m) => m && Number.isInteger(Number(m.user_id)) && Number(m.user_id) > 0)
+    .map((m) => ({ user_id: Number(m.user_id), name: String(m.name || '') }));
+  return { key, estimateId: String(estimateId), userId: userId === null || userId === undefined ? null : String(userId), text: messageToSend(text), mentions: people, at, afterId: after, state: 'sending' };
 }
 
 // The entries of one estimate and one technician

@@ -311,3 +311,18 @@ test('the calm look: the state as one line, the facts as a list (design-mockups/
   assert.equal(c.stateLine.text, 'On the way since 10:46');
   assert.equal(c.facts.length, 2);
 });
+
+// Teamlead on #112: two holes the mutations went through
+test('no prices: the facts carry no fee, told or not, on the card too; a moved visit is struck', () => {
+  const told = card({ kind: 'diagnostics', fee: 9500 });
+  assert.equal(factsOf(told, NOW)[1].value, 'Diagnostics · $95 fee, told');
+  assert.equal(factsOf(told, NOW, { prices: false })[1].value, 'Diagnostics');
+  assert.equal(factsOf(card({ kind: 'recall' }), NOW, { prices: false })[1].value, 'Recall');
+  assert.equal(factsOf(card({ fee: null }), NOW, { prices: false })[1].value, 'Repair');
+  const facts = visitCard(told, { now: NOW, prices: false }).facts;
+  assert.equal(facts.some((f) => /\$|fee/.test(f.value)), false);
+  assert.equal(visitCard(told, { now: NOW }).facts[1].value, 'Diagnostics · $95 fee, told');
+  // moved to another day by the office: both facts struck; a planned one is not
+  assert.deepEqual(factsOf(card({ status: 'rescheduled' }), NOW).map((f) => f.struck), [true, true]);
+  assert.deepEqual(factsOf(card(), NOW).map((f) => f.struck), [false, false]);
+});

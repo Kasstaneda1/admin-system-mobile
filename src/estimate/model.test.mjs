@@ -155,6 +155,27 @@ test('a message to send: cleaned and trimmed, empty never; the site’s body', (
   assert.equal(messageToSend(null), '');
   assert.deepEqual(commentBody(' Fan? ', 'America/New_York'), { commentText: 'Fan?', author_tz: 'America/New_York' });
   assert.deepEqual(commentBody('x'), { commentText: 'x', author_tz: null });
+  // mentions as ids, each once; the entry's key as the request id (a repeat is the same comment)
+  assert.deepEqual(commentBody('@Anna Smith fan?', 'America/New_York', { mentions: [{ user_id: 4, name: 'Anna Smith' }, { user_id: 4 }, { user_id: 'x' }], requestId: 'app-1-abc' }),
+    { commentText: '@Anna Smith fan?', author_tz: 'America/New_York', mentions: [4], client_request_id: 'app-1-abc' });
+  assert.deepEqual(commentBody('x', null, { mentions: [] }), { commentText: 'x', author_tz: null });
+});
+
+test('mentions in the messages: marked pieces, mine stronger, «Notified» under my own only', () => {
+  const comments = [
+    { ...C(1, 2, 'Mike T.', 'manager', '@Ivan Petrov the pump is here', '2026-11-17T15:00:00.000Z'), mentions: [{ user_id: 9, name: 'Ivan Petrov' }] },
+    { ...C(2, 9, 'Ivan Petrov', 'technician', '@Mike Torres thanks', '2026-11-17T16:00:00.000Z'), mentions: [{ user_id: 2, name: 'Mike Torres' }] },
+  ];
+  const pending = [{ key: 'k1', text: '@Anna Smith call me', mentions: [{ user_id: 4, name: 'Anna Smith' }], state: 'sending' }];
+  const list = messagesOf(comments, { meId: 9, pending });
+  assert.deepEqual(list[0].parts[0], { text: '@Ivan Petrov', mention: { user_id: 9, name: 'Ivan Petrov' }, me: true });
+  assert.equal(list[0].notified, '');
+  assert.equal(list[1].parts[0].me, false);
+  assert.equal(list[1].notified, 'Notified: Mike T.');
+  assert.equal(list[2].parts[0].text, '@Anna Smith');
+  assert.equal(list[2].notified, '');
+  // an old comment without mentions: one plain piece
+  assert.deepEqual(messagesOf([C(3, 2, 'Mike', 'manager', '@Ivan hi', '2026-11-17T15:00:00Z')], { meId: 9 })[0].parts, [{ text: '@Ivan hi' }]);
 });
 
 test('new messages below: the words and the count of others’ new ones', () => {
@@ -172,7 +193,7 @@ test('new messages below: the words and the count of others’ new ones', () => 
 
 test('outbox entries: per estimate and technician; add, remove, change state', () => {
   const a = newEntry({ key: 'a', estimateId: 14, userId: 9, text: ' Thanks ', at: 1000 });
-  assert.deepEqual(a, { key: 'a', estimateId: '14', userId: '9', text: 'Thanks', at: 1000, afterId: null, state: 'sending' });
+  assert.deepEqual(a, { key: 'a', estimateId: '14', userId: '9', text: 'Thanks', mentions: [], at: 1000, afterId: null, state: 'sending' });
   assert.equal(newEntry({ key: 'z', estimateId: 1, userId: 1, text: 'x', at: 1, afterId: '12' }).afterId, 12);
   const b = newEntry({ key: 'b', estimateId: 15, userId: 9, text: 'x', at: 2000 });
   const c = newEntry({ key: 'c', estimateId: 14, userId: 3, text: 'y', at: 3000 });

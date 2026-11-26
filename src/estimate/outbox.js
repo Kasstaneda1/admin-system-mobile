@@ -4,24 +4,28 @@
 //   A message shows at once with «Sending…». Sent — it goes from the list. No answer or a
 //   server error — «Not sent · Tap to retry»; it also stays on the phone and goes the next
 //   time the app is open with the network (flushAll), the screen closed or not.
-//   The server takes no request id for a comment: before a message is sent again, the
-//   estimate's comments are read and a message the server already has is taken as sent
-//   (model.js settle). A try with no answer may still be on its way to the server, so the
-//   next one waits until a minute has passed since it (RECENT_MS): the app's own repeats
-//   (flushAll, the screen opening) skip such a message, a press on «Tap to retry» waits and
-//   reads the comments again. A request that lands later still than that gives a second
-//   copy; only a request id on the server closes it (backend task).
+//   Every try sends the entry's key as client_request_id: the server answers a repeat with the
+//   comment it wrote the first time, never a second copy (N3-BE). Before a message is sent
+//   again the estimate's comments are still read and a message the server already has is taken
+//   as sent (model.js settle), and a try with no answer is left a minute (RECENT_MS): the app's
+//   own repeats (flushAll, the screen opening) skip such a message, a press on «Tap to retry»
+//   waits and reads the comments again.
+//   Mentions (mentions.js): the people picked go as ids. A person who can no longer open the
+//   estimate (400 mention_not_allowed) is left out and the message goes without them, at once:
+//   it is never lost for a mention; the answer names them (notNotified).
 //   The list goes with the session (session/deviceStore.js clear): what a technician wrote
 //   is not left for the next one on this phone.
 //
 // makeOutbox({ queue, api: { comments(id), post(id, body) }, timeZone(), now() }):
 //   list() — every entry;
-//   send({ key, estimateId, userId, text, afterId }) — keeps the entry, posts it; resolves to
-//     { result: 'sent', comment } | { result: 'failed' } | { result: 'gone' | 'refused' };
+//   send({ key, estimateId, userId, text, afterId, mentions }) — keeps the entry, posts it;
+//     resolves to { result: 'sent', comment, notNotified: [{ user_id, name }] } |
+//     { result: 'failed' } | { result: 'gone' | 'refused' };
 //   retry(key) — the same entry again, checked against the comments first;
 //   settleWith(estimateId, userId, comments) — drops the entries the server has;
 //   flushAll(userId) — every entry of this technician, estimate by estimate.
 import { commentBody, entriesOf, newEntry, sendFailure, settle, withEntry, withState, withoutKeys } from './model.js';
+import { refusedMentions } from './mentions.js';
 
 // A try older than this that got no answer is taken as lost (the request times out at 15 s)
 export const RECENT_MS = 60 * 1000;
@@ -36,22 +40,42 @@ export function makeOutbox({ queue, api, timeZone = () => null, now = () => Date
   };
   const change = (fn) => queue.update((b) => fn(Array.isArray(b) ? b : []), queue.mark());
 
-  async function post(entry) {
+  async function post(first) {
+    let entry = first;
     const tried = now();
     await change((b) => b.map((p) => (p.key === entry.key ? { ...p, tried } : p)));
-    try {
-      const answer = await api.post(entry.estimateId, commentBody(entry.text, timeZone()));
-      await change((b) => withoutKeys(b, [entry.key]));
-      return { result: 'sent', comment: answer && answer.comment ? answer.comment : null };
-    } catch (error) {
-      const why = sendFailure(error);
-      if (why === 'retry') {
-        await change((b) => withState(b, entry.key, 'failed'));
-        return { result: 'failed' };
+    for (;;) {
+      const mentions = Array.isArray(entry.mentions) ? entry.mentions : [];
+      try {
+        const answer = await api.post(entry.estimateId, commentBody(entry.text, timeZone(), { mentions, requestId: entry.key }));
+        await change((b) => withoutKeys(b, [entry.key]));
+        return { result: 'sent', comment: answer && answer.comment ? answer.comment : null, notNotified: entry.notNotified || [] };
+      } catch (error) {
+        const refused = refusedMentions(error);
+        // Nothing was written: the same key goes again, without the people refused (no ids —
+        // without any), so this loop ends
+        if (refused !== null && mentions.length) {
+          const named = mentions.filter((m) => refused.includes(Number(m.user_id)));
+          // the server named nobody of ours: every mention goes, so the next try has none
+          const out = named.length ? named : mentions;
+          const next = { ...entry, mentions: mentions.filter((m) => !out.includes(m)), notNotified: [...(entry.notNotified || []), ...out] };
+          entry = next;
+          await change((b) => b.map((p) => (p.key === next.key ? { ...p, mentions: next.mentions, notNotified: next.notNotified } : p)));
+          continue;
+        }
+        return failed(entry, error);
       }
-      await change((b) => withoutKeys(b, [entry.key]));
-      return { result: why };
     }
+  }
+
+  async function failed(entry, error) {
+    const why = sendFailure(error);
+    if (why === 'retry') {
+      await change((b) => withState(b, entry.key, 'failed'));
+      return { result: 'failed' };
+    }
+    await change((b) => withoutKeys(b, [entry.key]));
+    return { result: why };
   }
 
   async function guarded(key, run) {
@@ -60,9 +84,10 @@ export function makeOutbox({ queue, api, timeZone = () => null, now = () => Date
     try { return await run(); } finally { running.delete(key); }
   }
 
-  // afterId: the highest comment id the screen had when the message was written (model.js settle)
-  async function send({ key, estimateId, userId, text, afterId = null }) {
-    const entry = newEntry({ key, estimateId, userId, text, at: now(), afterId });
+  // afterId: the highest comment id the screen had when the message was written (model.js settle);
+  // mentions: [{ user_id, name }] picked and still in the text (mentions.js mentionsIn)
+  async function send({ key, estimateId, userId, text, afterId = null, mentions = [] }) {
+    const entry = newEntry({ key, estimateId, userId, text, at: now(), afterId, mentions });
     if (!entry.text) return { result: 'refused' };
     await change((b) => withEntry(b, entry));
     return guarded(key, () => post(entry));
